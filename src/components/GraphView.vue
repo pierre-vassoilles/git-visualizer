@@ -311,7 +311,7 @@ function handleBackdropClick(e: MouseEvent): void {
           <g
             v-for="(badge, idx) in getNodeBadges(node)"
             :key="`badge-${node.hash}-${idx}`"
-            :transform="`translate(${node.x + nodeRadius + 6}, ${node.y - 8 - (getNodeBadges(node).length - 1 - idx) * 18})`"
+            :transform="`translate(${node.x + nodeRadius + 6}, ${node.y - 12 - (getNodeBadges(node).length - 1 - idx) * 18})`"
             class="badge"
             :class="{
               'badge-head': badge.bgColor === '#dcfce7' || badge.bgColor === '#fee2e2',
@@ -371,7 +371,7 @@ function handleBackdropClick(e: MouseEvent): void {
         >
           <text
             x="0"
-            y="-3"
+            y="4"
             font-size="10"
             font-family="ui-monospace, monospace"
             fill="#333"
@@ -379,7 +379,7 @@ function handleBackdropClick(e: MouseEvent): void {
           >{{ node.snapshot.shortHash }}</text>
           <text
             x="0"
-            y="9"
+            y="16"
             font-size="9"
             font-family="system-ui, sans-serif"
             fill="#888"

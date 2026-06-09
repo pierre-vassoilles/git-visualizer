@@ -2465,6 +2465,8 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 6** mais seron
 
 **Phase 6 – Finitions et Developer Experience :**
 - `git help` / `git help <commande>` — Aide intégrée sur les commandes
+- **Builtin `clear`** : efface l'écran du terminal (comme sous Linux), sans toucher au dépôt
+- **Chaînage de commandes** : `;` enchaîne inconditionnellement, `&&` n'exécute la suivante que si la précédente a réussi. Ex. `git add . && git commit -m "msg"` ou `clear ; git log`. Les séparateurs entre guillemets (`-m "a; b"`) ne sont pas interprétés.
 - **Autocomplétion Tab** : complète les noms de commandes, flags, branches et tags
 - **Persistance automatique** : sauvegarde du dépôt dans localStorage, restauration au rechargement
 - **Scénarios pédagogiques** : 5 scénarios préchargés pour apprendre Git (Branche & Merge, Merge --no-ff, Conflit, Cherry-pick & Tag, Reset & Undo)

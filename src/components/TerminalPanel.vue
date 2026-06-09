@@ -5,6 +5,10 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { useRepoStore } from '@/stores/repo';
 import { autocomplete } from '@/utils/autocomplete';
+import { splitCommandChain } from '@/utils/shell';
+
+// Séquence ANSI pour effacer l'écran + le scrollback puis ramener le curseur en haut.
+const CLEAR_SCREEN = '\x1b[2J\x1b[3J\x1b[H';
 
 const repo = useRepoStore();
 const host = ref<HTMLDivElement | null>(null);
@@ -19,20 +23,42 @@ function write(text: string): void {
   term.write(text);
 }
 
+/**
+ * Exécute la ligne courante, en gérant le chaînage de commandes :
+ * - `;`  : exécute la commande suivante quoi qu'il arrive.
+ * - `&&` : exécute la suivante uniquement si la précédente a réussi (exitCode 0).
+ * Le builtin `clear` (effacement de l'écran) est traité ici, côté terminal.
+ */
 function runCurrentLine(): void {
-  const command = current;
+  const line = current;
   current = '';
   histIndex = -1;
   write('\r\n');
 
-  const result = repo.execute(command);
-  for (const line of result.output) {
-    write(`${line}\r\n`);
+  let lastOk = true;
+  for (const segment of splitCommandChain(line)) {
+    const command = segment.command.trim();
+    if (command === '') continue;
+    // Court-circuit du `&&` : on saute si la précédente a échoué.
+    if (segment.operator === '&&' && !lastOk) continue;
+
+    if (command === 'clear') {
+      write(CLEAR_SCREEN);
+      lastOk = true;
+      continue;
+    }
+
+    const result = repo.execute(command);
+    for (const out of result.output) {
+      write(`${out}\r\n`);
+    }
+    for (const err of result.errors) {
+      // Rouge ANSI pour stderr.
+      write(`\x1b[31m${err}\x1b[0m\r\n`);
+    }
+    lastOk = result.exitCode === 0;
   }
-  for (const line of result.errors) {
-    // Rouge ANSI pour stderr.
-    write(`\x1b[31m${line}\x1b[0m\r\n`);
-  }
+
   // Réécrit le prompt sans saut de ligne superflu.
   write(PROMPT);
 }
@@ -54,7 +80,11 @@ function replaceLine(next: string): void {
  */
 function handleTab(): void {
   const catalog = repo.getCatalog();
-  const result = autocomplete(current, catalog, repo.snapshot);
+  // Autocomplète le DERNIER segment d'une éventuelle chaîne (`a && b`, `a ; b`),
+  // le suffixe renvoyé restant valide pour un simple append sur la ligne courante.
+  const segments = splitCommandChain(current);
+  const lastSegment = segments[segments.length - 1]?.command.replace(/^\s+/, '') ?? current;
+  const result = autocomplete(lastSegment, catalog, repo.snapshot);
 
   if (result.candidates.length === 0) {
     // Rien à proposer — ne rien faire
