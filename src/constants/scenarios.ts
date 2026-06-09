@@ -168,6 +168,154 @@ export const SCENARIOS: Scenario[] = [
       'git reset --hard HEAD@{1}',
     ],
   },
+
+  // -------------------------------------------------------------------
+  // Scénario 6 : Git Flow (main / dev / staging + branches de feature)
+  // -------------------------------------------------------------------
+  // NB : le moteur refuse les '/' dans les noms de branches, on nomme donc
+  // les features "feat-login" / "feat-dashboard" plutôt que "feature/login".
+  {
+    id: 'git-flow',
+    title: 'Git Flow (main / dev / staging)',
+    description:
+      'Arbre Git Flow complet : développement sur dev via branches de feature, recette sur staging, release taguée sur main, puis back-merge sur dev.',
+    category: 'Git Flow',
+    difficulty: 3,
+    commands: [
+      'git init',
+      'write README.md "# Projet"',
+      'git add README.md',
+      'git commit -m "C1: init du dépôt (main)"',
+      // Branche d'intégration dev
+      'git checkout -b dev',
+      'write app.js "app v1"',
+      'git add app.js',
+      'git commit -m "C2: socle applicatif (dev)"',
+      // Feature 1 : login
+      'git checkout -b feat-login',
+      'write login.js "login()"',
+      'git add login.js',
+      'git commit -m "C3: écran de login (feat-login)"',
+      'write login.js "login() + validate()"',
+      'git add login.js',
+      'git commit -m "C4: validation du login"',
+      'git checkout dev',
+      'git merge --no-ff feat-login -m "Merge feat-login dans dev"',
+      // Feature 2 : dashboard
+      'git checkout -b feat-dashboard',
+      'write dashboard.js "dashboard()"',
+      'git add dashboard.js',
+      'git commit -m "C5: tableau de bord (feat-dashboard)"',
+      'git checkout dev',
+      'git merge --no-ff feat-dashboard -m "Merge feat-dashboard dans dev"',
+      // Recette sur staging
+      'git checkout -b staging',
+      'write CHANGELOG.md "v1.0.0-rc"',
+      'git add CHANGELOG.md',
+      'git commit -m "C6: préparation de la release (staging)"',
+      // Release sur main + tag
+      'git checkout main',
+      'git merge --no-ff staging -m "Release v1.0.0"',
+      'git tag v1.0.0',
+      // Back-merge de main vers dev, puis nouvelle itération
+      'git checkout dev',
+      'git merge --no-ff main -m "Back-merge main dans dev (post-release)"',
+      'write app.js "app v1 + iteration 2"',
+      'git add app.js',
+      'git commit -m "C7: début de l\'itération 2 (dev)"',
+    ],
+  },
+
+  // -------------------------------------------------------------------
+  // Scénario 7 : Plusieurs branches divergentes (fan-out)
+  // -------------------------------------------------------------------
+  {
+    id: 'multi-branch',
+    title: 'Branches divergentes multiples',
+    description:
+      'Quatre branches issues d\'un même commit, à des états différents (1 à 3 commits chacune), sans fusion : illustre les lanes et couleurs du graphe.',
+    category: 'Branches',
+    difficulty: 2,
+    commands: [
+      'git init',
+      'write base.txt "base commune"',
+      'git add base.txt',
+      'git commit -m "C1: base commune"',
+      // feature-a : 3 commits
+      'git checkout -b feature-a',
+      'write a.txt "a1"',
+      'git add a.txt',
+      'git commit -m "A1: feature-a"',
+      'write a.txt "a1 a2"',
+      'git add a.txt',
+      'git commit -m "A2: feature-a"',
+      'write a.txt "a1 a2 a3"',
+      'git add a.txt',
+      'git commit -m "A3: feature-a"',
+      // feature-b : 2 commits (depuis C1)
+      'git checkout main',
+      'git checkout -b feature-b',
+      'write b.txt "b1"',
+      'git add b.txt',
+      'git commit -m "B1: feature-b"',
+      'write b.txt "b1 b2"',
+      'git add b.txt',
+      'git commit -m "B2: feature-b"',
+      // feature-c : 1 commit (depuis C1)
+      'git checkout main',
+      'git checkout -b feature-c',
+      'write c.txt "c1"',
+      'git add c.txt',
+      'git commit -m "C-1: feature-c"',
+      // main progresse de son côté
+      'git checkout main',
+      'write base.txt "base commune + main"',
+      'git add base.txt',
+      'git commit -m "C2: main progresse"',
+    ],
+  },
+
+  // -------------------------------------------------------------------
+  // Scénario 8 : Rebase d'une feature sur une branche dev mise à jour
+  // -------------------------------------------------------------------
+  {
+    id: 'feature-rebase',
+    title: 'Rebase d\'une feature sur dev',
+    description:
+      'Une feature est rebasée sur dev qui a avancé entre-temps (réécriture des hashes), puis fusionnée en fast-forward et taguée.',
+    category: 'Réécriture',
+    difficulty: 3,
+    commands: [
+      'git init',
+      'write core.txt "noyau"',
+      'git add core.txt',
+      'git commit -m "C1: noyau (main)"',
+      'git checkout -b dev',
+      'write service.js "service v0"',
+      'git add service.js',
+      'git commit -m "C2: service (dev)"',
+      // Démarrage de la feature
+      'git checkout -b feature',
+      'write feature.js "feature A"',
+      'git add feature.js',
+      'git commit -m "F1: feature partie 1"',
+      'write feature.js "feature A + B"',
+      'git add feature.js',
+      'git commit -m "F2: feature partie 2"',
+      // dev avance en parallèle (fichier différent → pas de conflit)
+      'git checkout dev',
+      'write service.js "service v0 + v1"',
+      'git add service.js',
+      'git commit -m "C3: dev avance pendant la feature"',
+      // Rebase de la feature sur dev → nouveaux hashes pour F1/F2
+      'git checkout feature',
+      'git rebase dev',
+      // Intégration en fast-forward + tag
+      'git checkout dev',
+      'git merge feature',
+      'git tag v2.0',
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
