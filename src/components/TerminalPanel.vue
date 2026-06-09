@@ -4,6 +4,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { useRepoStore } from '@/stores/repo';
+import { autocomplete } from '@/utils/autocomplete';
 
 const repo = useRepoStore();
 const host = ref<HTMLDivElement | null>(null);
@@ -43,10 +44,43 @@ function replaceLine(next: string): void {
   current = next;
 }
 
+/**
+ * Gestion de la touche Tab : autocomplétion basée sur le catalogue du moteur.
+ *
+ * - 0 candidat : ne fait rien.
+ * - 1 candidat : insère le suffixe directement dans la ligne courante.
+ * - N candidats : affiche la liste en dessous du prompt (ANSI cyan), puis
+ *   réaffiche le prompt + la ligne courante intacte.
+ */
+function handleTab(): void {
+  const catalog = repo.getCatalog();
+  const result = autocomplete(current, catalog, repo.snapshot);
+
+  if (result.candidates.length === 0) {
+    // Rien à proposer — ne rien faire
+    return;
+  }
+
+  if (result.candidates.length === 1) {
+    // Complétion unique : insérer le suffixe dans la ligne courante
+    const newLine = current + result.completion;
+    replaceLine(newLine);
+    return;
+  }
+
+  // Plusieurs candidats : afficher la liste, puis réafficher prompt + ligne
+  write('\r\n');
+  write('\x1b[36m' + result.candidates.join('  ') + '\x1b[0m\r\n');
+  write(PROMPT + current);
+}
+
 function onData(data: string): void {
   switch (data) {
     case '\r': // Entrée
       runCurrentLine();
+      break;
+    case '	': // Tab
+      handleTab();
       break;
     case '': // Backspace
       if (current.length > 0) {
@@ -97,7 +131,7 @@ onMounted(() => {
   fit.fit();
 
   write('Git Visualizer — terminal virtuel\r\n');
-  write("Tapez une commande git (le moteur arrive en phase 1).\r\n");
+  write("Tapez une commande git (ex. \x1b[36mgit init\x1b[0m). \x1b[2mTab\x1b[0m = autocomplétion, \x1b[2mgit help\x1b[0m = aide.\r\n");
   write(PROMPT);
 
   term.onData(onData);

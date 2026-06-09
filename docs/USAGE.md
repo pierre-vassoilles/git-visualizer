@@ -1893,15 +1893,533 @@ def5678 Feature WIP
 
 ---
 
-## À venir en Phase 6+
+---
 
-Les fonctionnalités suivantes ne sont **pas disponibles en Phase 5** mais seront implémentées ultérieurement :
+## Finitions et DX (Phase 6)
 
-- **Finitions et polish** : Autocomplétion des noms de branches/tags, persistance locale du dépôt, scénarios préchargés pour démonstration
-- **Historique avancé** : `git log -p` (affichage des diffs), `git log --follow` (historique des fichiers renommés), `git diff` (comparaison précise)
+### Aide intégrée (`git help`)
+
+Pour découvrir les commandes disponibles, utilisez `git help`.
+
+#### `git help` — Afficher l'aide générale
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git help` ou `git --help` ou `git` (sans arguments) |
+| **Description** | Affiche la liste de toutes les commandes disponibles, groupées par catégorie |
+
+**Exemple** :
+
+```bash
+$ git help
+usage: git [--help] [<commande>]
+
+Initialisation & Configuration
+  init          Initialiser un dépôt Git vierge
+
+Fichiers & Index
+  add           Ajouter des fichiers à l'index
+  status        Afficher l'état du dépôt
+  restore       Restaurer fichiers dans l'index ou le working tree
+  write         Écrire des fichiers dans le working tree virtuel
+  read          Lire des fichiers du working tree virtuel
+
+Commits
+  commit        Créer un commit avec les fichiers stagés
+  log           Afficher l'historique des commits
+
+Branches
+  branch        Créer, lister ou supprimer des branches
+  checkout      Basculer de branche ou repositionner HEAD
+  switch        Basculer de branche (variante de checkout)
+  tag           Créer, lister ou supprimer des étiquettes
+
+Fusion & Réécriture
+  merge         Fusionner une branche dans la branche courante
+  reset         Réinitialiser HEAD et l'index
+  revert        Créer un commit qui annule les changements
+  cherry-pick   Appliquer les changements d'un commit ailleurs
+  rebase        Rejouer les commits sur une nouvelle base
+
+Outils avancés
+  stash         Mettre de côté temporairement des changements
+  reflog        Afficher l'historique des mouvements de HEAD
+
+Aide
+  help          Afficher cette aide
+
+Use 'git help <command>' for more information.
+```
+
+#### `git help <commande>` — Aide détaillée
+
+Pour obtenir l'aide détaillée d'une commande spécifique, utilisez `git help <commande>`.
+
+**Exemples** :
+
+```bash
+# Aide détaillée sur git commit
+$ git help commit
+NAME
+  git commit - Créer un commit avec les fichiers stagés
+
+SYNOPSIS
+  git commit [options]
+
+DESCRIPTION
+  Enregistre les changements actuels de l'index dans un nouveau commit.
+  Le message du commit est obligatoire (-m) ; en son absence, une erreur est retournée.
+
+OPTIONS
+  -m <message>  Message du commit
+
+EXAMPLES
+  git commit -m "Initial commit"
+  git commit -m "Fix bug #123"
+
+EXIT CODES
+  0  Succès
+  1  Erreur (ex: nothing to commit, bad message)
+  128 Dépôt non initialisé
+```
+
+**Cas d'erreur** : Commande inconnue
+
+```bash
+$ git help nosuchcommand
+fatal: git 'nosuchcommand' is not a git command. See 'git help'.
+```
+
+---
+
+### Autocomplétion du terminal (Tab)
+
+Le terminal propose une autocomplétion intelligente quand vous appuyez sur la touche **Tab**.
+
+#### Autocomplétion des noms de commandes
+
+Si vous commencez à taper une commande, appuyez sur Tab pour compléter automatiquement.
+
+**Cas 1 : Un seul candidat → complétion automatique**
+
+```bash
+$ git com[Tab]
+$ git commit        # Auto-complété
+```
+
+**Cas 2 : Plusieurs candidats → affichage d'une liste**
+
+```bash
+$ git ch[Tab]
+checkout
+cherry-pick
+
+$ git ch█           # Vous pouvez continuer à taper
+```
+
+#### Autocomplétion des flags
+
+Après le nom de la commande, vous pouvez compléter les flags (drapeaux).
+
+**Exemple** :
+
+```bash
+$ git reset --[Tab]
+--soft
+--mixed
+--hard
+
+$ git reset --s[Tab]
+$ git reset --soft      # Auto-complété
+```
+
+#### Autocomplétion des noms de branches et tags
+
+Quand une commande attend un argument (branche ou tag), Tab vous propose les noms disponibles.
+
+**Exemple** :
+
+```bash
+# Complète les noms de branches disponibles
+$ git checkout [Tab]
+main
+feature
+hotfix
+
+$ git checkout fe[Tab]
+$ git checkout feature    # Auto-complété si un seul candidat
+```
+
+**Cas avec plusieurs refs** :
+
+```bash
+# Branche et tags mélangés
+$ git checkout [Tab]
+main
+feature
+release
+v1.0
+v2.0
+```
+
+#### Comment utiliser
+
+1. Tapez un début de commande, flag ou nom de branche
+2. Appuyez sur **Tab**
+3. Si un seul candidat : complétion automatique
+4. Si plusieurs candidats : affichage d'une liste ; continuez à taper pour filtrer
+
+---
+
+### Persistance : Sauvegarde automatique de la session
+
+Vos commandes et l'état du dépôt sont sauvegardés automatiquement dans le navigateur. Si vous fermez et rouvrez la page, tout est restauré.
+
+#### Sauvegarde automatique
+
+Chaque fois que vous exécutez une commande avec succès (exit code 0), l'historique est enregistré localement.
+
+```bash
+$ git init
+$ git add file.txt
+$ git commit -m "First commit"
+# À chaque succès, la session est sauvegardée
+```
+
+#### Rechargement de la page
+
+En fermant la page (ou rafraîchissant), l'historique est conservé dans le **localStorage** du navigateur. À la prochaine visite :
+
+1. Toutes les commandes antérieures sont rejouées silencieusement
+2. L'état du dépôt est restauré exactement
+3. Vous continuez comme si la page n'avait jamais été fermée
+
+**Important** : La persistance utilise le **localStorage du navigateur**, ce qui signifie :
+- Les données sont locales (pas de serveur)
+- Elles persistent tant que vous ne videz pas le cache du navigateur
+- Elles ne se synchronisent pas entre appareils
+
+#### Réinitialisation manuelle
+
+Pour repartir de zéro et nettoyer la sauvegarde, utilisez le bouton **Reset** visible dans la barre latérale des références (RefsSidebar à gauche).
+
+```bash
+# Alternativement, vous pouvez réinitialiser manuellement
+# en cherchant le bouton [Reset History] dans la sidebar
+```
+
+Après un reset :
+1. localStorage est vidé
+2. Le dépôt est réinitialisé (vierge)
+3. Vous commencez une nouvelle session
+
+---
+
+### Scénarios pédagogiques préchargés
+
+Git Visualizer propose une série de scénarios d'apprentissage prêts à l'emploi. Chaque scénario charge un petit dépôt avec une sequence prédéfinie de commandes pour démontrer un concept Git clé.
+
+#### Liste des scénarios disponibles
+
+Vous trouverez les scénarios dans la **barre latérale de gauche** (RefsSidebar), section "Scénarios d'apprentissage" (ou accédez-les via un panneau dédié).
+
+##### 1. Branche & Merge (Facile)
+
+**Description** : Créer une branche, ajouter des commits, puis fusionner dans main.
+
+**Concept** : Workflow de base avec branches.
+
+**Commandes exécutées** :
+```bash
+git init
+write main.txt "Main content"
+git add main.txt
+git commit -m "Initial commit on main"
+git branch feature
+git checkout feature
+write feature.txt "Feature content"
+git add feature.txt
+git commit -m "Add feature"
+git checkout main
+git merge feature
+```
+
+**Résultat** : Vous voyez un graphe avec deux branches qui convergent. Le merge est un fast-forward (main avance simplement pour pointer feature).
+
+---
+
+##### 2. Merge --no-ff (Facile)
+
+**Description** : Forcer la création d'un commit de merge explicite, même quand un fast-forward serait possible.
+
+**Concept** : Différence entre fast-forward et true merge.
+
+**Commandes exécutées** :
+```bash
+git init
+write main.txt "Main content"
+git add main.txt
+git commit -m "C1: main"
+git branch hotfix
+git checkout hotfix
+write hotfix.txt "Hotfix content"
+git add hotfix.txt
+git commit -m "C2: hotfix"
+git checkout main
+git merge --no-ff hotfix -m "Merge branch hotfix"
+```
+
+**Résultat** : Vous voyez un commit de merge avec deux parents (historique branché et fusionné explicitement).
+
+---
+
+##### 3. Conflit de Merge & Résolution (Moyen)
+
+**Description** : Modifier le même fichier sur deux branches, créer un conflit, puis le résoudre.
+
+**Concept** : Gestion des conflits de merge.
+
+**Commandes exécutées** (partiellement) :
+```bash
+git init
+write data.txt "Initial data"
+git add data.txt
+git commit -m "C1: Initial"
+git branch feature
+git checkout feature
+write data.txt "Feature edit: line1\nfeature line"
+git add data.txt
+git commit -m "C2: feature edits"
+git checkout main
+write data.txt "Main edit: line1\nmain line"
+git add data.txt
+git commit -m "C3: main edits"
+git merge feature
+# À ce point, CONFLIT ! Les deux branches ont modifié data.txt différemment
+# Le fichier contient des marqueurs <<<<< / ======= / >>>>>
+write data.txt "Merged: line1\nboth edits combined"
+git add data.txt
+git commit -m "C4: Resolve conflict"
+```
+
+**Résultat** : Vous voyez un graphe avec un merge, et vous apprenez comment résoudre les marqueurs de conflit.
+
+---
+
+##### 4. Cherry-pick & Tagging (Moyen)
+
+**Description** : Sélectionner un commit spécifique d'une branche et l'appliquer ailleurs, puis tagguer.
+
+**Concept** : Cherry-pick pour dupliquer des commits, tags pour marquer les releases.
+
+**Commandes exécutées** :
+```bash
+git init
+write main.txt "Main initial"
+git add main.txt
+git commit -m "C1: main initial"
+git branch feature
+git checkout feature
+write feature.txt "Important feature"
+git add feature.txt
+git commit -m "C2: important feature"
+write extra.txt "Extra stuff"
+git add extra.txt
+git commit -m "C3: extra stuff"
+git checkout main
+git cherry-pick feature~1
+# Applique C2 sur main (création d'un nouveau commit)
+git tag v1.0
+git checkout feature
+git tag feature-tip
+```
+
+**Résultat** : Vous voyez comment cherry-pick crée un nouveau commit avec le même contenu, et comment les tags marquent des points importants.
+
+---
+
+##### 5. Reset & Undo via Reflog (Moyen)
+
+**Description** : Réinitialiser accidentellement, puis restaurer via reflog.
+
+**Concept** : Undo et recovery après un reset malheureux.
+
+**Commandes exécutées** :
+```bash
+git init
+write f1.txt "First file"
+git add f1.txt
+git commit -m "C1: Good state"
+write f2.txt "Second file"
+git add f2.txt
+git commit -m "C2: Still good"
+git reset --hard main~1
+# Oups ! On "perd" C2 (mais il reste dans le reflog)
+git reset --hard HEAD@{1}
+# Undo ! On restaure C2 en se repositionnant via reflog
+```
+
+**Résultat** : Vous voyez comment le reflog enregistre tous les mouvements de HEAD, et comment `HEAD@{n}` vous permet de récupérer des commits "perdus".
+
+---
+
+#### Comment charger un scénario
+
+1. Repérez la section **Scénarios d'apprentissage** dans la barre latérale (RefsSidebar) ou dans le panneau dédié
+2. Cliquez sur le scénario que vous voulez charger (ex. "Branche & Merge")
+3. Une confirmation peut vous demander "Êtes-vous sûr ?" (le dépôt sera réinitialisé)
+4. Le scénario se charge : toutes les commandes sont exécutées, et le graphe se construit
+
+#### Important : Réinitialisation lors du chargement
+
+Charger un scénario **réinitialise le dépôt**. Tout travail antérieur est perdu. Si vous voulez conserver votre travail, créez une branche ou exportez avant de charger un scénario.
+
+#### Après le chargement
+
+Une fois un scénario chargé, vous pouvez :
+- **Explorer** le graphe : zoom, pan, hover sur les commits
+- **Modifier** : exécuter d'autres commandes pour expérimenter
+- **Recharger** : charger un autre scénario ou reset pour recommencer
+
+---
+
+### Barre latérale des références (RefsSidebar)
+
+La **RefsSidebar** est la zone de gauche affichant l'état du dépôt en temps réel.
+
+#### Sections de la sidebar
+
+##### Branches
+
+Affiche la liste des branches locales. Un `[*]` indique laquelle a HEAD, `[ ]` pour les autres.
+
+```
+Branches
+  [*] main          7f3e2d1
+  [ ] feature       a7c2e5d
+  [ ] hotfix        xyz1234
+```
+
+Vous pouvez cliquer sur une branche pour la basculer (optionnel ; tapez aussi `git checkout <branche>` dans le terminal).
+
+---
+
+##### HEAD
+
+Indique où HEAD pointe actuellement.
+
+**Mode symbolique** (normal) :
+```
+HEAD
+  symbolic: true
+  → refs/heads/main
+```
+
+**Mode détaché** (WARNING) :
+```
+HEAD
+  detached: true
+  → abc1234 (short hash)
+```
+
+Un HEAD détaché apparaît avec une couleur orange/warning pour vous alerter que vous êtes sur un commit sans branche.
+
+---
+
+##### Tags
+
+Affiche tous les tags (étiquettes) du dépôt, avec le hash court du commit pointé.
+
+```
+Tags
+  v1.0 (abc1234)
+  v1.1 (def5678)
+  release (abc1234)
+```
+
+---
+
+##### Opération en cours
+
+Si une opération Git est en cours (merge, rebase, cherry-pick), une section **⚠ Opération en cours** s'affiche avec les détails.
+
+**Exemple : Merge en cours avec conflit**
+
+```
+⚠ Opération en cours
+  Merging
+  Source: feature
+  Conflicts: 1 file
+  
+  [Continue] [Abort]
+```
+
+**Exemple : Rebase en cours**
+
+```
+⚠ Opération en cours
+  Rebasing
+  Base: main
+  Progress: 2/3 commits
+  
+  [Continue] [Abort]
+```
+
+Les boutons :
+- **[Continue]** : poursuit l'opération après résolution de conflits
+- **[Abort]** : annule l'opération et revient à l'état avant
+
+---
+
+##### Stash
+
+Si vous avez des modifications sauvegardées en stash, un compteur s'affiche.
+
+```
+Stash
+  Count: 2
+  
+  stash@{0}: WIP on main: abc1234
+  stash@{1}: WIP on feature: def5678
+```
+
+---
+
+##### Commandes récentes
+
+Les 5-10 dernières commandes exécutées, les plus récentes en haut.
+
+```
+Commandes récentes
+  > git checkout main
+  > git merge feature
+  > git add file.txt
+  > git commit -m "Test"
+  > git init
+  
+  [Reset History]
+```
+
+Le bouton **[Reset History]** nettoie l'historique et réinitialise le dépôt (confirmation demandée).
+
+---
+
+#### Mise à jour réactive
+
+La sidebar se met à jour **automatiquement** après chaque commande. Vous n'avez pas besoin de rafraîchir.
+
+---
+
+## À venir en Phase 7+
+
+Les fonctionnalités suivantes ne sont **pas disponibles en Phase 6** mais seront implémentées ultérieurement :
+
+- **Interactions avancées** : Clic sur une branche pour checkout, clic sur tag pour inspect
+- **Historique avancé** : `git log -p` (affichage des diffs), `git log --follow` (historique des fichiers renommés)
 - **Shell interactif** : Un shell complet avec `echo`, `cat`, `touch`, etc.
+- **Export/Import** : Sauvegarder une session en fichier, charger depuis un fichier
 
-**Phase 5 complète les opérations Git avancées** : rebase interactif avec édition visuelle, stash pour ranger les modifications, et reflog pour retrouver les commits "perdus". L'arsenal de Git est maintenant complet pour les workflows de développement sophistiqués !
+**Phase 6 complète les opérations Git avancées avec une DX (Developer Experience) polie** : aide intégrée, autocomplétion intelligente, persistance automatique, scénarios pédagogiques, et une sidebar riche pour explorer l'état du dépôt. Vous avez maintenant un environnement complet pour apprendre et expérimenter Git !
 
 ---
 
@@ -1945,6 +2463,13 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 5** mais seron
 - **Révisions** : `HEAD@{n}` pour accéder aux états antérieurs du reflog
 - **Résolution de conflits avancée** : gestion des conflits lors du squash et du rebase interactif
 
+**Phase 6 – Finitions et Developer Experience :**
+- `git help` / `git help <commande>` — Aide intégrée sur les commandes
+- **Autocomplétion Tab** : complète les noms de commandes, flags, branches et tags
+- **Persistance automatique** : sauvegarde du dépôt dans localStorage, restauration au rechargement
+- **Scénarios pédagogiques** : 5 scénarios préchargés pour apprendre Git (Branche & Merge, Merge --no-ff, Conflit, Cherry-pick & Tag, Reset & Undo)
+- **RefsSidebar enrichie** : affichage de branches, HEAD, tags, opération en cours, stash, commandes récentes, avec boutons d'interaction
+
 ### Workflow complet
 
 1. Initialisez un dépôt (`git init`)
@@ -1954,5 +2479,7 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 5** mais seron
 5. **Visualisez votre historique en graphe** (Phase 3)
 6. **Fusionnez, rebasez, et réécrivez votre historique** (Phase 4)
 7. **Utilisez les outils avancés** : rebase interactif, stash, reflog (Phase 5)
+8. **Découvrez avec autocomplétion et aide** : tap Tab pour compléter, `git help` pour apprendre (Phase 6)
+9. **Chargez des scénarios** pour apprendre, explorez la sidebar pour maîtriser l'état (Phase 6)
 
-Vous pouvez explorer et maîtriser votre dépôt Git directement dans le terminal web avec un contrôle complet du workflow collaboratif : création de branches, fusion, réécriture d'historique, rebase interactif avec édition visuelle, gestion des modifications temporaires via stash, et recuperation des commits "perdus" via reflog. Tout cela avec une vue d'ensemble visuelle et intuitive grâce au graphe interactif !
+Vous pouvez explorer et maîtriser votre dépôt Git directement dans le terminal web avec un contrôle complet du workflow collaboratif : création de branches, fusion, réécriture d'historique, rebase interactif avec édition visuelle, gestion des modifications temporaires via stash, et récupération des commits "perdus" via reflog. Tout cela avec une vue d'ensemble visuelle et intuitive grâce au graphe interactif, aidé par l'autocomplétion intelligente, les scénarios pédagogiques, et une sidebar enrichie pour maîtriser chaque aspect du dépôt !

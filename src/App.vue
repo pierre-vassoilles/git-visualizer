@@ -1,8 +1,17 @@
 <script setup lang="ts">
+import { onMounted } from 'vue';
 import GraphView from '@/components/GraphView.vue';
 import TerminalPanel from '@/components/TerminalPanel.vue';
 import RefsSidebar from '@/components/RefsSidebar.vue';
 import InteractiveRebaseModal from '@/components/InteractiveRebaseModal.vue';
+import { useRepoStore } from '@/stores/repo';
+
+const store = useRepoStore();
+
+// PHASE 6 : Restaurer la session depuis localStorage avant toute interaction utilisateur.
+onMounted(() => {
+  store.loadFromStorage();
+});
 </script>
 
 <template>

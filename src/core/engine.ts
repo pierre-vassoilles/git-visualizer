@@ -1,5 +1,6 @@
 import { ok, type CommandResult } from './types';
 import type { Repository, TodoItem } from './model';
+import { type CommandCatalog, type Flag, getCatalog, getCommandFlags, getCommandNames } from './catalog';
 import { createEmptyRepo, currentBranch, flattenTree, getCommitHistoryWithHashes, headCommitHash } from './repository';
 import { hashBlob } from './objectStore';
 import { dispatch } from './parser';
@@ -271,6 +272,32 @@ export class GitEngine {
   executeRebaseInteractive(todoList: TodoItem[]): CommandResult {
     const result = executeRebaseInteractive(this.repo, todoList);
     return result;
+  }
+
+  // ---------------------------------------------------------------------------
+  // API catalogue (Phase 6) — consommée par l'UI pour l'autocomplétion
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Retourne la liste triée alphabétiquement des noms de commandes disponibles.
+   * Aucune liste de commandes ne doit être hardcodée côté UI.
+   */
+  getCommandNames(): string[] {
+    return getCommandNames();
+  }
+
+  /**
+   * Retourne les flags supportés par une commande, ou [] si la commande est inconnue.
+   */
+  getCommandFlags(name: string): Flag[] {
+    return getCommandFlags(name);
+  }
+
+  /**
+   * Retourne le catalogue complet (version, commandes groupées, lookup).
+   */
+  getCatalog(): CommandCatalog {
+    return getCatalog();
   }
 
   /**

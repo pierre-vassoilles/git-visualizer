@@ -27,6 +27,7 @@ import { cmdCherryPick } from './commands/cherry-pick';
 import { cmdRebase } from './commands/rebase';
 import { cmdStash } from './commands/stash';
 import { cmdReflog } from './commands/reflog';
+import { cmdHelp } from './commands/help';
 
 // ---------------------------------------------------------------------------
 // Tokenisation
@@ -114,8 +115,10 @@ export function dispatch(repo: Repository, input: string): CommandResult {
   }
 
   const subcommand = tokens[1];
-  if (!subcommand) {
-    return ok(['usage: git <command> [<args>]']);
+
+  // `git` sans sous-commande ou `git --help` → aide générale
+  if (!subcommand || subcommand === '--help') {
+    return cmdHelp(repo, []);
   }
 
   const rest = tokens.slice(2);
@@ -171,6 +174,9 @@ export function dispatch(repo: Repository, input: string): CommandResult {
 
     case 'reflog':
       return cmdReflog(repo, rest);
+
+    case 'help':
+      return cmdHelp(repo, rest);
 
     default:
       return fail([`git: '${subcommand}' is not a git command. See 'git --help'.`]);
