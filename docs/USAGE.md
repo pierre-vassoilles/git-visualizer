@@ -1,0 +1,400 @@
+# Guide d'utilisation - Git Visualizer (Phase 1)
+
+## À quoi sert cet outil ?
+
+Git Visualizer est un terminal web qui réimplémente les fonctionnalités Git essentielles en TypeScript. Il permet de créer un dépôt Git, d'ajouter des fichiers, de consulter l'état du dépôt, et de visualiser l'historique des commits.
+
+**Important :** Il n'existe pas de vrai système de fichiers. Pour créer et modifier des fichiers dans le working tree (espace de travail virtuel), utilisez les commandes utilitaires `write` et `read` décrites ci-après.
+
+---
+
+## Commandes disponibles en Phase 1
+
+### Utilitaires du working tree (non-Git)
+
+Ces commandes permettent de gérer les fichiers virtuels. Elles ne font pas partie du standard Git, mais sont essentielles pour tester les fonctionnalités.
+
+#### `write` — Créer ou modifier un fichier
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `write <chemin> [contenu]` |
+| **Description** | Crée ou remplace un fichier dans le working tree |
+| **Options** | Aucune |
+
+**Exemples :**
+
+```bash
+# Créer un fichier avec contenu
+write README.md "# Mon Projet"
+
+# Créer un fichier vide
+write notes.txt
+
+# Créer un fichier dans un sous-dossier (crée les dossiers automatiquement)
+write src/main.ts "console.log('Hello')"
+```
+
+**Code de sortie :** 0 (succès) | 1 (chemin invalide)
+
+---
+
+#### `read` — Afficher le contenu d'un fichier
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `read <chemin>` |
+| **Description** | Affiche le contenu d'un fichier du working tree |
+| **Options** | Aucune |
+
+**Exemples :**
+
+```bash
+read README.md
+# Affiche le contenu du fichier
+```
+
+**Code de sortie :** 0 (succès) | 1 (fichier non trouvé)
+
+---
+
+### Commandes Git
+
+#### `git init` — Initialiser un dépôt
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git init` |
+| **Description** | Initialise un dépôt Git vierge avec une branche `main` |
+| **Options** | Aucune en Phase 1 |
+
+**Exemple :**
+
+```bash
+git init
+# Initialized empty Git repository in ./.git/
+```
+
+**Code de sortie :** 0 (succès ou dépôt déjà initialisé)
+
+---
+
+#### `git add` — Stager des fichiers
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git add <chemin...>` ou `git add .` |
+| **Description** | Enregistre les fichiers du working tree dans l'index (staging area) en vue du prochain commit |
+| **Options** | Aucune en Phase 1 |
+
+**Exemples :**
+
+```bash
+# Ajouter un fichier spécifique
+git add README.md
+
+# Ajouter plusieurs fichiers
+git add file1.txt file2.txt src/main.ts
+
+# Ajouter tous les fichiers
+git add .
+```
+
+**Comportement :**
+- Calcule le hash SHA-1 de chaque fichier
+- Stocke l'entrée dans l'index (index vide après init)
+- Pas de sortie en cas de succès
+
+**Code de sortie :** 0 (succès) | 1 (fichier non trouvé) | 128 (dépôt non initialisé)
+
+---
+
+#### `git status` — Afficher l'état du dépôt
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git status [options]` |
+| **Description** | Affiche l'état du dépôt : fichiers stagés, modifiés, non-trackés |
+| **Options** | `-s` ou `--short` (affichage compact, optionnel en Phase 1) |
+
+**Exemples :**
+
+```bash
+# Affichage long (verbose)
+git status
+
+# Affichage court
+git status -s
+```
+
+**Format long :**
+
+```
+On branch main
+
+No commits yet
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        file1.txt
+
+nothing added to commit but untracked files present (use "git add" to track)
+```
+
+Ou (après des commits) :
+
+```
+On branch main
+
+Changes to be committed:
+  (use "git commit" to finalize)
+        new file:   newfile.txt
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+        modified:   existing.txt
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        untracked.txt
+```
+
+**Format court (`-s`) :**
+
+```
+?? untracked.txt
+A  staged.txt
+M  modified.txt
+```
+
+| Code | Sens |
+|------|------|
+| `??` | Non-tracké |
+| `A ` | Ajouté (new file, stagé) |
+| `M ` | Modifié (stagé) |
+| ` M` | Modifié (non-stagé) |
+| `D ` | Supprimé (stagé) |
+| ` D` | Supprimé (non-stagé) |
+
+**Code de sortie :** 0 (quel que soit l'état)
+
+---
+
+#### `git commit` — Créer un commit
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git commit -m "<message>"` |
+| **Description** | Crée un commit à partir du contenu de l'index (staging area) |
+| **Options** | `-m <message>` (obligatoire en Phase 1) |
+
+**Exemple :**
+
+```bash
+git commit -m "Initial commit"
+# [main (root-commit) abc1234] Initial commit
+```
+
+**Comportement :**
+1. Crée un arbre (tree) représentant l'état de tous les fichiers stagés
+2. Crée un commit pointant vers ce tree avec le message fourni
+3. Met à jour la branche courante (main) pour pointer vers ce nouveau commit
+4. Vide l'index
+
+**Code de sortie :** 0 (succès) | 1 (index vide, message vide, etc.) | 128 (dépôt non initialisé)
+
+---
+
+#### `git log` — Afficher l'historique des commits
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git log [options]` |
+| **Description** | Affiche l'historique des commits en remontant de HEAD à la racine |
+| **Options** | `--oneline` (affichage court, optionnel) ; `--graph` (graphique ASCII, optionnel) |
+
+**Exemples :**
+
+```bash
+# Affichage long
+git log
+
+# Affichage court (une ligne par commit)
+git log --oneline
+```
+
+**Format long :**
+
+```
+commit abc1234567890def1234567890def1234567890
+Author: Unnamed <unnamed@example.com>
+Date:   Mon Jun 9 12:00:00 2025 +0000
+
+    Message du commit
+
+commit def1234567890abc1234567890abc1234567890
+Author: Unnamed <unnamed@example.com>
+Date:   Mon Jun 9 11:59:59 2025 +0000
+
+    Deuxième commit
+```
+
+**Format `--oneline` :**
+
+```
+abc1234 Message du commit
+def4567 Deuxième commit
+```
+
+**Code de sortie :** 0 (succès) | 1 (aucun commit) | 128 (dépôt non initialisé)
+
+---
+
+## Scénario complet de bout en bout
+
+Voici une session d'utilisation typique montrant toutes les commandes en action :
+
+```bash
+# 1. Initialiser le dépôt
+$ git init
+Initialized empty Git repository in ./.git/
+
+# 2. Créer un fichier
+$ write README.md "# Git Visualizer\n\nUn terminal web pour Git"
+
+# 3. Vérifier l'état du dépôt (fichier non-tracké)
+$ git status
+On branch main
+
+No commits yet
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        README.md
+
+nothing added to commit but untracked files present (use "git add" to track)
+
+# 4. Créer un deuxième fichier
+$ write package.json "{}"
+
+# 5. Ajouter les deux fichiers à l'index
+$ git add .
+
+# 6. Vérifier l'état (fichiers stagés)
+$ git status
+On branch main
+
+No commits yet
+
+Changes to be committed:
+  (use "git commit" to finalize)
+        new file:   README.md
+        new file:   package.json
+
+# 7. Créer le premier commit
+$ git commit -m "Initial commit"
+[main (root-commit) 7f3e2d1] Initial commit
+
+# 8. Afficher l'historique
+$ git log --oneline
+7f3e2d1 Initial commit
+
+# 9. Créer un nouveau fichier et l'ajouter
+$ write src/index.ts "console.log('Hello');"
+$ git add src/index.ts
+
+# 10. Vérifier l'état (nouveau fichier stagé)
+$ git status
+On branch main
+
+Changes to be committed:
+  (use "git commit" to finalize)
+        new file:   src/index.ts
+
+nothing added to commit but untracked files present (use "git add" to track)
+
+# 11. Créer un deuxième commit
+$ git commit -m "Add source file"
+[main 9a5c8e4] Add source file
+
+# 12. Afficher l'historique complet
+$ git log --oneline
+9a5c8e4 Add source file
+7f3e2d1 Initial commit
+
+# 13. Lire le contenu d'un fichier
+$ read README.md
+# Git Visualizer
+
+Un terminal web pour Git
+```
+
+---
+
+## Erreurs courantes et dépannage
+
+### Dépôt non initialisé
+```
+fatal: not a git repository (or any of the parent directories): .git
+```
+**Solution :** Exécutez `git init` en premier.
+
+### Pathspec non trouvé
+```
+fatal: pathspec 'filename.txt' did not match any files
+```
+**Solution :** Vérifiez l'orthographe du chemin. Créez le fichier avec `write` avant d'utiliser `git add`.
+
+### Rien à committer
+```
+fatal: no changes added to commit
+```
+**Solution :** Utilisez `git add` pour stager des fichiers avant `git commit`.
+
+### Message vide ou manquant
+```
+fatal: option '-m' is required
+fatal: message cannot be empty
+```
+**Solution :** Fournissez `-m "<message>"` avec un message non-vide.
+
+### Aucun commit dans l'historique
+```
+fatal: No commits yet
+```
+**Solution :** Créez au moins un commit avec `git add` + `git commit -m "..."`.
+
+---
+
+## À venir en Phase 2+
+
+Les fonctionnalités suivantes ne sont **pas disponibles en Phase 1** mais seront implémentées ultérieurement :
+
+- **Branches** : `git branch`, `git checkout`, `git switch`
+- **Fusion** : `git merge`, `git rebase`
+- **Historique avancé** : `git log -p`, `git log --follow`, `git diff`
+- **Modifications avancées** : `git reset`, `git revert`, `git cherry-pick`
+- **Tags** : `git tag`
+- **Stash** : `git stash`
+- **Shell interactif** : Un shell complet avec `echo`, `cat`, `touch`, etc.
+
+Pour l'instant, travaillez sur une branche linéaire (`main`).
+
+---
+
+## Résumé
+
+Vous disposez en Phase 1 de :
+
+**Utilitaires :**
+- `write <chemin> [contenu]` — Créer/modifier des fichiers virtuels
+- `read <chemin>` — Afficher le contenu d'un fichier
+
+**Commandes Git :**
+- `git init` — Initialiser le dépôt
+- `git add <chemin...>` — Stager des fichiers
+- `git status [-s]` — Afficher l'état du dépôt
+- `git commit -m "<message>"` — Créer un commit
+- `git log [--oneline]` — Afficher l'historique
+
+Ces commandes couvrent un workflow Git essentiel : initialiser, créer des fichiers, les stager, les committer, et afficher l'historique. Explorez et visualisez votre dépôt Git directement dans le terminal web !
