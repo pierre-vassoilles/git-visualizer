@@ -1,9 +1,10 @@
 import { ok, type CommandResult } from './types';
-import type { Repository } from './model';
+import type { Repository, TodoItem } from './model';
 import { createEmptyRepo, currentBranch, flattenTree, getCommitHistoryWithHashes, headCommitHash } from './repository';
 import { hashBlob } from './objectStore';
 import { dispatch } from './parser';
 import { shortHash } from './sha1';
+import { executeRebaseInteractive } from './commands/rebase';
 
 // ---------------------------------------------------------------------------
 // Type du snapshot (consommé par le graphe en phase 3)
@@ -98,6 +99,23 @@ export interface RepoSnapshot {
   readonly operationState?: {
     readonly type: 'merging' | 'reverting' | 'cherryPicking' | 'rebasing';
     readonly branchName?: string;
+  };
+  /**
+   * PHASE 5 : Nombre d'entrées dans la pile de stash.
+   */
+  readonly stashCount?: number;
+  /**
+   * PHASE 5 : État du rebase interactif (si rebasing && interactive).
+   * Exposé pour que l'UI puisse afficher la modale.
+   */
+  readonly rebasingInteractive?: {
+    readonly awaitingTodoEdit: boolean;
+    readonly todoList: ReadonlyArray<{
+      readonly action: string;
+      readonly commitHash: string;
+      readonly message: string;
+    }>;
+    readonly currentIndex: number;
   };
 }
 
@@ -243,6 +261,19 @@ export class GitEngine {
   }
 
   /**
+   * PHASE 5 : Exécute la todo list éditée par l'utilisateur dans le rebase interactif.
+   *
+   * Appelé par le store après que l'UI (InteractiveRebaseModal.vue) ait soumis la todo.
+   *
+   * @param todoList - Todo list éditée (actions, messages, ordre)
+   * @returns CommandResult (0 = succès, 1 = conflit, autre = erreur)
+   */
+  executeRebaseInteractive(todoList: TodoItem[]): CommandResult {
+    const result = executeRebaseInteractive(this.repo, todoList);
+    return result;
+  }
+
+  /**
    * Renvoie un snapshot sérialisable et immuable de l'état courant du dépôt.
    * Appelé après chaque execute() par le store pour mettre à jour le graphe.
    */
@@ -367,6 +398,24 @@ export class GitEngine {
       operationState = { type: 'cherryPicking' };
     }
 
+    // Phase 5 : stash count
+    const stashCount = repo.stashStack ? repo.stashStack.length : 0;
+
+    // Phase 5 : rebase interactif
+    let rebasingInteractive: RepoSnapshot['rebasingInteractive'] = undefined;
+    if (repo.rebasing?.interactive) {
+      const { awaitingTodoEdit, todoList, currentIndex } = repo.rebasing.interactive;
+      rebasingInteractive = Object.freeze({
+        awaitingTodoEdit,
+        todoList: Object.freeze(todoList.map((item) => Object.freeze({
+          action: item.action,
+          commitHash: item.commitHash,
+          message: item.message,
+        }))),
+        currentIndex,
+      });
+    }
+
     // Immuabilité (cf. contrat RepoSnapshot) : on gèle les conteneurs pour
     // qu'un composant ne puisse pas muter le snapshot posé dans le store.
     return Object.freeze({
@@ -379,6 +428,8 @@ export class GitEngine {
       files: Object.freeze(files.map((f) => Object.freeze(f))) as SnapshotFile[],
       allCommits: Object.freeze(allCommitsRaw) as SnapshotCommit[],
       operationState: operationState ? Object.freeze(operationState) : undefined,
+      stashCount,
+      rebasingInteractive,
     });
   }
 }

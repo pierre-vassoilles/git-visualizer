@@ -25,6 +25,8 @@ import { cmdReset } from './commands/reset';
 import { cmdRevert } from './commands/revert';
 import { cmdCherryPick } from './commands/cherry-pick';
 import { cmdRebase } from './commands/rebase';
+import { cmdStash } from './commands/stash';
+import { cmdReflog } from './commands/reflog';
 
 // ---------------------------------------------------------------------------
 // Tokenisation
@@ -163,6 +165,12 @@ export function dispatch(repo: Repository, input: string): CommandResult {
 
     case 'rebase':
       return cmdRebase(repo, rest);
+
+    case 'stash':
+      return cmdStash(repo, rest);
+
+    case 'reflog':
+      return cmdReflog(repo, rest);
 
     default:
       return fail([`git: '${subcommand}' is not a git command. See 'git --help'.`]);

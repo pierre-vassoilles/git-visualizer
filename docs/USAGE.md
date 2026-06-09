@@ -1492,15 +1492,416 @@ yz4444 Add develop.txt (nouveau hash, anciennement stu2222)
 
 ---
 
-## À venir en Phase 5+
+## Outils avancés (Phase 5)
 
-Les fonctionnalités suivantes ne sont **pas disponibles en Phase 4** mais seront implémentées ultérieurement :
+### Rebase interactif
 
-- **Rebase interactif** : `git rebase -i`
-- **Historique avancé** : `git log -p`, `git log --follow`, `git diff`
-- **Stash** : `git stash`
-- **Reflog** : `git reflog`
+#### `git rebase -i` — Rejouer des commits avec contrôle total
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git rebase -i <base>` |
+| **Description** | Lance un rebase interactif : affiche une liste des commits à rejouer et permet de les éditer (changer leur ordre, fusionner, renommer, supprimer) avant exécution |
+| **Options Phase 5** | `-i` ou `--interactive` (obligatoire) ; `--continue` / `--abort` pour gérer les conflits |
+
+##### Concepts : Actions et todo list
+
+Lors du rebase interactif, vous êtes présenté avec une **liste de commits à rejouer** (todo list) avec une action pour chacun. Les actions disponibles sont :
+
+| Action | Description | Résultat |
+|--------|-------------|----------|
+| `pick` (p) | Rejouer le commit normalement | Nouveau commit avec le même message et contenu |
+| `reword` (r) | Rejouer et éditer le message du commit | Nouveau commit avec message modifié |
+| `squash` (s) | Fusionner dans le commit précédent | Un seul commit avec les changements des deux, message combiné |
+| `fixup` (f) | Comme squash, mais jetter le message | Un commit sans le message du commit fusionné |
+| `drop` (d) | Supprimer entièrement | Le commit est ignoré, aucun nouveau commit créé |
+
+**Réordonnancement** : Vous pouvez aussi réordonner les lignes pour changer l'ordre de rejoue des commits.
+
+##### Interface dans le terminal web
+
+Contrairement à Git standard (qui ouvre un éditeur texte), le Git Visualizer expose une **modale interactive** où vous pouvez :
+- Voir la liste des commits à rejouer
+- Choisir l'action pour chacun via un dropdown
+- Éditer les messages directement (pour `reword`)
+- Réordonner les commits (drag-drop)
+- Valider avec le bouton "Commencer le rebase"
+
+Une fois validé, le rebase s'exécute. S'il y a des **conflits**, vous les résolvez comme en Phase 4 (`git add` puis `git rebase --continue`).
+
+##### Exemples
+
+**Cas 1 : Squash deux commits**
+
+```bash
+# Historique initial
+$ git log --oneline
+abc1234 Add feature
+def5678 Fix typo in feature
+ghi9012 Initial commit
+
+# Lancer le rebase interactif
+$ git rebase -i main
+# (Modale affiche : pick def5678, pick abc1234)
+# Modifier : pick def5678, squash abc1234
+# Valider
+
+# Résultat : 2 commits fusionnés en 1
+$ git log --oneline
+xyz1111 Add feature  (contient changements des deux commits)
+ghi9012 Initial commit
+```
+
+**Cas 2 : Renommer un message (reword)**
+
+```bash
+$ git rebase -i main
+# Modale affiche les commits
+# Modifier action de "Add feature" en "reword"
+# Éditer le message : "Add feature X with documentation"
+# Valider
+
+# Résultat : commit avec nouveau message
+$ git log --oneline
+xyz2222 Add feature X with documentation
+ghi9012 Initial commit
+```
+
+**Cas 3 : Supprimer un commit (drop)**
+
+```bash
+$ git rebase -i main
+# Modale affiche : pick C1, pick C2 (temporaire), pick C3
+# Modifier C2 en "drop"
+# Valider
+
+# Résultat : C2 est supprimé, C3 devient enfant direct de C1
+$ git log --oneline
+xyz3333 C3
+xyz1111 C1
+ghi9012 Initial commit
+```
+
+##### Résolution de conflits
+
+Si un commit rejouée crée un **conflit** lors du squash ou du réordonnancement, le rebase s'arrête avec un message de conflit :
+
+```
+CONFLICT (content): Conflict in file.txt
+```
+
+Vous résolvez comme en Phase 4 :
+1. Éditer le fichier en conflit (retirer les marqueurs `<<<<< / ======= / >>>>>`)
+2. Ajouter le fichier : `git add file.txt`
+3. Continuer : `git rebase --continue`
+
+Pour annuler le rebase interactif : `git rebase --abort`
+
+---
+
+### Stash : Mettre de côté des modifications
+
+#### `git stash` — Sauvegarder et nettoyer temporairement
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git stash [push \| list \| pop \| apply \| drop] [options]` |
+| **Description** | Sauvegarde les modifications non commitées dans une pile, nettoie le working tree et l'index pour revenir à l'état de HEAD |
+| **Options Phase 5** | `-m <message>` (message personnalisé) ; index optionnel pour pop/apply/drop |
+
+##### Concept : Ranger les modifications
+
+Le stash est une **pile LIFO** (Last-In-First-Out) de "snapshots" : chaque stash enregistre l'état du working tree et de l'index à un moment donné.
+
+**Cas d'usage** :
+- "Je dois basculer de branche rapidement, mais j'ai des modifications. Je les range."
+- "Je veux tester un reset/rebase en toute sécurité ; je stash d'abord."
+- "J'ai fait des changements sur la mauvaise branche ; je les stash et les rejoue ailleurs."
+
+##### Commandes et exemples
+
+**`git stash` / `git stash push` — Sauvegarder**
+
+```bash
+# Situation initiale
+$ git status
+On branch main
+Changes not staged for commit:
+  modified: file.txt
+
+Untracked files:
+  new.txt
+
+# Stash simple
+$ git stash
+Saved working directory and index state on main
+
+# Working tree nettoyé
+$ git status
+On branch main
+nothing to commit, working tree clean
+
+# Stash avec message personnel
+$ git stash push -m "Save feature work"
+Saved working directory and index state on main: Save feature work
+```
+
+**Après stash** : votre working tree est identique à HEAD, prêt à basculer de branche ou à tester une opération.
+
+---
+
+**`git stash list` — Voir la pile**
+
+```bash
+# Après plusieurs stash
+$ git stash list
+stash@{0}: On main: Save feature work
+stash@{1}: WIP on main: abc1234
+stash@{2}: WIP on main: def5678
+
+# Format : stash@{index}: [On branch / WIP on] <branchname>: <message ou commit_msg>
+```
+
+Chaque stash a un **index** : `stash@{0}` est le plus récent, `stash@{1}` l'avant-dernier, etc.
+
+---
+
+**`git stash pop` — Appliquer et supprimer**
+
+```bash
+# Appliquer le stash le plus récent
+$ git stash pop
+On branch main
+Changes not staged for commit:
+  modified: file.txt
+
+Dropped refs/stash@{0}  (...)
+
+# Le stash est supprimé de la pile
+$ git stash list
+stash@{0}: WIP on main: def5678
+
+# Appliquer un stash spécifique
+$ git stash pop stash@{1}
+```
+
+⚠️ **Conflits** : Si le stash n'applique pas proprement (le fichier a changé depuis), vous avez un conflit. Vous résolvez et le stash est conservé (vous pouvez retenter après).
+
+---
+
+**`git stash apply` — Appliquer sans supprimer**
+
+```bash
+# Comme pop, mais le stash reste dans la pile
+$ git stash apply
+$ git stash apply stash@{1}
+
+# Après apply
+$ git stash list
+stash@{0}: ...  (toujours présent)
+```
+
+Utile si vous voulez appliquer le même stash plusieurs fois.
+
+---
+
+**`git stash drop` — Supprimer**
+
+```bash
+# Supprimer le stash le plus récent
+$ git stash drop
+Dropped refs/stash@{0}  (...)
+
+# Supprimer un stash spécifique
+$ git stash drop stash@{1}
+
+# Les indices sont réajustés après suppression
+$ git stash list
+stash@{0}: ...  (était stash@{2}, renombré)
+```
+
+---
+
+**Scénario complet : Stash et basculement de branche**
+
+```bash
+# 1. Sur main avec modifications
+$ git status
+On branch main
+Changes not staged for commit:
+  modified: feature.txt
+
+# 2. Vous devez basculer à feature pour un hotfix
+$ git stash
+Saved working directory and index state on main
+
+# 3. Working tree propre
+$ git status
+On branch main
+nothing to commit, working tree clean
+
+# 4. Basculer à feature
+$ git checkout feature
+Switched to branch 'feature'
+
+# 5. Faire le hotfix, committer, revenir à main
+$ write fix.txt "Hotfix applied"
+$ git add fix.txt
+$ git commit -m "Quick hotfix"
+[feature abc1234] Quick hotfix
+
+$ git checkout main
+Switched to branch 'main'
+
+# 6. Récupérer les modifications stashées
+$ git stash pop
+On branch main
+Changes not staged for commit:
+  modified: feature.txt
+
+# Continuer votre travail sur main
+```
+
+---
+
+### Reflog : L'historique des mouvements
+
+#### `git reflog` — Retrouver les commits "perdus"
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git reflog [show] [<ref>]` |
+| **Description** | Affiche un journal chronologique de **tous les mouvements de HEAD** (commits, checkouts, resets, merges, rebases, etc.). Permet de retrouver des commits que vous pensiez "perdus" après un reset ou rebase |
+| **Options Phase 5** | Optionnel : `show` (explicite) ; `<ref>` pour afficher le reflog d'une branche |
+
+##### Concept : Time travel via reflog
+
+Le reflog enregistre chaque fois que HEAD bouge :
+- **Commit** : HEAD avance vers le nouveau commit
+- **Checkout** : HEAD bascule vers une autre branche
+- **Reset** : HEAD revient à un commit antérieur
+- **Merge / Rebase** : HEAD se déplace vers le résultat
+
+**Accès** : `HEAD@{n}` = l'état de HEAD à la nième opération en arrière.
+
+```
+HEAD@{0}  ← état actuel de HEAD (avant la commande présente)
+HEAD@{1}  ← HEAD avant la dernière commande
+HEAD@{2}  ← HEAD avant celle-ci
+HEAD@{3}  ← encore avant
+```
+
+Chaque entrée enregistre **quel commit HEAD pointait** et **pourquoi il s'y est déplacé** (action, description).
+
+##### Exemples
+
+**Cas 1 : Afficher le reflog**
+
+```bash
+$ git reflog
+abc1234 HEAD@{0}: commit: Add feature
+def5678 HEAD@{1}: checkout: switched to branch main
+9ab0123 HEAD@{2}: reset: hard main~1
+cde4567 HEAD@{3}: merge: Merge branch feature
+
+# Format : <shortHash> HEAD@{index}: <action>: <description>
+```
+
+**Cas 2 : Retrouver un commit "perdu" après reset**
+
+```bash
+# Vous avez accidentellement fait un reset --hard
+$ git reset --hard HEAD~3
+HEAD is now at 7f3e2d1 Some old commit
+
+# Vous réalisez que vous aviez un commit important
+# Consulter le reflog pour retrouver
+$ git reflog
+7f3e2d1 HEAD@{0}: reset: hard HEAD~3
+abc1234 HEAD@{1}: commit: Important feature
+def5678 HEAD@{2}: commit: Setup
+...
+
+# Retrouver le commit "Important feature" qui était en HEAD@{1}
+# Créer une branche dessus pour le conserver
+$ git checkout -b recover abc1234
+Switched to a new branch 'recover'
+
+# Ou simplement reset à cet état
+$ git reset --hard HEAD@{1}
+HEAD is now at abc1234 Important feature
+```
+
+**Cas 3 : Utiliser `HEAD@{n}` dans des commandes**
+
+```bash
+# Voir les changements entre HEAD et HEAD@{2}
+$ git log HEAD@{2}..HEAD
+
+# Différence entre deux états
+$ git diff HEAD@{3} HEAD
+
+# Reset à un état antérieur
+$ git reset --hard HEAD@{5}
+```
+
+**Cas 4 : Reflog d'une branche**
+
+```bash
+# Voir l'historique de la branche 'main'
+$ git reflog show main
+abc1234 main@{0}: commit: Latest on main
+def5678 main@{1}: merge: Merge branch feature
+9ab0123 main@{2}: commit: Previous
+```
+
+---
+
+**Scénario "undo" : Récupérer après reset malheureux**
+
+```bash
+# 1. Vous aviez un historique bien établi
+$ git log --oneline
+abc1234 Feature complete (main/HEAD)
+def5678 Feature WIP
+9ab0123 Setup
+
+# 2. Vous executez accidentellement
+$ git reset --hard 9ab0123
+HEAD is now at 9ab0123 Setup
+
+# 3. Les deux commits (abc1234 et def5678) semblent "perdus"
+$ git log --oneline
+9ab0123 Setup
+
+# 4. Mais le reflog les remembers
+$ git reflog
+9ab0123 HEAD@{0}: reset: hard 9ab0123
+abc1234 HEAD@{1}: commit: Feature complete
+def5678 HEAD@{2}: commit: Feature WIP
+
+# 5. Récupérer immédiatement
+$ git reset --hard HEAD@{1}
+HEAD is now at abc1234 Feature complete
+
+# Vous êtes de retour à l'état avant le reset !
+$ git log --oneline
+abc1234 Feature complete (HEAD)
+def5678 Feature WIP
+9ab0123 Setup
+```
+
+---
+
+## À venir en Phase 6+
+
+Les fonctionnalités suivantes ne sont **pas disponibles en Phase 5** mais seront implémentées ultérieurement :
+
+- **Finitions et polish** : Autocomplétion des noms de branches/tags, persistance locale du dépôt, scénarios préchargés pour démonstration
+- **Historique avancé** : `git log -p` (affichage des diffs), `git log --follow` (historique des fichiers renommés), `git diff` (comparaison précise)
 - **Shell interactif** : Un shell complet avec `echo`, `cat`, `touch`, etc.
+
+**Phase 5 complète les opérations Git avancées** : rebase interactif avec édition visuelle, stash pour ranger les modifications, et reflog pour retrouver les commits "perdus". L'arsenal de Git est maintenant complet pour les workflows de développement sophistiqués !
 
 ---
 
@@ -1537,6 +1938,13 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 4** mais seron
 - `git rebase [--continue | --abort]` — Rejouer des commits sur une nouvelle base
 - **Gestion simplifiée des conflits** : marqueurs standards, résolution manuelle + `git add` + `git commit`
 
+**Phase 5 – Outils avancés :**
+- `git rebase -i <base>` — Rebase interactif avec modale visuelle (pick, reword, squash, fixup, drop, réordonnancement)
+- `git stash [push | list | pop | apply | drop]` — Pile de stash pour ranger/restaurer les modifications
+- `git reflog [show] [<ref>]` — Historique des mouvements de HEAD et des branches
+- **Révisions** : `HEAD@{n}` pour accéder aux états antérieurs du reflog
+- **Résolution de conflits avancée** : gestion des conflits lors du squash et du rebase interactif
+
 ### Workflow complet
 
 1. Initialisez un dépôt (`git init`)
@@ -1545,5 +1953,6 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 4** mais seron
 4. Gérez les branches (`git branch`, `git checkout`)
 5. **Visualisez votre historique en graphe** (Phase 3)
 6. **Fusionnez, rebasez, et réécrivez votre historique** (Phase 4)
+7. **Utilisez les outils avancés** : rebase interactif, stash, reflog (Phase 5)
 
-Vous pouvez explorer et maîtriser votre dépôt Git directement dans le terminal web avec un contrôle complet du workflow collaboratif : création de branches, fusion, et réécriture d'historique, avec une vue d'ensemble visuelle et intuitive grâce au graphe interactif !
+Vous pouvez explorer et maîtriser votre dépôt Git directement dans le terminal web avec un contrôle complet du workflow collaboratif : création de branches, fusion, réécriture d'historique, rebase interactif avec édition visuelle, gestion des modifications temporaires via stash, et recuperation des commits "perdus" via reflog. Tout cela avec une vue d'ensemble visuelle et intuitive grâce au graphe interactif !

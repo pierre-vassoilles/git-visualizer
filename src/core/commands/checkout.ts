@@ -1,6 +1,7 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
 import {
+  addReflogEntryForHead,
   applyTreeToRepo,
   branchExists,
   canSwitchWithoutDataLoss,
@@ -98,11 +99,20 @@ function checkoutBranch(repo: Repository, branchName: string): CommandResult {
   }
   // Si HEAD était détaché, on ne met pas à jour prevBranch (Option A : on conserve l'ancienne valeur)
 
+  const oldHash = headCommitHash(repo) ?? '';
+
   // Mettre à jour HEAD
   repo.head = { symbolic: true, target: `refs/heads/${branchName}` };
 
   // Restaurer index + working tree depuis l'arbre du commit cible
   applyTreeToRepo(repo, resolvedTarget);
+
+  addReflogEntryForHead(repo, {
+    oldHash,
+    newHash: resolvedTarget ?? '',
+    action: 'checkout',
+    description: `switched to branch '${branchName}'`,
+  });
 
   return ok([`Switched to branch '${branchName}'`]);
 }
@@ -155,11 +165,20 @@ function checkoutDetach(repo: Repository, ref: string): CommandResult {
     }
   }
 
+  const oldHashDetach = headCommitHash(repo) ?? '';
+
   // Mettre à jour HEAD
   repo.head = { symbolic: false, target: commitHash };
 
   // Restaurer index + working tree
   applyTreeToRepo(repo, commitHash);
+
+  addReflogEntryForHead(repo, {
+    oldHash: oldHashDetach,
+    newHash: commitHash,
+    action: 'checkout',
+    description: `detached HEAD at ${shortHash(commitHash)}`,
+  });
 
   const short = shortHash(commitHash);
   return ok([

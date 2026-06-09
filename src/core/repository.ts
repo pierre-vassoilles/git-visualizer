@@ -4,7 +4,7 @@
  * Expose les helpers de haut niveau utilisés par les commandes.
  */
 
-import type { Blob, Commit, Index, IndexEntry, Repository, Tree, WorkingTree, WorkingTreeEntry } from './model';
+import type { Blob, Commit, Index, IndexEntry, ReflogEntry, Repository, Tree, WorkingTree, WorkingTreeEntry } from './model';
 import { getCommit, getTree, hashBlob, storeBlob, storeCommit, storeTree } from './objectStore';
 
 export const AUTHOR = 'Unnamed <unnamed@example.com>';
@@ -277,10 +277,11 @@ export function setPrevBranch(repo: Repository, branchName: string | null): void
 
 /**
  * Résout un committish (nom de branche, nom de tag, hash court ou long,
- * ou révision ~n) en hash de commit complet, ou null si introuvable.
+ * ou révision ~n / @{n}) en hash de commit complet, ou null si introuvable.
  *
  * Ordre de résolution :
- * 0. Si l'input contient `~n`, résoudre la base puis remonter n parents
+ * 0a. Si l'input contient `@{n}`, résoudre via le reflog
+ * 0b. Si l'input contient `~n`, résoudre la base puis remonter n parents
  * 1. HEAD
  * 2. Nom de branche dans refs.heads
  * 3. Nom de tag dans refs.tags
@@ -288,7 +289,20 @@ export function setPrevBranch(repo: Repository, branchName: string | null): void
  * 5. Hash court (préfixe, min 4 chars) dans objects
  */
 export function resolveCommitish(repo: Repository, ref: string): string | null {
-  // 0. Supporter la notation ~n : regex greedy, format <base>~<n>
+  // 0a. Supporter la notation @{n} pour le reflog : HEAD@{n}, <branch>@{n}
+  const atMatch = /^(.+?)@\{(\d+)\}$/.exec(ref);
+  if (atMatch) {
+    const base = atMatch[1]!;
+    const n = parseInt(atMatch[2]!, 10);
+    const refName = base === 'HEAD' ? 'HEAD' : `refs/heads/${base}`;
+    const entries = repo.reflog?.[refName] ?? [];
+    if (n < entries.length) {
+      return entries[n]!.newHash;
+    }
+    return null; // revision not found
+  }
+
+  // 0b. Supporter la notation ~n : regex greedy, format <base>~<n>
   const tildeMatch = /^(.+?)~(\d+)$/.exec(ref);
   if (tildeMatch) {
     const base = tildeMatch[1]!;
@@ -642,74 +656,6 @@ export function computeTreeDiff(
 }
 
 /**
- * Résultat d'une tentative d'application d'un diff sur un arbre courant.
- */
-export interface ApplyDiffResult {
-  /** Map path → content des fichiers dans l'état résultant (sans conflits). */
-  files: Record<string, string>;
-  /** Fichiers en conflit avec marqueurs. */
-  conflicts: Record<string, string>;
-}
-
-/**
- * Applique un diff (changements de 'from' → 'to') au-dessus d'un arbre courant.
- * Utilisé par cherry-pick, revert et rebase.
- *
- * currentFiles : état actuel (HEAD ou base du rebase), path → content
- * diff : changements à appliquer
- * contextLabel : label pour les marqueurs de conflit (ex: "feature", "HEAD~1", ...)
- *
- * Retourne les fichiers résultants et les conflits détectés.
- */
-export function applyDiff(
-  currentFiles: Record<string, string>,
-  diff: TreeDiff,
-  _contextLabel: string,
-): ApplyDiffResult {
-  const files: Record<string, string> = { ...currentFiles };
-  const conflicts: Record<string, string> = {};
-
-  // Ajouts : ajouter le fichier si absent, conflit si présent avec contenu différent
-  for (const [path, content] of Object.entries(diff.added)) {
-    if (path in files) {
-      if (files[path] !== content) {
-        // Conflit : fichier existant vs ajout
-        conflicts[path] = content;
-      }
-      // Si même contenu : pas de conflit, déjà là
-    } else {
-      files[path] = content;
-    }
-  }
-
-  // Suppressions : supprimer le fichier
-  for (const path of Object.keys(diff.deleted)) {
-    delete files[path];
-  }
-
-  // Modifications
-  for (const [path, { from, to }] of Object.entries(diff.modified)) {
-    const current = files[path];
-    if (current === undefined) {
-      // Fichier absent dans current mais modifié dans diff → appliquer (file was deleted locally)
-      // Appliquer la version 'to' (le changement cible)
-      files[path] = to;
-    } else if (current === from) {
-      // Pas de modification locale, appliquer le changement
-      files[path] = to;
-    } else if (current === to) {
-      // Déjà appliqué, rien à faire
-    } else {
-      // Conflit : le fichier a été modifié localement ET dans le diff
-      conflicts[path] = path; // marquer comme conflit
-      // Garder le fichier local (les marqueurs seront écrits par l'appelant)
-    }
-  }
-
-  return { files, conflicts };
-}
-
-/**
  * Crée les marqueurs de conflit pour un fichier.
  * Format Git standard : <<<<<<< HEAD\n<ours>\n=======\n<theirs>\n>>>>>>> <label>
  */
@@ -884,4 +830,213 @@ export function cloneWorkingTree(wt: WorkingTree): WorkingTree {
 export function applyFilesToRepo(repo: Repository, files: Record<string, string>): void {
   repo.index = buildIndexFromFiles(repo, files);
   repo.workingTree = buildWorkingTreeFromFiles(repo, files);
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5 : helper centralisé de replay de commit (spec 24)
+// ---------------------------------------------------------------------------
+
+export interface ReplayCommitOptions {
+  /** Commit original à rejouer. */
+  origCommit: Commit;
+  /** Hash du commit original (pour les marqueurs de conflit). */
+  origHash: string;
+  /** Hash du nouveau parent (base) sur lequel rejouer. */
+  newParentHash: string;
+  /** Label pour les marqueurs de conflit (ex: shortHash du commit original). */
+  label: string;
+}
+
+export interface ReplayCommitResult {
+  /** Hash du commit rejoué (créé), ou null si conflit. */
+  newHash: string | null;
+  /** Fichiers en conflit avec marqueurs (si conflit). */
+  conflicts: Record<string, string>;
+  /** État à préserver pour continuer après résolution (si conflit). */
+  resumeState?: {
+    /** Message du commit à créer après résolution. */
+    commitMessage: string;
+  };
+}
+
+export interface ReplayContinueOptions {
+  /** Message du commit à créer (du commit original). */
+  commitMessage: string;
+  /** Hash du nouveau parent. */
+  newParentHash: string;
+}
+
+/**
+ * Rejoue un commit unique au-dessus d'un nouveau parent.
+ *
+ * Processus :
+ * 1. Calcule le diff du commit original (parent → origCommit)
+ * 2. Applique le diff sur les fichiers du nouveau parent
+ * 3. Si conflit : met à jour index/WT avec marqueurs, retourne conflicts + resumeState
+ * 4. Si pas de conflit : crée le commit, met à jour index/WT, retourne newHash
+ */
+export function replayCommit(
+  repo: Repository,
+  options: ReplayCommitOptions,
+): ReplayCommitResult {
+  const { origCommit, origHash: _origHash, newParentHash, label } = options;
+
+  // 1. Calculer le diff du commit original
+  const parentHash = origCommit.parents[0] ?? null;
+  const parentTreeHash = parentHash
+    ? (getCommit(repo, parentHash)?.tree ?? null)
+    : null;
+  const diff = computeTreeDiff(repo, parentTreeHash, origCommit.tree);
+
+  // 2. Récupérer les fichiers du nouveau parent
+  const newParentCommit = getCommit(repo, newParentHash);
+  if (!newParentCommit) {
+    throw new Error(`replayCommit: parent commit not found: ${newParentHash}`);
+  }
+  const newParentFiles = getTreeFiles(repo, newParentCommit.tree);
+  const resultFiles: Record<string, string> = { ...newParentFiles };
+  const conflictFiles: Record<string, string> = {};
+
+  // 3a. Suppressions
+  for (const path of Object.keys(diff.deleted)) {
+    delete resultFiles[path];
+  }
+
+  // 3b. Ajouts
+  for (const [path, content] of Object.entries(diff.added)) {
+    if (path in resultFiles && resultFiles[path] !== content) {
+      conflictFiles[path] = makeConflictMarkers(resultFiles[path]!, content, label);
+      resultFiles[path] = conflictFiles[path]!;
+    } else {
+      resultFiles[path] = content;
+    }
+  }
+
+  // 3c. Modifications
+  for (const [path, { from, to }] of Object.entries(diff.modified)) {
+    const current = resultFiles[path];
+    if (current === undefined) {
+      resultFiles[path] = to;
+    } else if (current === from) {
+      resultFiles[path] = to;
+    } else if (current === to) {
+      // Déjà appliqué, ok
+    } else {
+      conflictFiles[path] = makeConflictMarkers(current, to, label);
+      resultFiles[path] = conflictFiles[path]!;
+    }
+  }
+
+  // 4. Mettre à jour index et WT (toujours, même en cas de conflit)
+  repo.index = buildIndexFromFiles(repo, resultFiles);
+  repo.workingTree = buildWorkingTreeFromFiles(repo, resultFiles);
+
+  // 5. Gérer les conflits ou créer le commit
+  if (Object.keys(conflictFiles).length > 0) {
+    return {
+      newHash: null,
+      conflicts: conflictFiles,
+      resumeState: {
+        commitMessage: origCommit.message,
+      },
+    };
+  }
+
+  // Pas de conflit : créer le commit
+  const treeHash = buildTreeFromIndex(repo, repo.index);
+  const newCommitHash = createCommitWithParents(repo, {
+    message: origCommit.message,
+    treeHash,
+    parents: [newParentHash],
+  });
+
+  return {
+    newHash: newCommitHash,
+    conflicts: {},
+  };
+}
+
+/**
+ * Crée le commit après résolution manuelle de conflits.
+ * Utilise l'index courant du repo comme source de l'arbre final.
+ */
+export function replayCommitContinue(
+  repo: Repository,
+  options: ReplayContinueOptions,
+): string {
+  const treeHash = buildTreeFromIndex(repo, repo.index);
+  return createCommitWithParents(repo, {
+    message: options.commitMessage,
+    treeHash,
+    parents: [options.newParentHash],
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5 : helpers reflog (spec 27)
+// ---------------------------------------------------------------------------
+
+/**
+ * Ajoute une entrée dans le reflog d'un ref donné.
+ * Le reflog est une liste ordonnée du plus récent (index 0) au plus ancien.
+ */
+export function addReflogEntry(
+  repo: Repository,
+  refName: string,
+  entry: Omit<ReflogEntry, 'timestamp'>,
+): void {
+  if (!repo.reflog) {
+    repo.reflog = {};
+  }
+  const entries = repo.reflog[refName] ?? [];
+  // Utiliser commitCount comme timestamp déterministe
+  const newEntry: ReflogEntry = {
+    ...entry,
+    timestamp: repo.commitCount,
+  };
+  // Insérer en tête (le plus récent en premier)
+  repo.reflog[refName] = [newEntry, ...entries];
+}
+
+/**
+ * Ajoute une entrée dans le reflog de HEAD ET dans le reflog de la branche courante
+ * (si HEAD est symbolique).
+ */
+export function addReflogEntryForHead(
+  repo: Repository,
+  entry: Omit<ReflogEntry, 'timestamp'>,
+): void {
+  addReflogEntry(repo, 'HEAD', entry);
+  const branch = currentBranch(repo);
+  if (branch !== null) {
+    addReflogEntry(repo, `refs/heads/${branch}`, entry);
+  }
+}
+
+/**
+ * Récupère le reflog d'un ref donné (du plus récent au plus ancien).
+ * Retourne [] si aucune entrée.
+ */
+export function getReflog(repo: Repository, refName: string): ReflogEntry[] {
+  return repo.reflog?.[refName] ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5 : helpers stash
+// ---------------------------------------------------------------------------
+
+/**
+ * Deepcopy d'une entrée de stash (pour éviter les mutations partagées).
+ */
+export function cloneStashEntry(
+  entry: import('./model').StashEntry,
+): import('./model').StashEntry {
+  return {
+    branchName: entry.branchName,
+    message: entry.message,
+    date: entry.date,
+    workingTree: cloneWorkingTree(entry.workingTree),
+    index: cloneIndex(entry.index),
+    headHash: entry.headHash,
+  };
 }

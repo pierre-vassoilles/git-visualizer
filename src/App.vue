@@ -2,9 +2,12 @@
 import GraphView from '@/components/GraphView.vue';
 import TerminalPanel from '@/components/TerminalPanel.vue';
 import RefsSidebar from '@/components/RefsSidebar.vue';
+import InteractiveRebaseModal from '@/components/InteractiveRebaseModal.vue';
 </script>
 
 <template>
+  <!-- Modale rebase interactif : montée au niveau racine pour l'overlay -->
+  <InteractiveRebaseModal />
   <div class="layout">
     <header class="topbar">
       <span class="brand">Git Visualizer</span>

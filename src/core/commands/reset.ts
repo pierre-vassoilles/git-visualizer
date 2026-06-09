@@ -1,9 +1,11 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
 import {
+  addReflogEntryForHead,
   buildIndexFromTree,
   buildWorkingTreeFromTree,
   currentBranch,
+  headCommitHash,
   isInitialized,
   resolveCommitish,
 } from '../repository';
@@ -62,6 +64,8 @@ export function cmdReset(repo: Repository, args: string[]): CommandResult {
     );
   }
 
+  const oldHashReset = headCommitHash(repo) ?? '';
+
   // Déplacer HEAD (et la branche si symbolique)
   const branch = currentBranch(repo);
   if (branch !== null) {
@@ -70,6 +74,13 @@ export function cmdReset(repo: Repository, args: string[]): CommandResult {
     // HEAD détaché
     repo.head = { symbolic: false, target: targetHash };
   }
+
+  addReflogEntryForHead(repo, {
+    oldHash: oldHashReset,
+    newHash: targetHash,
+    action: 'reset',
+    description: `${mode} ${commitRef}`,
+  });
 
   // Mode --mixed ou --hard : réinitialiser l'index
   if (mode === 'mixed' || mode === 'hard') {

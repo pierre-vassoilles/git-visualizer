@@ -117,6 +117,20 @@ export interface CherryPickingState {
   workingTreeBeforePick: WorkingTree;
 }
 
+// ---------------------------------------------------------------------------
+// Phase 5 : Rebase interactif
+// ---------------------------------------------------------------------------
+
+/** Un item de la todo list du rebase interactif. */
+export interface TodoItem {
+  /** Action à appliquer sur ce commit. */
+  action: 'pick' | 'reword' | 'squash' | 'fixup' | 'drop' | 'edit';
+  /** Hash du commit original. */
+  commitHash: string;
+  /** Message du commit (éditable pour reword). */
+  message: string;
+}
+
 /** État d'un rebase en cours. */
 export interface RebasingState {
   /** Hash de la base du rebase. */
@@ -135,6 +149,59 @@ export interface RebasingState {
   workingTreeBeforeRebase: WorkingTree;
   /** Message du commit courant en cours de replay (pour --continue). */
   currentCommitMessage: string;
+  /** État du rebase interactif (Phase 5). */
+  interactive?: {
+    /** true si en attente d'édition de la todo par l'utilisateur. */
+    awaitingTodoEdit: boolean;
+    /** Todo list (initiale ou en cours d'exécution). */
+    todoList: TodoItem[];
+    /** Index du commit en cours de traitement (-1 si en attente). */
+    currentIndex: number;
+    /**
+     * Message combiné (squash/fixup) à utiliser lors de la continuation après conflit.
+     * Présent uniquement quand le conflit s'est produit sur une marche squash/fixup.
+     * Utilisé par --continue pour reconstruire le commit squashé en remplacement du précédent.
+     */
+    pendingSquashMessage?: string;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5 : Reflog
+// ---------------------------------------------------------------------------
+
+/** Une entrée du reflog (journal des mouvements de HEAD/refs). */
+export interface ReflogEntry {
+  /** Hash avant le mouvement (vide pour création). */
+  oldHash: string;
+  /** Hash après le mouvement. */
+  newHash: string;
+  /** Type d'action : commit, checkout, reset, merge, rebase, cherry-pick, revert, etc. */
+  action: string;
+  /** Description additionnelle. */
+  description: string;
+  /** Timestamp de l'opération. */
+  timestamp: number;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5 : Stash
+// ---------------------------------------------------------------------------
+
+/** Une entrée de la pile de stash. */
+export interface StashEntry {
+  /** Branche d'où provient le stash (null si HEAD détaché). */
+  branchName: string | null;
+  /** Message optionnel (`git stash push -m "..."`). */
+  message: string;
+  /** Timestamp déterministe (commitCount au moment du stash). */
+  date: number;
+  /** Snapshot du working tree au moment du stash. */
+  workingTree: WorkingTree;
+  /** Snapshot de l'index au moment du stash. */
+  index: Index;
+  /** Hash de HEAD au moment du stash. */
+  headHash: string;
 }
 
 export interface Repository {
@@ -158,4 +225,8 @@ export interface Repository {
   cherryPicking?: CherryPickingState;
   /** État de rebase en cours, si applicable. */
   rebasing?: RebasingState;
+  /** Pile de stash (Phase 5). Du plus récent (index 0) au plus ancien. */
+  stashStack?: StashEntry[];
+  /** Reflog par ref (Phase 5). Map ref → liste d'entrées (du plus récent au plus ancien). */
+  reflog?: Record<string, ReflogEntry[]>;
 }

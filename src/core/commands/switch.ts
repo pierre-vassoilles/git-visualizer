@@ -1,6 +1,7 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
 import {
+  addReflogEntryForHead,
   applyTreeToRepo,
   branchExists,
   canSwitchWithoutDataLoss,
@@ -89,11 +90,20 @@ function switchToBranch(repo: Repository, branchName: string): CommandResult {
     setPrevBranch(repo, currentBranchName);
   }
 
+  const oldHashSwitch = headCommitHash(repo) ?? '';
+
   // Mettre à jour HEAD
   repo.head = { symbolic: true, target: `refs/heads/${branchName}` };
 
   // Restaurer index + working tree
   applyTreeToRepo(repo, resolvedTarget);
+
+  addReflogEntryForHead(repo, {
+    oldHash: oldHashSwitch,
+    newHash: resolvedTarget ?? '',
+    action: 'checkout',
+    description: `switched to branch '${branchName}'`,
+  });
 
   return ok([`Switched to branch '${branchName}'`]);
 }

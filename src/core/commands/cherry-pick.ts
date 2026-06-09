@@ -1,21 +1,16 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
 import {
-  buildIndexFromFiles,
-  buildTreeFromIndex,
-  buildWorkingTreeFromFiles,
+  addReflogEntryForHead,
   cloneIndex,
   cloneWorkingTree,
-  computeTreeDiff,
-  createCommitWithParents,
   currentBranch,
-  getTreeFiles,
   headCommitHash,
   isAncestor,
   isInitialized,
-  makeConflictMarkers,
+  replayCommit,
+  replayCommitContinue,
   resolveCommitish,
-  storeBlob,
 } from '../repository';
 import { getCommit } from '../objectStore';
 import { shortHash } from '../sha1';
@@ -32,6 +27,11 @@ export function cmdCherryPick(repo: Repository, args: string[]): CommandResult {
   // git cherry-pick --abort
   if (args.includes('--abort')) {
     return cherryPickAbort(repo);
+  }
+
+  // git cherry-pick --continue
+  if (args.includes('--continue')) {
+    return cherryPickContinue(repo);
   }
 
   // Vérifier qu'on n'est pas déjà en cherry-pick
@@ -90,112 +90,80 @@ export function cmdCherryPick(repo: Repository, args: string[]): CommandResult {
     ]);
   }
 
-  const headCommitObj = getCommit(repo, headHash);
-  if (!headCommitObj) {
-    return fail(['fatal: could not read HEAD commit']);
-  }
+  // Sauvegarder l'état avant cherry-pick pour --abort
+  const indexBeforePick = cloneIndex(repo.index);
+  const workingTreeBeforePick = cloneWorkingTree(repo.workingTree);
 
-  // Calculer le diff : parent → commit (changements apportés par le commit)
-  const parentHash = targetCommit.parents[0] ?? null;
-  const parentTreeHash = parentHash
-    ? (getCommit(repo, parentHash)?.tree ?? null)
-    : null;
+  // Rejouer le commit via le helper centralisé
+  const result = replayCommit(repo, {
+    origCommit: targetCommit,
+    origHash: targetHash,
+    newParentHash: headHash,
+    label: commitRef,
+  });
 
-  const diff = computeTreeDiff(repo, parentTreeHash, targetCommit.tree);
-
-  // Appliquer le diff sur les fichiers courants de HEAD
-  const currentFiles = getTreeFiles(repo, headCommitObj.tree);
-  const resultFiles: Record<string, string> = { ...currentFiles };
-  const conflictFiles: Record<string, string> = {};
-
-  // Appliquer les suppressions
-  for (const path of Object.keys(diff.deleted)) {
-    delete resultFiles[path];
-  }
-
-  // Appliquer les ajouts
-  for (const [path, content] of Object.entries(diff.added)) {
-    if (path in resultFiles) {
-      // Fichier déjà présent → conflit si contenu différent
-      if (resultFiles[path] !== content) {
-        conflictFiles[path] = makeConflictMarkers(resultFiles[path]!, content, commitRef);
-        resultFiles[path] = conflictFiles[path]!;
-      }
-    } else {
-      resultFiles[path] = content;
-    }
-  }
-
-  // Appliquer les modifications
-  for (const [path, { from, to }] of Object.entries(diff.modified)) {
-    const current = resultFiles[path];
-    if (current === undefined) {
-      // Fichier absent localement → appliquer
-      resultFiles[path] = to;
-    } else if (current === from) {
-      // Pas de modification locale → appliquer le changement
-      resultFiles[path] = to;
-    } else if (current === to) {
-      // Déjà dans le bon état
-    } else {
-      // Conflit
-      conflictFiles[path] = makeConflictMarkers(current, to, commitRef);
-      resultFiles[path] = conflictFiles[path]!;
-    }
-  }
-
-  const hasConflicts = Object.keys(conflictFiles).length > 0;
-
-  if (hasConflicts) {
-    // Sauvegarder l'état avant cherry-pick pour --abort
+  if (!result.newHash) {
+    // Conflit : sauvegarder l'état
     repo.cherryPicking = {
       commitHash: targetHash,
       originalMessage: targetCommit.message,
       headHashBeforePick: headHash,
-      indexBeforePick: cloneIndex(repo.index),
-      workingTreeBeforePick: cloneWorkingTree(repo.workingTree),
+      indexBeforePick,
+      workingTreeBeforePick,
     };
 
-    // Écrire les fichiers (avec marqueurs) dans WT et index
-    for (const [path, content] of Object.entries(resultFiles)) {
-      const blobHash = storeBlob(repo, content);
-      repo.index[path] = { blobHash, content, mode: '100644' };
-      repo.workingTree[path] = { content, mode: '100644' };
-    }
-    for (const path of Object.keys(repo.index)) {
-      if (!(path in resultFiles)) {
-        delete repo.index[path];
-      }
-    }
-    for (const path of Object.keys(repo.workingTree)) {
-      if (!(path in resultFiles)) {
-        delete repo.workingTree[path];
-      }
-    }
-
-    const conflictMessages = Object.keys(conflictFiles)
+    const conflictMessages = Object.keys(result.conflicts)
       .sort()
       .map((path) => `CONFLICT (content): Conflict in ${path}`);
 
     return { output: conflictMessages, errors: [], exitCode: 1 };
   }
 
-  // Pas de conflits : créer le nouveau commit
-  repo.index = buildIndexFromFiles(repo, resultFiles);
-  repo.workingTree = buildWorkingTreeFromFiles(repo, resultFiles);
+  // Pas de conflits : succès
+  addReflogEntryForHead(repo, {
+    oldHash: headHash,
+    newHash: result.newHash,
+    action: 'cherry-pick',
+    description: targetCommit.message.split('\n')[0] ?? targetCommit.message,
+  });
 
-  const treeHash = buildTreeFromIndex(repo, repo.index);
+  const branch = currentBranch(repo);
+  const branchLabel = branch ?? 'HEAD';
+  const short = shortHash(result.newHash);
+  return ok([`[${branchLabel} ${short}] ${targetCommit.message}`]);
+}
 
-  const newCommitHash = createCommitWithParents(repo, {
-    message: targetCommit.message,
-    treeHash,
-    parents: [headHash],
+/** Continue un cherry-pick après résolution de conflits. */
+function cherryPickContinue(repo: Repository): CommandResult {
+  if (!repo.cherryPicking) {
+    return fail(['fatal: There is no cherry-pick in progress (CHERRY_PICK_HEAD missing).']);
+  }
+
+  const { originalMessage, headHashBeforePick } = repo.cherryPicking;
+
+  const headHash = headCommitHash(repo);
+  if (!headHash) {
+    return fail(['fatal: no HEAD commit']);
+  }
+
+  const newCommitHash = replayCommitContinue(repo, {
+    commitMessage: originalMessage,
+    newParentHash: headHash,
+  });
+
+  delete repo.cherryPicking;
+
+  addReflogEntryForHead(repo, {
+    oldHash: headHashBeforePick,
+    newHash: newCommitHash,
+    action: 'cherry-pick',
+    description: originalMessage.split('\n')[0] ?? originalMessage,
   });
 
   const branch = currentBranch(repo);
   const branchLabel = branch ?? 'HEAD';
   const short = shortHash(newCommitHash);
-  return ok([`[${branchLabel} ${short}] ${targetCommit.message}`]);
+  return ok([`[${branchLabel} ${short}] ${originalMessage}`]);
 }
 
 /** Annule un cherry-pick en cours. */

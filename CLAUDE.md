@@ -92,6 +92,8 @@ Développement par phases (voir la liste de tâches).
 
 - **Phase 4 terminée** : fusion & réécriture. `git merge` (fast-forward, `--no-ff`, true merge 3-way à 2 parents, `-m`, `--abort`), `reset` (--soft/--mixed/--hard), `revert`, `cherry-pick`, `rebase` (non interactif, replay → nouveaux hash, `--continue`/`--abort`). Helpers : `isAncestor`, `mergeBase`, `resolveCommitish` étendu aux révisions `HEAD~n`/`<ref>~n`, `getCommitsToReplay`, `computeTreeDiff`, `createCommitWithParents`. Conflits matérialisés par marqueurs `<<<<<<< ======= >>>>>>>` + état d'opération (`merging`/`rebasing`/…) exposé dans `snapshot.operationState`. Dette Phase 2 `branch -d` (non mergée) corrigée via `isAncestor`. 453 tests verts (specs `18-23`).
 
+- **Phase 5 terminée** : outils avancés. `git rebase -i` (todo list éditée via `InteractiveRebaseModal.vue` ; actions pick/reword/squash/fixup/drop + réordonnancement ; conflits → `--continue`/`--abort`), `git stash` (push/list/pop/apply/drop), `git reflog` (+ révision `HEAD@{n}` pour l'undo). Refactor de la dette Phase 4 : helper unique `replayCommit`/`replayCommitContinue` (rebase + cherry-pick), `applyDiff` mort supprimé. Modèles : `TodoItem`, `StashEntry`, `ReflogEntry`. Contrat UI : `GitEngine.executeRebaseInteractive(todo)` via l'action store `executeRebaseTodo` ; snapshot expose `rebasingInteractive` + `stashCount`. 509 tests verts (specs `24-27`).
+
 ### Graphe (à connaître pour la Phase 4)
 
 - L'algorithme de layout gère **déjà les merges** (commit à 2+ parents) : le 1er parent continue la lane, les parents secondaires vont sur une lane libre ; collision `(lane,depth)` résolue. Le rendu distingue `type:'merge'`. Quand `git merge` arrivera, le graphe affichera correctement les fusions sans changement du layout.
@@ -128,3 +130,9 @@ Dette Phase 4 (revue QA) — **à traiter en Phase 5** (le rebase interactif s'a
 - **Dédupliquer la logique de replay/diff** : `cmdRebase` et `rebaseContinue` dupliquent ~80 lignes ; `applyDiff`/`makeConflictMarkers` (repository.ts) sont des helpers partiellement morts/divergents (cherry-pick/revert/rebase réimplémentent la boucle inline). Extraire un `replayOneCommit(repo, origCommit, newParent)` avant Phase 5.
 - `mergeBase` renvoie une seule base (pas de criss-cross/recursive) ; conflit delete/modify non testable en boîte noire (pas de `git rm`). À documenter/tester en blanc-box.
 - Champs morts : `headHashBeforeRevert`/`headHashBeforePick` (conservés par symétrie).
+
+Dette Phase 5 (revue QA) — non bloquante :
+- `git revert` n'utilise PAS encore `replayCommit` (applique un diff inversé inline) — la dédup voulue par la spec 24 n'est atteinte qu'aux 2/3 ; nécessiterait une option `invert` sur le helper.
+- `git stash list` : format inversé vs git réel (« On » avec message / « WIP on … <short> <subject> » sans) et hash court manquant — cosmétique, à corriger en Phase 6.
+- Création de branche/tag n'écrit pas d'entrée reflog (optionnel selon spec).
+- Plusieurs tests reflog/stash utilisent des assertions `toContain` assez larges.

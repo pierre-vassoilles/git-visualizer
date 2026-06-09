@@ -1,6 +1,7 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
 import {
+  addReflogEntryForHead,
   applyFilesToRepo,
   buildIndexFromFiles,
   buildWorkingTreeFromFiles,
@@ -110,6 +111,13 @@ function performFastForward(
     const files = getTreeFiles(repo, targetCommit.tree);
     applyFilesToRepo(repo, files);
   }
+
+  addReflogEntryForHead(repo, {
+    oldHash: headHash,
+    newHash: branchTip,
+    action: 'merge',
+    description: `Fast-forward`,
+  });
 
   // Message de sortie simplifié
   const shortBefore = headHash.slice(0, 7);
@@ -263,6 +271,13 @@ function performTrueMerge(
     message,
     treeHash,
     parents: [headHash, branchTip],
+  });
+
+  addReflogEntryForHead(repo, {
+    oldHash: headHash,
+    newHash: mergeCommitHash,
+    action: 'merge',
+    description: message,
   });
 
   // S'assurer que le merging state est nettoyé

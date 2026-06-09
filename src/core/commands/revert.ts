@@ -1,6 +1,7 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
 import {
+  addReflogEntryForHead,
   buildIndexFromFiles,
   buildTreeFromIndex,
   buildWorkingTreeFromFiles,
@@ -218,6 +219,13 @@ export function cmdRevert(repo: Repository, args: string[]): CommandResult {
     message: defaultMessage,
     treeHash,
     parents: [headHash],
+  });
+
+  addReflogEntryForHead(repo, {
+    oldHash: headHash,
+    newHash: revertCommitHash,
+    action: 'revert',
+    description: defaultMessage.split('\n')[0] ?? defaultMessage,
   });
 
   const branch = currentBranch(repo);

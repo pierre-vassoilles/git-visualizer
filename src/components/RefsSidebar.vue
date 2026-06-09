@@ -10,6 +10,12 @@ const repo = useRepoStore();
     <h2>Références</h2>
     <p class="muted">branches / tags / HEAD (phase 2)</p>
 
+    <!-- Phase 5 : stash count -->
+    <template v-if="repo.snapshot.stashCount && repo.snapshot.stashCount > 0">
+      <h2>Stash</h2>
+      <p class="stash-count">{{ repo.snapshot.stashCount }} entrée{{ repo.snapshot.stashCount > 1 ? 's' : '' }} en stash</p>
+    </template>
+
     <h2>Historique</h2>
     <ul class="history">
       <li v-for="(cmd, i) in repo.history" :key="i">{{ cmd }}</li>
@@ -49,5 +55,12 @@ h2 {
 .muted {
   color: #aaa;
   font-size: 0.8rem;
+}
+.stash-count {
+  font-size: 0.8rem;
+  font-family: ui-monospace, monospace;
+  color: #6f42c1;
+  margin: 0;
+  padding: 2px 0;
 }
 </style>

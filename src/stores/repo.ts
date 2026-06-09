@@ -3,6 +3,7 @@ import { ref, shallowRef } from 'vue';
 import { GitEngine } from '@/core/engine';
 import type { CommandResult } from '@/core/types';
 import type { RepoSnapshot } from '@/core/engine';
+import type { TodoItem } from '@/core/model';
 
 /** Une entrée du journal du terminal (commande tapée + résultat). */
 export interface LogEntry {
@@ -40,6 +41,18 @@ export const useRepoStore = defineStore('repo', () => {
     return result;
   }
 
+  /**
+   * PHASE 5 : Exécute la todo list éditée par l'utilisateur depuis InteractiveRebaseModal.
+   * Appelle directement la méthode moteur (sans passer par le parseur de commandes),
+   * journalise le résultat et recalcule le snapshot réactif.
+   */
+  function executeRebaseTodo(todoList: TodoItem[]): CommandResult {
+    const result = engine.value.executeRebaseInteractive(todoList);
+    log.value.push({ id: nextId++, command: '(interactive rebase todo submitted)', result });
+    snapshot.value = engine.value.snapshot();
+    return result;
+  }
+
   /** Réinitialise le dépôt (nouveau moteur). */
   function reset(): void {
     engine.value = new GitEngine();
@@ -50,5 +63,5 @@ export const useRepoStore = defineStore('repo', () => {
 
   // `engine` reste privé au store : les composants passent par execute()/snapshot()
   // pour que journal et snapshot restent cohérents.
-  return { log, history, snapshot, execute, reset };
+  return { log, history, snapshot, execute, executeRebaseTodo, reset };
 });

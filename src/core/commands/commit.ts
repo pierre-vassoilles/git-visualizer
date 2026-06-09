@@ -1,6 +1,7 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
 import {
+  addReflogEntryForHead,
   buildTreeFromIndex,
   createCommit,
   createCommitWithParents,
@@ -63,8 +64,17 @@ export function cmdCommit(repo: Repository, args: string[]): CommandResult {
   const branch = currentBranch(repo) ?? 'HEAD';
   const isRoot = !repo.refs.heads[branch];
 
+  const headHashBeforeCommit = headCommitHash(repo) ?? '';
   const commitHash = createCommit(repo, { message });
   const short = shortHash(commitHash);
+
+  // Reflog
+  addReflogEntryForHead(repo, {
+    oldHash: headHashBeforeCommit,
+    newHash: commitHash,
+    action: 'commit',
+    description: message.split('\n')[0] ?? message,
+  });
 
   // Nettoyer l'état de revert si présent
   if (repo.reverting) {
@@ -107,6 +117,13 @@ function finalizeMergeCommit(repo: Repository, args: string[]): CommandResult {
     parents: mergingState.mergeParents,
   });
 
+  addReflogEntryForHead(repo, {
+    oldHash: headHash,
+    newHash: mergeCommitHash,
+    action: 'merge',
+    description: message,
+  });
+
   // Nettoyer l'état de merge
   delete repo.merging;
 
@@ -141,6 +158,13 @@ function finalizeCherryPickCommit(repo: Repository, args: string[]): CommandResu
     message,
     treeHash,
     parents: [headHash],
+  });
+
+  addReflogEntryForHead(repo, {
+    oldHash: headHash,
+    newHash: commitHash,
+    action: 'cherry-pick',
+    description: message.split('\n')[0] ?? message,
   });
 
   delete repo.cherryPicking;
