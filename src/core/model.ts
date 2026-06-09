@@ -71,6 +71,72 @@ export type WorkingTree = Record<string, WorkingTreeEntry>;
 // Dépôt complet
 // ---------------------------------------------------------------------------
 
+/** État d'un merge en cours (conflits non résolus). */
+export interface MergingState {
+  /** Nom de la branche en train d'être fusionnée. */
+  branchName: string;
+  /** Hash de l'ancêtre commun (merge-base). */
+  baseHash: string;
+  /** Hash du tip de la branche en cours de fusion. */
+  branchTipHash: string;
+  /** Hash HEAD au moment du début du merge (pour --abort). */
+  headHashBeforeMerge: string;
+  /** Snapshot de l'index avant le merge (pour --abort). */
+  indexBeforeMerge: Index;
+  /** Snapshot du working tree avant le merge (pour --abort). */
+  workingTreeBeforeMerge: WorkingTree;
+  /** Parents du commit de merge à créer [headHash, branchTipHash]. */
+  mergeParents: [string, string];
+}
+
+/** État d'un revert en cours (conflits non résolus). */
+export interface RevertingState {
+  /** Hash du commit en train d'être reverté. */
+  commitHash: string;
+  /** Message par défaut du commit de revert. */
+  defaultMessage: string;
+  /** Hash HEAD avant le revert (pour --abort). */
+  headHashBeforeRevert: string;
+  /** Snapshot de l'index avant le revert (pour --abort). */
+  indexBeforeRevert: Index;
+  /** Snapshot du working tree avant le revert (pour --abort). */
+  workingTreeBeforeRevert: WorkingTree;
+}
+
+/** État d'un cherry-pick en cours (conflits non résolus). */
+export interface CherryPickingState {
+  /** Hash du commit en train d'être cherry-pické. */
+  commitHash: string;
+  /** Message du commit original (à réutiliser). */
+  originalMessage: string;
+  /** Hash HEAD avant le cherry-pick (pour --abort). */
+  headHashBeforePick: string;
+  /** Snapshot de l'index avant le cherry-pick (pour --abort). */
+  indexBeforePick: Index;
+  /** Snapshot du working tree avant le cherry-pick (pour --abort). */
+  workingTreeBeforePick: WorkingTree;
+}
+
+/** État d'un rebase en cours. */
+export interface RebasingState {
+  /** Hash de la base du rebase. */
+  base: string;
+  /** Commits restant à rejouer (hashes originaux, du plus ancien au plus récent). */
+  toReplay: string[];
+  /** Hashes des nouveaux commits déjà rejoués. */
+  replayed: string[];
+  /** Hash HEAD (branche) avant le rebase (pour --abort). */
+  headHashBeforeRebase: string;
+  /** Nom de branche avant le rebase (null si HEAD détaché). */
+  branchBeforeRebase: string | null;
+  /** Snapshot de l'index avant le rebase (pour --abort). */
+  indexBeforeRebase: Index;
+  /** Snapshot du working tree avant le rebase (pour --abort). */
+  workingTreeBeforeRebase: WorkingTree;
+  /** Message du commit courant en cours de replay (pour --continue). */
+  currentCommitMessage: string;
+}
+
 export interface Repository {
   objects: Record<string, GitObject>;
   refs: {
@@ -84,4 +150,12 @@ export interface Repository {
   commitCount: number;
   /** Nom de la branche précédente (pour git checkout -) */
   prevBranch: string | null;
+  /** État de merge en cours, si applicable. */
+  merging?: MergingState;
+  /** État de revert en cours, si applicable. */
+  reverting?: RevertingState;
+  /** État de cherry-pick en cours, si applicable. */
+  cherryPicking?: CherryPickingState;
+  /** État de rebase en cours, si applicable. */
+  rebasing?: RebasingState;
 }

@@ -91,6 +91,14 @@ export interface RepoSnapshot {
    * les commits récents (profondeur 0) en haut du canvas (Y le plus petit).
    */
   readonly allCommits?: SnapshotCommit[];
+  /**
+   * PHASE 4 : État d'opération en cours.
+   * Null si aucune opération n'est en cours.
+   */
+  readonly operationState?: {
+    readonly type: 'merging' | 'reverting' | 'cherryPicking' | 'rebasing';
+    readonly branchName?: string;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -347,6 +355,18 @@ export class GitEngine {
     // Phase 3 : tous les commits du dépôt en ordre topologique
     const allCommitsRaw = getAllCommitsTopologicalOrder(repo, hashToBranches, hashToTags);
 
+    // Phase 4 : état d'opération en cours
+    let operationState: RepoSnapshot['operationState'] = undefined;
+    if (repo.merging) {
+      operationState = { type: 'merging', branchName: repo.merging.branchName };
+    } else if (repo.rebasing) {
+      operationState = { type: 'rebasing' };
+    } else if (repo.reverting) {
+      operationState = { type: 'reverting' };
+    } else if (repo.cherryPicking) {
+      operationState = { type: 'cherryPicking' };
+    }
+
     // Immuabilité (cf. contrat RepoSnapshot) : on gèle les conteneurs pour
     // qu'un composant ne puisse pas muter le snapshot posé dans le store.
     return Object.freeze({
@@ -358,6 +378,7 @@ export class GitEngine {
       indexPaths: Object.freeze(indexPaths) as string[],
       files: Object.freeze(files.map((f) => Object.freeze(f))) as SnapshotFile[],
       allCommits: Object.freeze(allCommitsRaw) as SnapshotCommit[],
+      operationState: operationState ? Object.freeze(operationState) : undefined,
     });
   }
 }

@@ -1,6 +1,6 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
-import { branchExists, currentBranch, headCommitHash, isInitialized } from '../repository';
+import { branchExists, currentBranch, headCommitHash, isAncestor, isInitialized } from '../repository';
 import { shortHash } from '../sha1';
 import { notARepo } from './init';
 
@@ -48,6 +48,22 @@ export function cmdBranch(repo: Repository, args: string[]): CommandResult {
       return fail([
         `fatal: Cannot delete the branch '${branchName}' which you are currently on.`,
       ]);
+    }
+
+    // Pour -d (soft delete), vérifier que la branche est mergée
+    if (deleteFlag && !forceDeleteFlag) {
+      const branchTip = repo.refs.heads[branchName] ?? '';
+      if (branchTip !== '') {
+        // Branche non vide : vérifier que son tip est ancêtre de HEAD
+        const headHash = headCommitHash(repo);
+        if (!headHash || !isAncestor(repo, branchTip, headHash)) {
+          return fail([
+            `error: The branch '${branchName}' is not fully merged.`,
+            `If you are sure you want to delete it, run 'git branch -D ${branchName}'.`,
+          ]);
+        }
+      }
+      // Branche vide (branchTip === '') : autoriser la suppression
     }
 
     // Récupérer le hash avant suppression pour le message

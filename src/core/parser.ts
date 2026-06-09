@@ -20,6 +20,11 @@ import { cmdCheckout } from './commands/checkout';
 import { cmdSwitch } from './commands/switch';
 import { cmdRestore } from './commands/restore';
 import { cmdTag } from './commands/tag';
+import { cmdMerge } from './commands/merge';
+import { cmdReset } from './commands/reset';
+import { cmdRevert } from './commands/revert';
+import { cmdCherryPick } from './commands/cherry-pick';
+import { cmdRebase } from './commands/rebase';
 
 // ---------------------------------------------------------------------------
 // Tokenisation
@@ -143,6 +148,21 @@ export function dispatch(repo: Repository, input: string): CommandResult {
 
     case 'tag':
       return cmdTag(repo, rest);
+
+    case 'merge':
+      return cmdMerge(repo, rest);
+
+    case 'reset':
+      return cmdReset(repo, rest);
+
+    case 'revert':
+      return cmdRevert(repo, rest);
+
+    case 'cherry-pick':
+      return cmdCherryPick(repo, rest);
+
+    case 'rebase':
+      return cmdRebase(repo, rest);
 
     default:
       return fail([`git: '${subcommand}' is not a git command. See 'git --help'.`]);

@@ -886,15 +886,619 @@ Chaque branche obtient une couleur unique. Si vous avez beaucoup de branches, ce
 
 ---
 
-## À venir en Phase 4+
+## Commandes disponibles en Phase 4
 
-Les fonctionnalités suivantes ne sont **pas disponibles en Phase 3** mais seront implémentées ultérieurement :
+### Syntaxe des révisions : `HEAD~n`
 
-- **Fusion** : `git merge`, `git rebase`
-- **Historique avancé** : `git log -p`, `git log --follow`, `git diff`
-- **Modifications avancées** : `git reset`, `git revert`, `git cherry-pick`
-- **Stash** : `git stash`
+Avant de couvrir les commandes de fusion et réécriture, comprenons comment référencer des commits antérieurs à HEAD.
+
+#### Notation `HEAD~n`
+
+`HEAD~n` signifie "le commit n générations avant HEAD, en remontant par le 1er parent".
+
+**Formule** :
+- `HEAD~0` → HEAD (commit courant)
+- `HEAD~1` → parent direct de HEAD
+- `HEAD~2` → parent du parent
+- `HEAD~n` → n générations en arrière
+
+**Visuel** :
+```
+HEAD → C3
+       ↑
+       C2 (HEAD~1)
+       ↑
+       C1 (HEAD~2)
+       ↑
+       C0 (HEAD~3, racine)
+```
+
+Dans une session :
+```bash
+$ git log --oneline
+abc1234 Commit 3
+def5678 Commit 2
+ghi9012 Commit 1
+
+$ git show HEAD     # Affiche le détail de C3 (abc1234)
+$ git show HEAD~1   # Affiche le détail de C2 (def5678)
+$ git show HEAD~2   # Affiche le détail de C1 (ghi9012)
+```
+
+**Avec les branches** :
+
+La notation `~n` s'applique aussi aux branches et tags :
+```bash
+git show main~1      # 1 commit avant le tip de main
+git show feature~2   # 2 commits avant feature
+git show v1.0~1      # 1 commit avant le tag v1.0
+```
+
+**Cas spécial : merge commits**
+
+Quand un commit a 2 parents (merge commit), `~n` suit le **1er parent** :
+```
+    C1 ← C2 (main/HEAD)
+   /
+C0 ← M (merge)
+   \
+    D1 ← D2 (feature)
+
+M~1 → C1 (premier parent)
+M~2 → C0 (parent du premier parent)
+```
+
+---
+
+### Fusion et réécriture d'historique
+
+#### `git merge` — Fusionner deux branches
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git merge [options] <branchname>` |
+| **Description** | Fusionne une branche dans la branche courante. Crée un commit de fusion si nécessaire, ou avance simplement (fast-forward) si possible |
+| **Options Phase 4** | `--no-ff` (force un commit de fusion) ; `-m <message>` (message personnalisé) ; `--abort` (annule un merge en cours) |
+
+##### Concept : Fast-Forward vs True Merge
+
+**Fast-Forward** : Si HEAD est un ancêtre du tip de la branche à merger, Git avance simplement sans créer de commit.
+
+```
+Avant :        Après (git merge feature):
+C0 ← C1        C0 ← C1 ← C2 ← C3
+(main) ← C2    (main/HEAD, feature)
+        ← C3
+      (feature)
+```
+
+**True Merge** : Si les branches divergent, Git crée un commit de fusion à 2 parents.
+
+```
+Avant :           Après (git merge feature):
+    C1 ← C2           C1 ← C2
+   /                 /      \
+C0 ← ─────────────→ M (merge)
+   \                 \
+    D1 ← D2           D1 ← D2
+
+M.parents = [C2, D2]
+```
+
+##### Exemples
+
+```bash
+# Cas 1 : Fast-forward simple
+$ git log --oneline
+abc1234 Commit 3 (feature)
+def5678 Commit 2 (main/HEAD)
+ghi9012 Commit 1
+
+$ git merge feature
+Updating def5678..abc1234
+Fast-forward
+ newfile.txt | 1 +
+ 1 file changed, 1 insertion(+)
+
+# Cas 2 : True merge (pas de fast-forward)
+$ git log --oneline
+abc1234 Feature commit (feature)
+def5678 Main commit (main/HEAD)
+ghi9012 Common base
+
+$ git merge feature
+Merge made by the '3-way' merge strategy.
+ feature.txt | 1 +
+ 1 file changed, 1 insertion(+)
+
+# Cas 3 : Forcer un commit de merge avec --no-ff
+$ git merge --no-ff feature
+Merge made by the 'recursive' merge strategy.
+ ...
+
+# Cas 4 : Message personnalisé
+$ git merge -m "Fuse feature X into main" feature
+```
+
+##### Gestion simplifiée des conflits
+
+Un **conflit** survient quand le même fichier est modifié différemment dans deux branches par rapport à leur ancêtre commun.
+
+**Détection** :
+- Si base ≠ HEAD ET base ≠ branch ET HEAD ≠ branch → conflit
+
+**Marqueurs de conflit** :
+
+Quand un conflit est détecté, Git insère des marqueurs dans le fichier :
+
+```
+<<<<<<< HEAD
+contenu de la branche courante (main)
+=======
+contenu de la branche à merger (feature)
+>>>>>>> feature
+```
+
+Exemple concret :
+```
+config.txt avant merge :
+
+Base (ancêtre commun) :
+DEBUG = unknown
+
+Main (HEAD) :
+DEBUG = true
+
+Feature (branche) :
+DEBUG = false
+
+Après git merge feature :
+<<<<<<< HEAD
+DEBUG = true
+=======
+DEBUG = false
+>>>>>>> feature
+```
+
+**Résolution** :
+
+1. Éditer les fichiers conflictants pour retirer les marqueurs et choisir/combiner les contenus
+2. Ajouter les fichiers résolus : `git add <fichier>`
+3. Finaliser le merge : `git commit`
+
+```bash
+# Après avoir édité config.txt pour résoudre le conflit
+$ git add config.txt
+
+$ git status
+On branch main
+You have unmerged paths.
+  (fix conflicts and run "git commit")
+
+$ git commit -m "Resolve merge conflict"
+[main abc1234] Merge branch 'feature'
+```
+
+**Annuler un merge** :
+
+Si vous changez d'avis pendant un merge en cours :
+
+```bash
+$ git merge --abort
+Merge aborted.
+```
+
+---
+
+#### `git reset` — Déplacer HEAD et réinitialiser
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git reset [--soft \| --mixed \| --hard] [<commit>]` |
+| **Description** | Déplace HEAD (et la branche courante) vers un commit donné, et optionnellement réinitialise l'index et le working tree |
+| **Options Phase 4** | `--soft` (HEAD seulement) ; `--mixed` (défaut : HEAD + index) ; `--hard` (HEAD + index + working tree) |
+
+##### Les trois modes expliqués
+
+Imaginez trois "étages" : le commit (HEAD), l'index (staging area), et le working tree (fichiers visibles).
+
+```
+COMMIT (HEAD) ←─ --soft : déplace seulement ici
+INDEX         ←─ --mixed : réinitialise aussi ici (par défaut)
+WORKING TREE  ←─ --hard : réinitialise aussi ici
+```
+
+###### Mode `--soft` : Garder les changements stagés
+
+**Effet** : Déplace HEAD, mais garde l'index et le working tree inchangés.
+
+**Quand utiliser** : "J'ai committé trop tôt. Je veux garder mes changements stagés pour les recommitter avec un meilleur message."
+
+```bash
+Avant :
+HEAD → C1, index = {a.txt: "v1"}, WT = {a.txt: "v1"}
+
+$ git reset --soft HEAD~1
+
+Après :
+HEAD → C0, index = {a.txt: "v1"} (inchangé !), WT = {a.txt: "v1"}
+
+$ git status
+Changes to be committed:
+  modified: a.txt
+```
+
+###### Mode `--mixed` (défaut) : Réinitialiser l'index
+
+**Effet** : Déplace HEAD, réinitialise l'index avec le contenu de HEAD, garde le working tree inchangé.
+
+**Quand utiliser** : "J'ai addé trop de fichiers. Je veux retirer du staging sans perdre les modifications."
+
+```bash
+Avant :
+HEAD → C1 (tree: {a.txt: "v0"}), index = {a.txt: "v1"}, WT = {a.txt: "v1"}
+
+$ git reset --mixed HEAD~1
+$ # ou simplement : git reset HEAD~1
+
+Après :
+HEAD → C0, index = {a.txt: "v0"} (réinitialisé), WT = {a.txt: "v1"} (inchangé)
+
+$ git status
+Changes not staged for commit:
+  modified: a.txt
+```
+
+###### Mode `--hard` : Annuler complètement
+
+**Effet** : Déplace HEAD, réinitialise l'index ET le working tree.
+
+**Quand utiliser** : "Je veux revenir à un état antérieur et supprimer tous mes changements locaux."
+
+⚠️ **DANGER** : Les changements non commités sont **perdus définitivement**.
+
+```bash
+Avant :
+HEAD → C1 (tree: {a.txt: "v0"}), index = {a.txt: "v1"}, WT = {a.txt: "v1.modified"}
+
+$ git reset --hard HEAD~1
+
+Après :
+HEAD → C0, index = {a.txt: "v0"}, WT = {a.txt: "v0"}
+(La version "v1.modified" est PERDUE)
+
+$ git status
+On branch main
+nothing to commit, working tree clean
+```
+
+##### Exemples
+
+```bash
+# Reset soft : garder les changements stagés
+$ git reset --soft HEAD~1
+
+# Reset mixed (défaut) : réinitialiser l'index
+$ git reset HEAD~1      # identique à --mixed
+$ git reset --mixed HEAD~1
+
+# Reset hard : revenir à un état antérieur
+$ git reset --hard HEAD~2
+
+# Reset à HEAD (réinitialise juste l'index)
+$ git reset
+```
+
+---
+
+#### `git revert` — Créer un commit d'annulation
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git revert [options] <commit>` |
+| **Description** | Crée un nouveau commit qui annule les changements d'un commit spécifié |
+| **Options Phase 4** | `-m <parent>` (pour les merge commits, optionnel) ; `--abort` (annule un revert en cours) |
+
+##### Concept : Inverser les changements
+
+`git revert` **crée un nouveau commit** qui inverse les changements d'un commit donné. Contrairement à `git reset` (qui supprime l'historique), `git revert` préserve l'historique.
+
+```
+Avant :
+C0 ← C1 (modifie a.txt: "old" → "new") ← C2 (HEAD)
+
+Après (git revert C1) :
+C0 ← C1 ← C2 ← R (annule la modification : a.txt: "new" → "old")
+```
+
+##### Exemples
+
+```bash
+# Cas 1 : Revert simple
+$ git log --oneline
+abc1234 Add feature X (HEAD)
+def5678 Initial commit
+
+$ git revert abc1234
+Revert "Add feature X"
+
+This reverts commit abc1234.
+
+# Cas 2 : Revert d'un commit au milieu de l'historique
+$ git log --oneline
+ghi9012 Commit 3 (HEAD)
+abc1234 Commit 2 (à annuler)
+def5678 Commit 1
+
+$ git revert abc1234
+(crée un nouveau commit qui annule Commit 2)
+
+$ git log --oneline
+xyz1234 Revert "Commit 2"
+ghi9012 Commit 3
+abc1234 Commit 2
+def5678 Commit 1
+```
+
+---
+
+#### `git cherry-pick` — Appliquer un commit isolé
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git cherry-pick <commit>` |
+| **Description** | Applique les changements d'un commit spécifique sur HEAD, créant un nouveau commit |
+| **Options Phase 4** | `--abort` (annule un cherry-pick en cours) |
+
+##### Concept : Dupliquer un commit
+
+`git cherry-pick` prend les changements d'un commit et les applique sur HEAD.
+
+```
+Avant :
+C0 ← C1 (main/HEAD)
+  \
+    D1 (modifie a.txt) ← D2 (feature)
+
+Après (git cherry-pick D1 depuis main) :
+C0 ← C1 ← C1' (les mêmes changements que D1) (main/HEAD)
+  \
+    D1 ← D2 (feature, inchangé)
+```
+
+##### Exemples
+
+```bash
+# Cas 1 : Cherry-pick simple
+$ git log --oneline
+abc1234 Feature commit (feature)
+def5678 Main (main/HEAD)
+
+$ git cherry-pick abc1234
+[main ghi9012] Feature commit
+ 1 file changed, 1 insertion(+)
+
+# Cas 2 : Cherry-pick avec conflit
+$ git log --oneline
+abc1234 Conflicting change (feature)
+def5678 Different change (main/HEAD)
+
+$ git cherry-pick abc1234
+CONFLICT (content): Conflict in config.txt
+(Résoudre comme pour merge, puis git add + git commit)
+```
+
+---
+
+#### `git rebase` — Rejouer des commits sur une nouvelle base
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git rebase [options] <base>` |
+| **Description** | Rejowe tous les commits de la branche courante (absents de `<base>`) au-dessus de `<base>` |
+| **Options Phase 4** | `--continue` (continue après résolution de conflits) ; `--abort` (annule un rebase en cours) |
+
+##### Concept : Linéariser l'historique
+
+`git rebase` repère les commits uniques de la branche courante et les rejoue au-dessus d'une nouvelle base. Cela crée un historique linéaire au lieu de branchements.
+
+```
+Avant (merge crée deux branches) :
+    C1 ← C2 (main)
+   /
+C0
+   \
+    D1 ← D2 (feature/HEAD)
+
+Après (git rebase main) :
+C0 ← C1 ← C2 ← D1' ← D2' (feature/HEAD)
+
+D1' et D2' sont des NOUVEAUX commits (hashes différents de D1 et D2)
+avec les mêmes changements, mais parents différents.
+```
+
+##### Exemples
+
+```bash
+# Cas 1 : Rebase simple
+$ git checkout feature
+$ git log --oneline --graph
+* abc1234 Feature commit 2
+* def5678 Feature commit 1
+| * ghi9012 Main commit (main)
+|/
+* jkl5678 Base
+
+$ git rebase main
+First, rewinding head to replay your work on top of main...
+Applying: Feature commit 1
+Applying: Feature commit 2
+
+$ git log --oneline --graph
+* xyz9999 Feature commit 2 (feature/HEAD)
+* abc1111 Feature commit 1
+* ghi9012 Main commit (main)
+* jkl5678 Base
+
+# Cas 2 : Rebase avec conflit
+$ git rebase main
+CONFLICT (content): Conflict in file.txt
+(Résoudre le conflit)
+
+$ git add file.txt
+$ git rebase --continue
+(Continues le rebase)
+
+# Cas 3 : Annuler un rebase
+$ git rebase --abort
+Rebase aborted.
+(Retour à l'état avant rebase)
+```
+
+---
+
+### Scénario complet : Workflow avec merge et rebase
+
+Voici une session réaliste montrant merge, rebase, et gestion de conflits :
+
+```bash
+# 1. Initialiser et créer l'historique de base
+$ git init
+$ write main.txt "Main content"
+$ git add main.txt
+$ git commit -m "Initial commit on main"
+[main (root-commit) abc1234] Initial commit on main
+
+# 2. Créer une branche feature
+$ git branch feature
+$ write main.txt "Main updated"
+$ git add main.txt
+$ git commit -m "Update main"
+[main def5678] Update main
+
+# 3. Basculer sur feature et créer des commits
+$ git checkout feature
+Switched to branch 'feature'
+
+$ write feature.txt "Feature content"
+$ git add feature.txt
+$ git commit -m "Add feature.txt"
+[feature ghi9012] Add feature.txt
+
+$ write config.txt "SETTING = A"
+$ git add config.txt
+$ git commit -m "Add config"
+[feature jkl3456] Add config
+
+# 4. Revenir à main et créer un autre changement
+$ git checkout main
+Switched to branch 'main'
+
+$ write config.txt "SETTING = B"
+$ git add config.txt
+$ git commit -m "Add config on main"
+[main mno7890] Add config on main
+
+# 5. État avant merge/rebase
+$ git log --oneline --graph
+* mno7890 Add config on main (main/HEAD)
+| * jkl3456 Add config (feature)
+| * ghi9012 Add feature.txt
+|/
+* def5678 Update main
+* abc1234 Initial commit on main
+
+# 6. Merger feature dans main : conflit attendu
+$ git merge feature
+Auto-merging config.txt
+CONFLICT (content): Merge conflict in config.txt
+Automatic merge failed.
+
+# 7. Examiner le conflit
+$ read config.txt
+<<<<<<< HEAD
+SETTING = B
+=======
+SETTING = A
+>>>>>>> feature
+
+# 8. Résoudre le conflit
+$ write config.txt "SETTING = A and B merged"
+$ git add config.txt
+
+$ git status
+On branch main
+You have unmerged paths.
+  (fix conflicts and run "git commit")
+	
+Unmerged paths:
+  (use "git add <file>..." to mark resolution)
+	both modified: config.txt
+
+# 9. Finaliser le merge
+$ git commit -m "Merge feature into main"
+[main pqr1111] Merge feature into main
+
+# 10. Afficher l'historique après merge
+$ git log --oneline --graph
+*   pqr1111 Merge feature into main (main/HEAD)
+|\
+| * jkl3456 Add config
+| * ghi9012 Add feature.txt
+* | mno7890 Add config on main
+|/
+* def5678 Update main
+* abc1234 Initial commit on main
+
+# 11. Créer une nouvelle branche et tester rebase
+$ git checkout -b develop
+Switched to a new branch 'develop'
+
+$ write develop.txt "Develop branch"
+$ git add develop.txt
+$ git commit -m "Add develop.txt"
+[develop stu2222] Add develop.txt
+
+# 12. Sur main, créer un autre commit
+$ git checkout main
+$ write main.txt "Main: version 2"
+$ git add main.txt
+$ git commit -m "Update main to v2"
+[main vwx3333] Update main to v2
+
+# 13. Rebase develop sur main (linéariser)
+$ git checkout develop
+Switched to branch 'develop'
+
+$ git rebase main
+Successfully rebased and updated develop.
+
+$ git log --oneline --graph
+* yz4444 Add develop.txt (develop/HEAD)
+* vwx3333 Update main to v2 (main)
+*   pqr1111 Merge feature into main
+|\
+| * jkl3456 Add config
+| * ghi9012 Add feature.txt
+* | mno7890 Add config on main
+|/
+* def5678 Update main
+* abc1234 Initial commit on main
+
+# 14. Afficher les changements du rebase
+$ git log HEAD~1..develop
+yz4444 Add develop.txt (nouveau hash, anciennement stu2222)
+```
+
+---
+
+## À venir en Phase 5+
+
+Les fonctionnalités suivantes ne sont **pas disponibles en Phase 4** mais seront implémentées ultérieurement :
+
 - **Rebase interactif** : `git rebase -i`
+- **Historique avancé** : `git log -p`, `git log --follow`, `git diff`
+- **Stash** : `git stash`
 - **Reflog** : `git reflog`
 - **Shell interactif** : Un shell complet avec `echo`, `cat`, `touch`, etc.
 
@@ -924,6 +1528,15 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 3** mais seron
 - **Interactions** : hover (tooltip), pan (drag), zoom (scroll)
 - **Badges intelligents** : affichage des branches, tags et HEAD sur chaque commit
 
+**Phase 4 – Fusion et réécriture d'historique :**
+- **Syntaxe de révision** : `HEAD~n` pour référencer des commits antérieurs
+- `git merge [--no-ff] [-m <message>]` — Fusionner les branches (fast-forward ou true merge)
+- `git reset [--soft | --mixed | --hard]` — Déplacer HEAD et réinitialiser index/working tree
+- `git revert` — Créer un commit d'annulation des changements
+- `git cherry-pick` — Appliquer un commit isolé sur HEAD
+- `git rebase [--continue | --abort]` — Rejouer des commits sur une nouvelle base
+- **Gestion simplifiée des conflits** : marqueurs standards, résolution manuelle + `git add` + `git commit`
+
 ### Workflow complet
 
 1. Initialisez un dépôt (`git init`)
@@ -931,5 +1544,6 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 3** mais seron
 3. Commitez (`git commit`)
 4. Gérez les branches (`git branch`, `git checkout`)
 5. **Visualisez votre historique en graphe** (Phase 3)
+6. **Fusionnez, rebasez, et réécrivez votre historique** (Phase 4)
 
-Vous pouvez explorer et maîtriser votre dépôt Git directement dans le terminal web, avec une vue d'ensemble visuelle et intuitive grâce au graphe interactif !
+Vous pouvez explorer et maîtriser votre dépôt Git directement dans le terminal web avec un contrôle complet du workflow collaboratif : création de branches, fusion, et réécriture d'historique, avec une vue d'ensemble visuelle et intuitive grâce au graphe interactif !

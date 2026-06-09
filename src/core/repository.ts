@@ -4,7 +4,7 @@
  * Expose les helpers de haut niveau utilisés par les commandes.
  */
 
-import type { Blob, Commit, Index, Repository, Tree, WorkingTree } from './model';
+import type { Blob, Commit, Index, IndexEntry, Repository, Tree, WorkingTree, WorkingTreeEntry } from './model';
 import { getCommit, getTree, hashBlob, storeBlob, storeCommit, storeTree } from './objectStore';
 
 export const AUTHOR = 'Unnamed <unnamed@example.com>';
@@ -276,34 +276,59 @@ export function setPrevBranch(repo: Repository, branchName: string | null): void
 }
 
 /**
- * Résout un committish (nom de branche, nom de tag, hash court ou long)
- * en hash de commit complet, ou null si introuvable.
+ * Résout un committish (nom de branche, nom de tag, hash court ou long,
+ * ou révision ~n) en hash de commit complet, ou null si introuvable.
  *
  * Ordre de résolution :
- * 1. Nom de branche dans refs.heads
- * 2. Nom de tag dans refs.tags
- * 3. Hash exact dans objects (commit complet)
- * 4. Hash court (préfixe) dans objects
+ * 0. Si l'input contient `~n`, résoudre la base puis remonter n parents
+ * 1. HEAD
+ * 2. Nom de branche dans refs.heads
+ * 3. Nom de tag dans refs.tags
+ * 4. Hash exact dans objects (commit complet)
+ * 5. Hash court (préfixe, min 4 chars) dans objects
  */
 export function resolveCommitish(repo: Repository, ref: string): string | null {
-  // 1. Branche
+  // 0. Supporter la notation ~n : regex greedy, format <base>~<n>
+  const tildeMatch = /^(.+?)~(\d+)$/.exec(ref);
+  if (tildeMatch) {
+    const base = tildeMatch[1]!;
+    const n = parseInt(tildeMatch[2]!, 10);
+    // Résoudre la base récursivement
+    const baseHash = resolveCommitish(repo, base);
+    if (!baseHash) return null;
+    // Remonter n générations via le 1er parent
+    let current = baseHash;
+    for (let i = 0; i < n; i++) {
+      const commit = getCommit(repo, current);
+      if (!commit || commit.parents.length === 0) return null;
+      current = commit.parents[0]!;
+    }
+    return current;
+  }
+
+  // 1. HEAD
+  if (ref === 'HEAD') {
+    return headCommitHash(repo);
+  }
+
+  // 2. Branche
   if (branchExists(repo, ref)) {
     const h = repo.refs.heads[ref]!;
     return h || null; // branche vide → null
   }
 
-  // 2. Tag
+  // 3. Tag
   if (tagExists(repo, ref)) {
     return repo.refs.tags[ref]!;
   }
 
-  // 3. Hash exact (commit)
+  // 4. Hash exact (commit)
   const exactObj = repo.objects[ref];
   if (exactObj && exactObj.type === 'commit') {
     return ref;
   }
 
-  // 4. Hash court (préfixe)
+  // 5. Hash court (préfixe, min 4 chars)
   if (ref.length >= 4) {
     const matches = Object.keys(repo.objects).filter(
       (h) => h.startsWith(ref) && repo.objects[h]?.type === 'commit',
@@ -434,3 +459,429 @@ export function applyTreeToRepo(repo: Repository, commitHash: string | null): vo
 // ---------------------------------------------------------------------------
 
 export { storeBlob };
+
+// ---------------------------------------------------------------------------
+// Phase 4 : helpers isAncestor, mergeBase, buildIndexFromTree, tree diff
+// ---------------------------------------------------------------------------
+
+/**
+ * Retourne true si `a` est un ancêtre de `b` dans le DAG (ou si a === b).
+ * Algorithme BFS depuis `b` en remontant les parents.
+ */
+export function isAncestor(repo: Repository, a: string, b: string): boolean {
+  if (a === b) return true;
+  const visited = new Set<string>();
+  const queue: string[] = [b];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (visited.has(current)) continue;
+    visited.add(current);
+
+    if (current === a) return true;
+
+    const commit = getCommit(repo, current);
+    if (!commit) continue;
+    for (const parent of commit.parents) {
+      if (!visited.has(parent)) {
+        queue.push(parent);
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Trouve l'ancêtre commun le plus récent (LCA) de deux commits a et b.
+ * Retourne null si pas d'ancêtre commun.
+ *
+ * Algorithme : BFS simultanée depuis a et b.
+ * Plus simple : collecter tous les ancêtres de a, puis parcourir ancêtres de b BFS
+ * (plus proche = trouvé en premier = ancêtre commun le plus récent).
+ */
+export function mergeBase(repo: Repository, a: string, b: string): string | null {
+  // Collecter tous les ancêtres de a (incluant a lui-même)
+  const ancestorsOfA = new Set<string>();
+  const queueA: string[] = [a];
+  while (queueA.length > 0) {
+    const current = queueA.shift()!;
+    if (ancestorsOfA.has(current)) continue;
+    ancestorsOfA.add(current);
+    const commit = getCommit(repo, current);
+    if (!commit) continue;
+    for (const parent of commit.parents) {
+      queueA.push(parent);
+    }
+  }
+
+  // BFS depuis b, retourner le premier commit commun trouvé
+  const visitedB = new Set<string>();
+  const queueB: string[] = [b];
+  while (queueB.length > 0) {
+    const current = queueB.shift()!;
+    if (visitedB.has(current)) continue;
+    visitedB.add(current);
+
+    if (ancestorsOfA.has(current)) {
+      return current;
+    }
+
+    const commit = getCommit(repo, current);
+    if (!commit) continue;
+    for (const parent of commit.parents) {
+      queueB.push(parent);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Construit un Index à partir d'un hash de tree (inverse de buildTreeFromIndex).
+ * Utilisé par reset --mixed/--hard pour réinitialiser l'index.
+ */
+export function buildIndexFromTree(repo: Repository, treeHash: string): Index {
+  const files = flattenTree(repo, treeHash);
+  const index: Index = {};
+  for (const [path, blobHash] of Object.entries(files)) {
+    const obj = repo.objects[blobHash];
+    if (obj && obj.type === 'blob') {
+      index[path] = {
+        blobHash,
+        content: (obj as Blob).content,
+        mode: '100644',
+      };
+    }
+  }
+  return index;
+}
+
+/**
+ * Construit un WorkingTree à partir d'un hash de tree.
+ * Utilisé par reset --hard.
+ */
+export function buildWorkingTreeFromTree(repo: Repository, treeHash: string): WorkingTree {
+  const files = flattenTree(repo, treeHash);
+  const wt: WorkingTree = {};
+  for (const [path, blobHash] of Object.entries(files)) {
+    const obj = repo.objects[blobHash];
+    if (obj && obj.type === 'blob') {
+      wt[path] = {
+        content: (obj as Blob).content,
+        mode: '100644',
+      };
+    }
+  }
+  return wt;
+}
+
+/**
+ * Représente une différence entre deux arbres de commits.
+ */
+export interface TreeDiff {
+  /** Fichiers ajoutés dans 'to' par rapport à 'from'. */
+  added: Record<string, string>;    // path → content
+  /** Fichiers supprimés dans 'to' par rapport à 'from'. */
+  deleted: Record<string, string>;  // path → content (de 'from')
+  /** Fichiers modifiés (présents dans les deux, contenu différent). */
+  modified: Record<string, { from: string; to: string }>;
+}
+
+/**
+ * Calcule la différence entre deux arbres (fromTreeHash → toTreeHash).
+ * Utilisé par revert et cherry-pick pour déterminer les changements à appliquer.
+ */
+export function computeTreeDiff(
+  repo: Repository,
+  fromTreeHash: string | null,
+  toTreeHash: string | null,
+): TreeDiff {
+  const fromFiles = fromTreeHash ? flattenTree(repo, fromTreeHash) : {};
+  const toFiles = toTreeHash ? flattenTree(repo, toTreeHash) : {};
+
+  const added: Record<string, string> = {};
+  const deleted: Record<string, string> = {};
+  const modified: Record<string, { from: string; to: string }> = {};
+
+  // Fichiers dans 'to' mais pas dans 'from' → ajoutés
+  // Fichiers dans les deux → comparaison
+  for (const [path, toBlobHash] of Object.entries(toFiles)) {
+    const fromBlobHash = fromFiles[path];
+    if (!fromBlobHash) {
+      // Ajouté
+      const obj = repo.objects[toBlobHash];
+      if (obj && obj.type === 'blob') {
+        added[path] = (obj as Blob).content;
+      }
+    } else if (fromBlobHash !== toBlobHash) {
+      // Modifié
+      const fromObj = repo.objects[fromBlobHash];
+      const toObj = repo.objects[toBlobHash];
+      if (fromObj && fromObj.type === 'blob' && toObj && toObj.type === 'blob') {
+        modified[path] = {
+          from: (fromObj as Blob).content,
+          to: (toObj as Blob).content,
+        };
+      }
+    }
+    // Identiques : pas de diff
+  }
+
+  // Fichiers dans 'from' mais pas dans 'to' → supprimés
+  for (const [path, fromBlobHash] of Object.entries(fromFiles)) {
+    if (!(path in toFiles)) {
+      const obj = repo.objects[fromBlobHash];
+      if (obj && obj.type === 'blob') {
+        deleted[path] = (obj as Blob).content;
+      }
+    }
+  }
+
+  return { added, deleted, modified };
+}
+
+/**
+ * Résultat d'une tentative d'application d'un diff sur un arbre courant.
+ */
+export interface ApplyDiffResult {
+  /** Map path → content des fichiers dans l'état résultant (sans conflits). */
+  files: Record<string, string>;
+  /** Fichiers en conflit avec marqueurs. */
+  conflicts: Record<string, string>;
+}
+
+/**
+ * Applique un diff (changements de 'from' → 'to') au-dessus d'un arbre courant.
+ * Utilisé par cherry-pick, revert et rebase.
+ *
+ * currentFiles : état actuel (HEAD ou base du rebase), path → content
+ * diff : changements à appliquer
+ * contextLabel : label pour les marqueurs de conflit (ex: "feature", "HEAD~1", ...)
+ *
+ * Retourne les fichiers résultants et les conflits détectés.
+ */
+export function applyDiff(
+  currentFiles: Record<string, string>,
+  diff: TreeDiff,
+  _contextLabel: string,
+): ApplyDiffResult {
+  const files: Record<string, string> = { ...currentFiles };
+  const conflicts: Record<string, string> = {};
+
+  // Ajouts : ajouter le fichier si absent, conflit si présent avec contenu différent
+  for (const [path, content] of Object.entries(diff.added)) {
+    if (path in files) {
+      if (files[path] !== content) {
+        // Conflit : fichier existant vs ajout
+        conflicts[path] = content;
+      }
+      // Si même contenu : pas de conflit, déjà là
+    } else {
+      files[path] = content;
+    }
+  }
+
+  // Suppressions : supprimer le fichier
+  for (const path of Object.keys(diff.deleted)) {
+    delete files[path];
+  }
+
+  // Modifications
+  for (const [path, { from, to }] of Object.entries(diff.modified)) {
+    const current = files[path];
+    if (current === undefined) {
+      // Fichier absent dans current mais modifié dans diff → appliquer (file was deleted locally)
+      // Appliquer la version 'to' (le changement cible)
+      files[path] = to;
+    } else if (current === from) {
+      // Pas de modification locale, appliquer le changement
+      files[path] = to;
+    } else if (current === to) {
+      // Déjà appliqué, rien à faire
+    } else {
+      // Conflit : le fichier a été modifié localement ET dans le diff
+      conflicts[path] = path; // marquer comme conflit
+      // Garder le fichier local (les marqueurs seront écrits par l'appelant)
+    }
+  }
+
+  return { files, conflicts };
+}
+
+/**
+ * Crée les marqueurs de conflit pour un fichier.
+ * Format Git standard : <<<<<<< HEAD\n<ours>\n=======\n<theirs>\n>>>>>>> <label>
+ */
+export function makeConflictMarkers(ours: string, theirs: string, label: string): string {
+  return `<<<<<<< HEAD\n${ours}\n=======\n${theirs}\n>>>>>>> ${label}`;
+}
+
+/**
+ * Identifie les commits à rejouer lors d'un rebase.
+ * Retourne les commits accessibles depuis HEAD mais pas depuis base,
+ * triés du plus ancien au plus récent (pour rejouer dans l'ordre).
+ */
+export function getCommitsToReplay(
+  repo: Repository,
+  headHash: string,
+  baseHash: string,
+): Array<{ hash: string; commit: Commit }> {
+  // Collecter tous les commits accessibles depuis base
+  const baseAncestors = new Set<string>();
+  const queue: string[] = [baseHash];
+  while (queue.length > 0) {
+    const h = queue.shift()!;
+    if (baseAncestors.has(h)) continue;
+    baseAncestors.add(h);
+    const c = getCommit(repo, h);
+    if (!c) continue;
+    for (const p of c.parents) queue.push(p);
+  }
+
+  // Collecter les commits depuis HEAD jusqu'au merge-base, en excluant ceux déjà dans base
+  const toReplay: Array<{ hash: string; commit: Commit }> = [];
+  const visited = new Set<string>();
+  const headQueue: string[] = [headHash];
+
+  while (headQueue.length > 0) {
+    const h = headQueue.shift()!;
+    if (visited.has(h)) continue;
+    visited.add(h);
+    if (baseAncestors.has(h)) continue; // ancêtre de base → ne pas rejouer
+
+    const c = getCommit(repo, h);
+    if (!c) continue;
+    toReplay.push({ hash: h, commit: c });
+    // Suivre uniquement le premier parent (pas les branches de merge)
+    if (c.parents.length > 0) {
+      headQueue.push(c.parents[0]!);
+    }
+  }
+
+  // Inverser pour avoir l'ordre chronologique (du plus ancien au plus récent)
+  toReplay.reverse();
+  return toReplay;
+}
+
+/**
+ * Crée un commit de merge (ou normal) avec des parents explicites.
+ * Plus flexible que createCommit (qui ne gère qu'un seul parent = HEAD).
+ */
+export function createCommitWithParents(
+  repo: Repository,
+  options: {
+    message: string;
+    treeHash: string;
+    parents: string[];
+  },
+): string {
+  const date = BASE_TIMESTAMP + repo.commitCount;
+
+  const commitHash = storeCommit(repo, {
+    tree: options.treeHash,
+    parents: options.parents,
+    author: AUTHOR,
+    date,
+    message: options.message,
+  });
+
+  // Mettre à jour la branche courante ou HEAD détaché
+  const branch = currentBranch(repo);
+  if (branch !== null) {
+    repo.refs.heads[branch] = commitHash;
+  } else {
+    // HEAD détaché : mettre à jour target directement
+    repo.head = { symbolic: false, target: commitHash };
+  }
+
+  repo.commitCount++;
+  return commitHash;
+}
+
+/**
+ * Construit un WorkingTree depuis un map path → content.
+ */
+export function buildWorkingTreeFromFiles(
+  _repo: Repository,
+  files: Record<string, string>,
+): WorkingTree {
+  const wt: WorkingTree = {};
+  for (const [path, content] of Object.entries(files)) {
+    wt[path] = { content, mode: '100644' };
+  }
+  return wt;
+}
+
+/**
+ * Construit un Index depuis un map path → content.
+ * Stocke les blobs dans repo.objects.
+ */
+export function buildIndexFromFiles(
+  repo: Repository,
+  files: Record<string, string>,
+): Index {
+  const index: Index = {};
+  for (const [path, content] of Object.entries(files)) {
+    const blobHash = storeBlob(repo, content);
+    index[path] = { blobHash, content, mode: '100644' };
+  }
+  return index;
+}
+
+/**
+ * Retourne les contenus (path → content) des fichiers dans un arbre de commit.
+ */
+export function getTreeFiles(repo: Repository, treeHash: string): Record<string, string> {
+  const blobHashes = flattenTree(repo, treeHash);
+  const files: Record<string, string> = {};
+  for (const [path, blobHash] of Object.entries(blobHashes)) {
+    const obj = repo.objects[blobHash];
+    if (obj && obj.type === 'blob') {
+      files[path] = (obj as Blob).content;
+    }
+  }
+  return files;
+}
+
+/**
+ * Retourne les contenus du working tree courant (path → content).
+ */
+export function getCurrentFiles(repo: Repository): Record<string, string> {
+  const files: Record<string, string> = {};
+  for (const [path, entry] of Object.entries(repo.workingTree)) {
+    files[path] = entry.content;
+  }
+  return files;
+}
+
+/**
+ * Deepcopy d'un Index (pour sauvegarder l'état avant une opération).
+ */
+export function cloneIndex(index: Index): Index {
+  const clone: Index = {};
+  for (const [path, entry] of Object.entries(index)) {
+    clone[path] = { ...entry } as IndexEntry;
+  }
+  return clone;
+}
+
+/**
+ * Deepcopy d'un WorkingTree (pour sauvegarder l'état avant une opération).
+ */
+export function cloneWorkingTree(wt: WorkingTree): WorkingTree {
+  const clone: WorkingTree = {};
+  for (const [path, entry] of Object.entries(wt)) {
+    clone[path] = { ...entry } as WorkingTreeEntry;
+  }
+  return clone;
+}
+
+/**
+ * Applique un map de fichiers (path → content) à l'index et au working tree.
+ * Stocke les blobs dans repo.objects.
+ */
+export function applyFilesToRepo(repo: Repository, files: Record<string, string>): void {
+  repo.index = buildIndexFromFiles(repo, files);
+  repo.workingTree = buildWorkingTreeFromFiles(repo, files);
+}
