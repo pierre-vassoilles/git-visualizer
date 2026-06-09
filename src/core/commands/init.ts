@@ -15,11 +15,13 @@ export function cmdInit(repo: Repository): CommandResult {
 
   // Initialiser : créer la branche main (sans commit)
   repo.refs.heads['main'] = '';
+  repo.refs.tags = {};
   repo.head = { symbolic: true, target: 'refs/heads/main' };
   repo.index = {};
   repo.workingTree = {};
   repo.objects = {};
   repo.commitCount = 0;
+  repo.prevBranch = null;
 
   return ok([`Initialized empty Git repository in ${VIRTUAL_PATH}`]);
 }

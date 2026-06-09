@@ -87,6 +87,7 @@ Développement par phases (voir la liste de tâches).
 
 - **Phase 0 terminée** : scaffold, layout 3 zones, terminal xterm, moteur stub.
 - **Phase 1 terminée** : moteur noyau réel. Objets (blob/tree/commit) + SHA-1 pur déterministe (`sha1.ts`), `Repository` (refs, HEAD, index, working tree), parser (`parser.ts`), commandes `git init/add/status/commit/log` + utilitaires `write`/`read` (working tree virtuel, pas de vrai FS). `engine.snapshot()` expose un état immuable (gelé) pour l'UI ; le store le pose dans un `ref` réactif. Specs dans `docs/specs/`, doc utilisateur dans `docs/USAGE.md`. 195 tests Vitest verts.
+- **Phase 2 terminée** : branches & navigation. `git branch` (-d/-D), `checkout` (-b, `<commit>` → HEAD détaché, `-`), `switch` (-c, --detach, -), `restore` (--staged, --source), `tag` (-d). Modèle étendu : `refs.tags`, `prevBranch`, HEAD détaché (`head.symbolic=false`). Helpers : `isHeadDetached`, `resolveCommitish`, `canSwitchWithoutDataLoss`, `applyTreeToRepo`… Snapshot enrichi : `tags` global + `commits[].tags`. 299 tests verts (specs `09-14`).
 
 ### Modèle Git (décisions à connaître pour les phases suivantes)
 
@@ -100,3 +101,10 @@ Développement par phases (voir la liste de tâches).
 - Parser : guillemets simples et échappement `\"` non gérés ; guillemet non fermé avalé silencieusement. Suffisant en l'état, à durcir si besoin.
 - `git commit -m` : parsing positionnel par `indexOf('-m')`, fragile sur cas tordus (non couvert par tests).
 - `git status -s` cas `AM` (stagé puis remodifié) collapse en `modified` dans le snapshot — à tester/affiner en phase 2+.
+
+Dette Phase 2 (revue QA) — **à traiter en Phase 4** (impactent merge/rebase) :
+- `git branch -d` et `-D` sont identiques : la sémantique « branche non mergée » n'est PAS vérifiée. Nécessitera un helper `isAncestor(repo, a, b)` (de toute façon requis pour merge/rebase).
+- `restore --staged --source=<commit>` combinés : la branche `--source` court-circuite `--staged` (modifie le WT au lieu de l'index). Router selon le quadrant `(isStaged, sourceRef)`.
+- `restore` ne valide pas les pathspecs multiples (un chemin inexistant parmi plusieurs est ignoré sans erreur).
+- `git checkout -- <pathspec>` (compat restore) non géré.
+- `resolveCommitish` : une branche vide (`""`) « consomme » le nom et empêche la résolution d'un tag/hash homonyme ; pas de détection d'ambiguïté tag vs hash court.

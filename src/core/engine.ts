@@ -25,6 +25,11 @@ export interface SnapshotCommit {
    * tableau vide si aucune. Utilisé par le graphe (phase 3) pour les labels de refs.
    */
   readonly branches: string[];
+  /**
+   * Noms des tags pointant directement sur ce commit.
+   * Tableau vide si aucun tag ne pointe sur ce commit.
+   */
+  readonly tags: string[];
 }
 
 /** Statut d'un fichier dans le working tree selon le snapshot. */
@@ -56,6 +61,10 @@ export interface RepoSnapshot {
    * Liste des commits accessibles depuis HEAD, du plus récent au plus ancien.
    */
   readonly commits: SnapshotCommit[];
+  /**
+   * Map tagName → commitHash pour tous les tags du dépôt.
+   */
+  readonly tags: Record<string, string>;
   /**
    * Chemins présents dans l'index (staging area).
    */
@@ -117,13 +126,26 @@ export class GitEngine {
       if (hash) (hashToBranches[hash] ??= []).push(name);
     }
 
+    // Map hash → tags pointant sur ce commit
+    const hashToTags: Record<string, string[]> = {};
+    for (const [name, hash] of Object.entries(repo.refs.tags)) {
+      if (hash) (hashToTags[hash] ??= []).push(name);
+    }
+
     const commits: SnapshotCommit[] = history.map(({ hash, commit }) => ({
       hash,
       shortHash: shortHash(hash),
       message: commit.message,
       parents: Object.freeze([...commit.parents]) as string[],
       branches: Object.freeze([...(hashToBranches[hash] ?? [])]) as string[],
+      tags: Object.freeze([...(hashToTags[hash] ?? [])]) as string[],
     }));
+
+    // Tags globaux (pour le snapshot)
+    const tags: Record<string, string> = {};
+    for (const [name, hash] of Object.entries(repo.refs.tags)) {
+      tags[name] = hash;
+    }
 
     // Index
     const indexPaths = Object.keys(repo.index).sort();
@@ -193,6 +215,7 @@ export class GitEngine {
       branches: Object.freeze(branches),
       head: Object.freeze(headState),
       commits: Object.freeze(commits.map((c) => Object.freeze(c))) as SnapshotCommit[],
+      tags: Object.freeze(tags),
       indexPaths: Object.freeze(indexPaths) as string[],
       files: Object.freeze(files.map((f) => Object.freeze(f))) as SnapshotFile[],
     });

@@ -4,8 +4,8 @@
  * Expose les helpers de haut niveau utilisés par les commandes.
  */
 
-import type { Commit, Index, Repository, Tree } from './model';
-import { getCommit, getTree, storeBlob, storeCommit, storeTree } from './objectStore';
+import type { Blob, Commit, Index, Repository, Tree, WorkingTree } from './model';
+import { getCommit, getTree, hashBlob, storeBlob, storeCommit, storeTree } from './objectStore';
 
 export const AUTHOR = 'Unnamed <unnamed@example.com>';
 export const BASE_TIMESTAMP = 1_000_000_000;
@@ -24,6 +24,7 @@ export function createEmptyRepo(): Repository {
     index: {},
     workingTree: {},
     commitCount: 0,
+    prevBranch: null,
   };
 }
 
@@ -233,6 +234,199 @@ export function getCommitHistoryWithHashes(
   }
 
   return history;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers Phase 2 : HEAD détaché, branches, tags, navigation
+// ---------------------------------------------------------------------------
+
+/** Renvoie true si HEAD est en mode détaché (pointe directement sur un commit). */
+export function isHeadDetached(repo: Repository): boolean {
+  return !repo.head.symbolic;
+}
+
+/** Renvoie true si la branche existe dans refs.heads. */
+export function branchExists(repo: Repository, name: string): boolean {
+  return Object.prototype.hasOwnProperty.call(repo.refs.heads, name);
+}
+
+/** Renvoie true si le tag existe dans refs.tags. */
+export function tagExists(repo: Repository, name: string): boolean {
+  return Object.prototype.hasOwnProperty.call(repo.refs.tags, name);
+}
+
+/** Renvoie l'ensemble des branches (branchName → commitHash). */
+export function getBranches(repo: Repository): Record<string, string> {
+  return repo.refs.heads;
+}
+
+/** Renvoie l'ensemble des tags (tagName → commitHash). */
+export function getTags(repo: Repository): Record<string, string> {
+  return repo.refs.tags;
+}
+
+/** Renvoie la valeur de prevBranch. */
+export function getPrevBranch(repo: Repository): string | null {
+  return repo.prevBranch;
+}
+
+/** Met à jour prevBranch. */
+export function setPrevBranch(repo: Repository, branchName: string | null): void {
+  repo.prevBranch = branchName;
+}
+
+/**
+ * Résout un committish (nom de branche, nom de tag, hash court ou long)
+ * en hash de commit complet, ou null si introuvable.
+ *
+ * Ordre de résolution :
+ * 1. Nom de branche dans refs.heads
+ * 2. Nom de tag dans refs.tags
+ * 3. Hash exact dans objects (commit complet)
+ * 4. Hash court (préfixe) dans objects
+ */
+export function resolveCommitish(repo: Repository, ref: string): string | null {
+  // 1. Branche
+  if (branchExists(repo, ref)) {
+    const h = repo.refs.heads[ref]!;
+    return h || null; // branche vide → null
+  }
+
+  // 2. Tag
+  if (tagExists(repo, ref)) {
+    return repo.refs.tags[ref]!;
+  }
+
+  // 3. Hash exact (commit)
+  const exactObj = repo.objects[ref];
+  if (exactObj && exactObj.type === 'commit') {
+    return ref;
+  }
+
+  // 4. Hash court (préfixe)
+  if (ref.length >= 4) {
+    const matches = Object.keys(repo.objects).filter(
+      (h) => h.startsWith(ref) && repo.objects[h]?.type === 'commit',
+    );
+    if (matches.length === 1) {
+      return matches[0]!;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Vérifie si on peut basculer vers un commit cible sans perdre de données.
+ *
+ * Retourne null si ok, ou un tableau de chemins problématiques.
+ *
+ * La règle : un fichier du working tree a des modifications non stagées
+ * (WT ≠ index) ET ce fichier sera différent dans le commit cible.
+ * Dans ce cas, le checkout écraserait les modifications.
+ */
+export function canSwitchWithoutDataLoss(
+  repo: Repository,
+  targetCommitHash: string | null,
+): string[] | null {
+  // Construire la map du working tree cible
+  const targetFiles: Record<string, string> = {}; // path → blobHash
+  if (targetCommitHash) {
+    const commit = getCommit(repo, targetCommitHash);
+    if (commit) {
+      Object.assign(targetFiles, flattenTree(repo, commit.tree));
+    }
+  }
+
+  const problematic: string[] = [];
+
+  // Vérifier chaque fichier du working tree
+  for (const [path, wtEntry] of Object.entries(repo.workingTree)) {
+    const indexEntry = repo.index[path];
+
+    // Pas dans l'index → fichier non tracké, pas de risque
+    if (!indexEntry) continue;
+
+    // Vérifier si le WT est différent de l'index (modification non stagée)
+    const wtHash = hashBlob(wtEntry.content);
+    if (wtHash === indexEntry.blobHash) continue; // pas de modif non stagée
+
+    // WT modifié non stagé : vérifier si le target a une version différente
+    const targetHash = targetFiles[path];
+    if (targetHash === undefined) {
+      // Fichier absent du target → sera supprimé, perte potentielle
+      problematic.push(path);
+    } else if (targetHash !== wtHash) {
+      // Target a un contenu différent → serait écrasé
+      problematic.push(path);
+    }
+  }
+
+  return problematic.length > 0 ? problematic.sort() : null;
+}
+
+/**
+ * Applique l'arbre d'un commit (ou null pour un arbre vide)
+ * à l'index et au working tree du dépôt, lors d'une bascule de HEAD.
+ *
+ * L'index est intégralement remplacé par l'arbre cible (snapshot complet).
+ * Le working tree est aligné sur l'arbre cible MAIS les fichiers non trackés
+ * (présents dans le working tree, absents de l'index courant) sont PRÉSERVÉS,
+ * comme le fait le vrai Git — sauf s'ils entrent en collision avec un fichier
+ * de l'arbre cible (ce cas devrait être bloqué en amont par la garde de
+ * sécurité avant la bascule).
+ */
+export function applyTreeToRepo(repo: Repository, commitHash: string | null): void {
+  const newFiles: Record<string, string> = {}; // path → blobHash
+
+  if (commitHash) {
+    const commit = getCommit(repo, commitHash);
+    if (commit) {
+      Object.assign(newFiles, flattenTree(repo, commit.tree));
+    }
+  }
+
+  // Capturer les fichiers non trackés AVANT de réécrire l'index :
+  // un fichier présent dans le working tree mais absent de l'index courant.
+  const untracked: WorkingTree = {};
+  for (const [path, entry] of Object.entries(repo.workingTree)) {
+    if (!(path in repo.index)) {
+      untracked[path] = entry;
+    }
+  }
+
+  // Reconstruire l'index depuis l'arbre cible
+  repo.index = {};
+  for (const [path, blobHash] of Object.entries(newFiles)) {
+    const obj = repo.objects[blobHash];
+    if (obj && obj.type === 'blob') {
+      repo.index[path] = {
+        blobHash,
+        content: (obj as Blob).content,
+        mode: '100644',
+      };
+    }
+  }
+
+  // Reconstruire le working tree depuis l'arbre cible
+  repo.workingTree = {};
+  for (const [path, blobHash] of Object.entries(newFiles)) {
+    const obj = repo.objects[blobHash];
+    if (obj && obj.type === 'blob') {
+      repo.workingTree[path] = {
+        content: (obj as Blob).content,
+        mode: '100644',
+      };
+    }
+  }
+
+  // Réintégrer les fichiers non trackés qui n'entrent pas en collision
+  // avec l'arbre cible (préservation, fidèle à Git).
+  for (const [path, entry] of Object.entries(untracked)) {
+    if (!(path in newFiles)) {
+      repo.workingTree[path] = entry;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

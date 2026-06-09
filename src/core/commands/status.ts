@@ -1,7 +1,8 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
-import { currentBranch, flattenTree, headCommit, isInitialized } from '../repository';
+import { currentBranch, flattenTree, headCommit, isHeadDetached, isInitialized } from '../repository';
 import { hashBlob } from '../objectStore';
+import { shortHash } from '../sha1';
 import { notARepo } from './init';
 
 /**
@@ -11,7 +12,16 @@ export function cmdStatus(repo: Repository, flags: string[]): CommandResult {
   if (!isInitialized(repo)) return notARepo();
 
   const isShort = flags.includes('-s') || flags.includes('--short');
-  const branch = currentBranch(repo) ?? '(HEAD detached)';
+
+  // Déterminer l'affichage de la branche courante
+  let branchDisplay: string;
+  if (isHeadDetached(repo)) {
+    const detachedHash = repo.head.target;
+    branchDisplay = `HEAD detached at ${shortHash(detachedHash)}`;
+  } else {
+    branchDisplay = currentBranch(repo) ?? '(HEAD detached)';
+  }
+
   const commit = headCommit(repo);
 
   // Construire la map HEAD filepath → blobHash
@@ -89,7 +99,7 @@ export function cmdStatus(repo: Repository, flags: string[]): CommandResult {
   }
 
   return buildLongOutput(
-    branch,
+    branchDisplay,
     commit === null,
     sort(stagedNew),
     sort(stagedModified),

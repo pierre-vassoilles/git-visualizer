@@ -74,12 +74,14 @@ export type WorkingTree = Record<string, WorkingTreeEntry>;
 export interface Repository {
   objects: Record<string, GitObject>;
   refs: {
-    heads: Record<string, string>; // branchName → commitHash
-    tags: Record<string, string>;
+    heads: Record<string, string>; // branchName → commitHash (or "" for empty branch)
+    tags: Record<string, string>;  // tagName → commitHash
   };
   head: Head;
   index: Index;
   workingTree: WorkingTree;
   /** Nombre de commits créés — utilisé pour le timestamp déterministe */
   commitCount: number;
+  /** Nom de la branche précédente (pour git checkout -) */
+  prevBranch: string | null;
 }

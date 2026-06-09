@@ -15,6 +15,11 @@ import { cmdStatus } from './commands/status';
 import { cmdCommit } from './commands/commit';
 import { cmdLog } from './commands/log';
 import { cmdWrite, cmdRead } from './commands/write';
+import { cmdBranch } from './commands/branch';
+import { cmdCheckout } from './commands/checkout';
+import { cmdSwitch } from './commands/switch';
+import { cmdRestore } from './commands/restore';
+import { cmdTag } from './commands/tag';
 
 // ---------------------------------------------------------------------------
 // Tokenisation
@@ -31,20 +36,26 @@ export function tokenize(input: string): string[] {
   const tokens: string[] = [];
   let current = '';
   let inQuotes = false;
+  // Un token entre guillemets explicites doit être émis même s'il est vide
+  // (ex. `git branch ""` → [..., ""] pour que la commande rejette le nom vide,
+  // comme le vrai Git). On distingue donc "token vide quoté" de "pas de token".
+  let quoted = false;
 
   for (let i = 0; i < input.length; i++) {
     const ch = input[i]!;
 
     if (ch === '"') {
       inQuotes = !inQuotes;
+      quoted = true;
       // Les guillemets eux-mêmes ne sont pas inclus dans le token
       continue;
     }
 
     if (ch === ' ' && !inQuotes) {
-      if (current.length > 0) {
+      if (current.length > 0 || quoted) {
         tokens.push(current);
         current = '';
+        quoted = false;
       }
       continue;
     }
@@ -52,7 +63,7 @@ export function tokenize(input: string): string[] {
     current += ch;
   }
 
-  if (current.length > 0) {
+  if (current.length > 0 || quoted) {
     tokens.push(current);
   }
 
@@ -117,6 +128,21 @@ export function dispatch(repo: Repository, input: string): CommandResult {
 
     case 'log':
       return cmdLog(repo, rest);
+
+    case 'branch':
+      return cmdBranch(repo, rest);
+
+    case 'checkout':
+      return cmdCheckout(repo, rest);
+
+    case 'switch':
+      return cmdSwitch(repo, rest);
+
+    case 'restore':
+      return cmdRestore(repo, rest);
+
+    case 'tag':
+      return cmdTag(repo, rest);
 
     default:
       return fail([`git: '${subcommand}' is not a git command. See 'git --help'.`]);

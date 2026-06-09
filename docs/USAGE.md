@@ -366,19 +366,374 @@ fatal: No commits yet
 
 ---
 
-## À venir en Phase 2+
+## Commandes disponibles en Phase 2
 
-Les fonctionnalités suivantes ne sont **pas disponibles en Phase 1** mais seront implémentées ultérieurement :
+### Gestion des branches
 
-- **Branches** : `git branch`, `git checkout`, `git switch`
+#### `git branch` — Lister, créer ou supprimer des branches
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git branch [options] [branchname]` |
+| **Description** | Gère les branches du dépôt : liste, crée ou supprime |
+| **Options** | Aucun argument : liste les branches ; `<branchname>` : crée ; `-d <branchname>` : supprime (safe) ; `-D <branchname>` : supprime (force) |
+
+**Exemples :**
+
+```bash
+# Lister toutes les branches
+git branch
+
+# Créer une nouvelle branche depuis HEAD
+git branch feature
+
+# Supprimer une branche
+git branch -d feature
+
+# Supprimer une branche (force)
+git branch -D feature
+```
+
+**Comportement :**
+- **Lister** : Affiche toutes les branches, en marquant la courante avec `*`
+- **Créer** : Crée une nouvelle branche pointant vers le commit HEAD courant ; erreur si la branche existe déjà
+- **Supprimer (-d)** : Supprime la branche si elle n'est pas la branche courante ; erreur si elle est courante
+- **Supprimer (-D)** : Force la suppression (même si branche courante)
+
+**Code de sortie :** 0 (succès) | 1 (erreur) | 128 (dépôt non initialisé)
+
+---
+
+#### `git checkout` — Changer de branche ou détacher HEAD
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git checkout [options] <branchname \| commit>` |
+| **Description** | Bascule HEAD vers une branche, crée et bascule, ou détache HEAD sur un commit |
+| **Options** | Aucun argument : bascule vers une branche existante ; `-b <branchname>` : crée et bascule ; `-` : revient à la branche précédente ; `--detach` : détache HEAD (variante) |
+
+**Exemples :**
+
+```bash
+# Basculer vers une branche existante
+git checkout feature
+
+# Créer et basculer vers une nouvelle branche
+git checkout -b develop
+
+# Détacher HEAD sur un commit spécifique
+git checkout abc1234
+
+# Revenir à la branche précédente
+git checkout -
+
+# Détacher HEAD de manière explicite
+git checkout --detach abc1234
+```
+
+**Comportement :**
+- **Basculer vers branche** : Met à jour HEAD, l'index et le working tree
+- **Créer et basculer (-b)** : Crée la branche comme `git branch`, puis bascule dessus
+- **Détacher HEAD** : Passe HEAD en mode détaché (pointe directement sur le commit)
+- **Revenir (-)** : Bascule vers la branche précédemment active
+
+**Code de sortie :** 0 (succès) | 1 (erreur) | 128 (dépôt non initialisé)
+
+---
+
+#### `git switch` — Changer de branche (variante moderne de checkout)
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git switch [options] <branchname>` |
+| **Description** | Alternative plus claire et explicite à `checkout` pour basculer entre branches |
+| **Options** | Aucun argument : bascule vers une branche existante ; `-c <branchname>` : crée et bascule ; `-` : revient à la branche précédente ; `--detach <commit>` : détache HEAD |
+
+**Exemples :**
+
+```bash
+# Basculer vers une branche existante
+git switch feature
+
+# Créer et basculer vers une nouvelle branche
+git switch -c develop
+
+# Détacher HEAD sur un commit
+git switch --detach abc1234
+
+# Revenir à la branche précédente
+git switch -
+```
+
+**Comportement :**
+- Équivalent à `git checkout`, mais avec des messages plus explicites
+- **-c** : Crée et bascule (équivalent à `checkout -b`)
+- **--detach** : Détache HEAD sur un commit
+
+**Code de sortie :** 0 (succès) | 1 (erreur) | 128 (dépôt non initialisé)
+
+---
+
+#### `git restore` — Restaurer des fichiers
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git restore [options] <pathspec...>` |
+| **Description** | Restaure les fichiers du working tree ou de l'index en les obtenant d'une source |
+| **Options** | Aucun : restaure depuis l'index ; `--staged` : retire du staging (index ← HEAD) ; `--source=<commit>` : restaure depuis un commit spécifié |
+
+**Exemples :**
+
+```bash
+# Restaurer un fichier depuis l'index (annuler les modifications)
+git restore file.txt
+
+# Restaurer tous les fichiers depuis l'index
+git restore .
+
+# Retirer un fichier du staging
+git restore --staged file.txt
+
+# Restaurer un fichier depuis un commit spécifique
+git restore --source=abc1234 file.txt
+```
+
+**Comportement :**
+- **Restore (défaut)** : Écrase le working tree avec le contenu de l'index
+- **Restore --staged** : Remplace l'index avec le contenu de HEAD (retire du staging)
+- **Restore --source** : Restaure depuis un commit spécifié
+
+**Code de sortie :** 0 (succès) | 1 (erreur) | 128 (dépôt non initialisé)
+
+---
+
+### Gestion des tags (étiquettes)
+
+#### `git tag` — Lister, créer ou supprimer des tags
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git tag [options] [tagname [commit]]` |
+| **Description** | Gère les étiquettes nommées (tags) du dépôt |
+| **Options** | Aucun argument : liste les tags ; `<tagname>` : crée un tag sur HEAD ; `<tagname> <commit>` : crée sur un commit spécifié ; `-d <tagname>` : supprime un tag |
+
+**Exemples :**
+
+```bash
+# Lister tous les tags
+git tag
+
+# Créer un tag sur HEAD
+git tag v1.0
+
+# Créer un tag sur un commit spécifique
+git tag v1.0 abc1234
+
+# Supprimer un tag
+git tag -d v1.0
+```
+
+**Comportement :**
+- **Lister** : Affiche tous les tags en ordre alphabétique
+- **Créer** : Crée une étiquette légère pointant vers le commit spécifié (ou HEAD)
+- **Supprimer** : Supprime l'étiquette du dépôt
+
+**Code de sortie :** 0 (succès) | 1 (erreur) | 128 (dépôt non initialisé)
+
+---
+
+## État détaché de HEAD (Detached HEAD)
+
+Quand vous exécutez `git checkout <commit>` (avec un hash de commit), HEAD entre en **mode détaché**. Cela signifie que HEAD pointe directement sur un commit, au lieu de pointer sur une branche.
+
+### Comprendre le mode détaché
+
+En mode normal, HEAD pointe sur une branche (ex. `main`), et la branche pointe sur un commit :
+```
+HEAD → refs/heads/main → commit abc123
+```
+
+En mode détaché, HEAD pointe directement sur le commit :
+```
+HEAD → commit abc123
+```
+
+### Comment accéder à l'état détaché
+
+```bash
+# Récupérer le hash court ou complet d'un commit (via git log)
+$ git log --oneline
+abc1234 Message du dernier commit
+
+# Détacher HEAD sur un commit ancien
+$ git checkout abc1234
+Note: switching to 'abc1234'.
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+HEAD is now at abc1234 Message du commit
+```
+
+### Ce que Git affiche
+
+Quand vous êtes en mode détaché, `git status` affiche :
+
+```
+HEAD detached at abc1234
+```
+
+Au lieu du message normal :
+
+```
+On branch main
+```
+
+### Comment sortir du mode détaché
+
+Pour sortir du mode détaché, basculez vers une branche existante :
+
+```bash
+# Revenir à la branche main
+$ git checkout main
+Switched to branch 'main'
+
+# Ou revenir à la branche précédente
+$ git checkout -
+```
+
+### Cas particulier : commits en mode détaché
+
+Si vous créez des commits alors que HEAD est détaché, ces commits restent "orphelins" (pas liés à une branche). Vous pouvez :
+- Créer une branche pour les conserver : `git checkout -b new-branch`
+- Les abandonner en basculant vers une autre branche
+
+---
+
+## Scénario complet : Workflow de branche
+
+Voici une session illustrant un workflow de branche réaliste, du début à la fin :
+
+```bash
+# 1. Initialiser le dépôt et créer un commit initial
+$ git init
+Initialized empty Git repository in ./.git/
+
+$ write README.md "# Projet Git Visualizer"
+$ git add README.md
+$ git commit -m "Initial commit"
+[main (root-commit) 7f3e2d1] Initial commit
+
+# 2. Lister les branches (seule main existe)
+$ git branch
+* main
+
+# 3. Créer deux commits sur main
+$ write src/main.ts "console.log('Main branch');"
+$ git add src/main.ts
+$ git commit -m "Add main.ts on main"
+[main 9a5c8e4] Add main.ts on main
+
+$ write docs/guide.md "# Guide d'utilisation"
+$ git add docs/guide.md
+$ git commit -m "Add guide"
+[main 8e2f1b3] Add guide
+
+# 4. Vérifier l'historique
+$ git log --oneline
+8e2f1b3 Add guide
+9a5c8e4 Add main.ts on main
+7f3e2d1 Initial commit
+
+# 5. Créer une nouvelle branche feature
+$ git branch feature
+$ git branch
+  feature
+* main
+
+# 6. Basculer vers la branche feature
+$ git checkout feature
+Switched to branch 'feature'
+
+# 7. Créer un commit sur feature
+$ write src/feature.ts "console.log('Feature branch');"
+$ git add src/feature.ts
+$ git commit -m "Add feature.ts on feature branch"
+[feature a7c2e5d] Add feature.ts on feature branch
+
+# 8. Afficher l'historique de feature
+$ git log --oneline
+a7c2e5d Add feature.ts on feature branch
+8e2f1b3 Add guide
+9a5c8e4 Add main.ts on main
+7f3e2d1 Initial commit
+
+# 9. Revenir à main
+$ git checkout main
+Switched to branch 'main'
+
+# 10. Vérifier l'historique de main (feature.ts n'existe pas)
+$ git log --oneline
+8e2f1b3 Add guide
+9a5c8e4 Add main.ts on main
+7f3e2d1 Initial commit
+
+# 11. Lister les fichiers sur main (feature.ts absent)
+$ read src/feature.ts
+fatal: no such file
+
+# 12. Poser un tag sur le commit courant (main)
+$ git tag v1.0
+$ git tag
+v1.0
+
+# 13. Revenir à feature via git switch (alternative à checkout)
+$ git switch feature
+Switched to branch 'feature'
+
+# 14. Poser un tag sur feature
+$ git tag v1.1
+
+# 15. Lister tous les tags
+$ git tag
+v1.0
+v1.1
+
+# 16. Détacher HEAD sur le commit initial
+$ git log --oneline
+a7c2e5d Add feature.ts on feature branch
+8e2f1b3 Add guide
+9a5c8e4 Add main.ts on main
+7f3e2d1 Initial commit
+
+$ git checkout 7f3e2d1
+Note: switching to '7f3e2d1'.
+You are in 'detached HEAD' state.
+
+HEAD is now at 7f3e2d1 Initial commit
+
+# 17. Vérifier l'état
+$ git status
+HEAD detached at 7f3e2d1
+
+# 18. Revenir à la branche précédente (feature)
+$ git checkout -
+Switched to branch 'feature'
+```
+
+---
+
+## À venir en Phase 3+
+
+Les fonctionnalités suivantes ne sont **pas disponibles en Phase 2** mais seront implémentées ultérieurement :
+
 - **Fusion** : `git merge`, `git rebase`
 - **Historique avancé** : `git log -p`, `git log --follow`, `git diff`
 - **Modifications avancées** : `git reset`, `git revert`, `git cherry-pick`
-- **Tags** : `git tag`
 - **Stash** : `git stash`
+- **Rebase interactif** : `git rebase -i`
+- **Reflog** : `git reflog`
 - **Shell interactif** : Un shell complet avec `echo`, `cat`, `touch`, etc.
-
-Pour l'instant, travaillez sur une branche linéaire (`main`).
 
 ---
 
