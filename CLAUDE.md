@@ -106,6 +106,7 @@ Développement par phases (voir la liste de tâches).
 - **L'index est un snapshot COMPLET** aligné sur l'arbre de HEAD (comme le vrai Git) — il n'est PAS vidé au commit. « rien à committer » = arbre de l'index identique à l'arbre de HEAD. Ne pas réintroduire un modèle d'index-delta.
 - **Hash déterministe mais PAS byte-exact Git** : SHA-1 sur une chaîne canonique lisible (les hashes de commit ne correspondent donc pas à ceux d'un vrai dépôt). Hash court = 7 chars. Auteur constant, date = base fixe + `commitCount` (jamais `Date.now()`).
 - **`snapshot().commits[].branches: string[]`** (et non un singulier) : plusieurs refs peuvent décorer un même commit — prévu pour les branches multiples (phase 2) et les labels du graphe (phase 3).
+- **Noms de branches** : les `/` sont autorisés (style git-flow `feature/login`). Validation `isValidBranchName` dans `repository.ts` (sous-ensemble de `git check-ref-format` : rejette `/` en tête/fin, `//`, `..`, composant en `.`/`.lock`, espaces et `~ ^ : ? * [ \ @{`, pseudo-refs réservés). Partagée par `git branch`, `checkout -b`, `switch -c`.
 
 ### Dette connue (issue de la revue QA Phase 1)
 

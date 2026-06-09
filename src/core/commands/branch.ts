@@ -1,21 +1,15 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
-import { branchExists, currentBranch, headCommitHash, isAncestor, isInitialized } from '../repository';
+import {
+  branchExists,
+  currentBranch,
+  headCommitHash,
+  isAncestor,
+  isInitialized,
+  isValidBranchName,
+} from '../repository';
 import { shortHash } from '../sha1';
 import { notARepo } from './init';
-
-/**
- * Valide un nom de branche.
- * Rejette : vide, commençant par '-', contenant '/', noms réservés.
- */
-function isValidBranchName(name: string): boolean {
-  if (!name || name.trim() === '') return false;
-  if (name.startsWith('-')) return false;
-  if (name.includes('/')) return false;
-  const reserved = ['HEAD', 'FETCH_HEAD', 'ORIG_HEAD', 'MERGE_HEAD', 'CHERRY_PICK_HEAD'];
-  if (reserved.includes(name)) return false;
-  return true;
-}
 
 /**
  * git branch [<branchname>]

@@ -172,8 +172,6 @@ export const SCENARIOS: Scenario[] = [
   // -------------------------------------------------------------------
   // Scénario 6 : Git Flow (main / dev / staging + branches de feature)
   // -------------------------------------------------------------------
-  // NB : le moteur refuse les '/' dans les noms de branches, on nomme donc
-  // les features "feat-login" / "feat-dashboard" plutôt que "feature/login".
   {
     id: 'git-flow',
     title: 'Git Flow (main / dev / staging)',
@@ -192,22 +190,22 @@ export const SCENARIOS: Scenario[] = [
       'git add app.js',
       'git commit -m "C2: socle applicatif (dev)"',
       // Feature 1 : login
-      'git checkout -b feat-login',
+      'git checkout -b feature/login',
       'write login.js "login()"',
       'git add login.js',
-      'git commit -m "C3: écran de login (feat-login)"',
+      'git commit -m "C3: écran de login (feature/login)"',
       'write login.js "login() + validate()"',
       'git add login.js',
       'git commit -m "C4: validation du login"',
       'git checkout dev',
-      'git merge --no-ff feat-login -m "Merge feat-login dans dev"',
+      'git merge --no-ff feature/login -m "Merge feature/login dans dev"',
       // Feature 2 : dashboard
-      'git checkout -b feat-dashboard',
+      'git checkout -b feature/dashboard',
       'write dashboard.js "dashboard()"',
       'git add dashboard.js',
-      'git commit -m "C5: tableau de bord (feat-dashboard)"',
+      'git commit -m "C5: tableau de bord (feature/dashboard)"',
       'git checkout dev',
-      'git merge --no-ff feat-dashboard -m "Merge feat-dashboard dans dev"',
+      'git merge --no-ff feature/dashboard -m "Merge feature/dashboard dans dev"',
       // Recette sur staging
       'git checkout -b staging',
       'write CHANGELOG.md "v1.0.0-rc"',

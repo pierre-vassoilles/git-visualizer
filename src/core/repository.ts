@@ -250,6 +250,48 @@ export function branchExists(repo: Repository, name: string): boolean {
   return Object.prototype.hasOwnProperty.call(repo.refs.heads, name);
 }
 
+/** Noms de refs réservés (pseudo-refs Git), interdits comme noms de branche. */
+const RESERVED_REF_NAMES = ['HEAD', 'FETCH_HEAD', 'ORIG_HEAD', 'MERGE_HEAD', 'CHERRY_PICK_HEAD'];
+
+/**
+ * Valide un nom de branche selon un sous-ensemble des règles de
+ * `git check-ref-format` — autorise les `/` (ex. `feature/login`) mais rejette
+ * les formes structurellement invalides.
+ *
+ * Rejette :
+ *  - vide / espaces / caractères de contrôle ;
+ *  - commençant par `-` ;
+ *  - commençant ou finissant par `/`, ou contenant `//` (composant vide) ;
+ *  - un composant commençant par `.` ou finissant par `.lock` ;
+ *  - contenant `..`, `@{`, ou l'un de ` ~ ^ : ? * [ \` ;
+ *  - finissant par `.` ;
+ *  - le nom `@` seul, ou un pseudo-ref réservé (HEAD, …).
+ */
+export function isValidBranchName(name: string): boolean {
+  if (!name || name.trim() === '') return false;
+  if (name.startsWith('-')) return false;
+  if (name.startsWith('/') || name.endsWith('/')) return false;
+  if (name.includes('//')) return false;
+  if (name.includes('..')) return false;
+  if (name.endsWith('.')) return false;
+  if (name.includes('@{')) return false;
+  if (name === '@') return false;
+  // Espaces, caractères de contrôle et caractères spéciaux Git.
+  if (/[\s~^:?*[\\]/.test(name)) return false;
+  for (const ch of name) {
+    const code = ch.charCodeAt(0);
+    if (code < 0x20 || code === 0x7f) return false;
+  }
+  // Validation par composant (séparés par `/`).
+  for (const component of name.split('/')) {
+    if (component === '') return false;
+    if (component.startsWith('.')) return false;
+    if (component.endsWith('.lock')) return false;
+  }
+  if (RESERVED_REF_NAMES.includes(name)) return false;
+  return true;
+}
+
 /** Renvoie true si le tag existe dans refs.tags. */
 export function tagExists(repo: Repository, name: string): boolean {
   return Object.prototype.hasOwnProperty.call(repo.refs.tags, name);

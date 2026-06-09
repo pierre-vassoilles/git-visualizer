@@ -50,9 +50,9 @@ describe('scénarios complexes — rejeu sans erreur', () => {
 describe('git-flow — arbre attendu', () => {
   const snap = () => replayStrict(getScenarioById('git-flow')!.commands).engine.snapshot();
 
-  it('5 branches longues + features : main, dev, staging, feat-login, feat-dashboard', () => {
+  it('5 branches longues + features : main, dev, staging, feature/login, feature/dashboard', () => {
     const branches = Object.keys(snap().branches).sort();
-    expect(branches).toEqual(['dev', 'feat-dashboard', 'feat-login', 'main', 'staging']);
+    expect(branches).toEqual(['dev', 'feature/dashboard', 'feature/login', 'main', 'staging']);
   });
 
   it('tag v1.0.0 présent et pointant sur un commit connu', () => {

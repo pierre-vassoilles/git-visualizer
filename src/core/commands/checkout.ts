@@ -9,6 +9,7 @@ import {
   getPrevBranch,
   headCommitHash,
   isInitialized,
+  isValidBranchName,
   resolveCommitish,
   setPrevBranch,
 } from '../repository';
@@ -119,6 +120,9 @@ function checkoutBranch(repo: Repository, branchName: string): CommandResult {
 
 /** Crée une nouvelle branche et bascule dessus. */
 function checkoutCreateBranch(repo: Repository, branchName: string): CommandResult {
+  if (!isValidBranchName(branchName)) {
+    return fail([`fatal: '${branchName}' is not a valid branch name.`]);
+  }
   if (branchExists(repo, branchName)) {
     return fail([`fatal: A branch named '${branchName}' already exists.`]);
   }
