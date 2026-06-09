@@ -88,6 +88,12 @@ Développement par phases (voir la liste de tâches).
 - **Phase 0 terminée** : scaffold, layout 3 zones, terminal xterm, moteur stub.
 - **Phase 1 terminée** : moteur noyau réel. Objets (blob/tree/commit) + SHA-1 pur déterministe (`sha1.ts`), `Repository` (refs, HEAD, index, working tree), parser (`parser.ts`), commandes `git init/add/status/commit/log` + utilitaires `write`/`read` (working tree virtuel, pas de vrai FS). `engine.snapshot()` expose un état immuable (gelé) pour l'UI ; le store le pose dans un `ref` réactif. Specs dans `docs/specs/`, doc utilisateur dans `docs/USAGE.md`. 195 tests Vitest verts.
 - **Phase 2 terminée** : branches & navigation. `git branch` (-d/-D), `checkout` (-b, `<commit>` → HEAD détaché, `-`), `switch` (-c, --detach, -), `restore` (--staged, --source), `tag` (-d). Modèle étendu : `refs.tags`, `prevBranch`, HEAD détaché (`head.symbolic=false`). Helpers : `isHeadDetached`, `resolveCommitish`, `canSwitchWithoutDataLoss`, `applyTreeToRepo`… Snapshot enrichi : `tags` global + `commits[].tags`. 299 tests verts (specs `09-14`).
+- **Phase 3 terminée** : visualisation SVG. Snapshot enrichi avec `allCommits` (TOUT le graphe, pas seulement depuis HEAD). Algorithme de layout **pur** dans `src/graph/layout.ts` (`computeLayout(input): GraphLayout`, types dans `src/graph/types.ts`) : tri topologique déterministe, assignation de lanes avec **résolution de collision `(lane, depth)`** (deux commits distincts n'ont jamais la même position ; lane propagée le long du 1er parent uniquement → merges bien rendus), couleur par lane, arêtes `linear`/`merge`. Rendu dans `GraphView.vue` (SVG custom, badges branches/HEAD/tags, pan/zoom, tooltip). 371 tests verts (specs `15-17`).
+
+### Graphe (à connaître pour la Phase 4)
+
+- L'algorithme de layout gère **déjà les merges** (commit à 2+ parents) : le 1er parent continue la lane, les parents secondaires vont sur une lane libre ; collision `(lane,depth)` résolue. Le rendu distingue `type:'merge'`. Quand `git merge` arrivera, le graphe affichera correctement les fusions sans changement du layout.
+- Le graphe consomme `snapshot.allCommits ?? snapshot.commits`.
 
 ### Modèle Git (décisions à connaître pour les phases suivantes)
 
@@ -108,3 +114,9 @@ Dette Phase 2 (revue QA) — **à traiter en Phase 4** (impactent merge/rebase) 
 - `restore` ne valide pas les pathspecs multiples (un chemin inexistant parmi plusieurs est ignoré sans erreur).
 - `git checkout -- <pathspec>` (compat restore) non géré.
 - `resolveCommitish` : une branche vide (`""`) « consomme » le nom et empêche la résolution d'un tag/hash homonyme ; pas de détection d'ambiguïté tag vs hash court.
+
+Dette Phase 3 (revue QA) — non bloquante :
+- `GraphView.vue` : rendu non mémoïsé (`getNodeBadges` appelé 2×/badge, `layout.edges.filter` et `getEdgeColor` en `.find()` O(E·N) à chaque render). À précalculer en `computed` (Map couleur/badges) avant d'afficher de gros graphes.
+- Badges typés par comparaison de couleur hex (fragile) → ajouter un champ discriminant `kind: 'head'|'branch'|'tag'`.
+- `getColorForCommit` colore par branche puis par lane (incohérence couleur nœud/arête possible) ; le contrat de type dit « couleur par lane ». À unifier.
+- `LayoutOptions.nodeRadius` et `LayoutInput.head`/`tags` déclarés mais non utilisés par `computeLayout` (surbrillance HEAD faite côté UI).

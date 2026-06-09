@@ -73,6 +73,142 @@ export interface RepoSnapshot {
    * Fichiers du working tree avec leur statut calculé.
    */
   readonly files: SnapshotFile[];
+  /**
+   * PHASE 3 : Tous les commits du dépôt, triés topologiquement
+   * (parents avant leurs enfants, soit les commits les plus récents en tête).
+   *
+   * Contrairement à `commits` (limité aux commits accessibles depuis HEAD),
+   * `allCommits` inclut TOUS les commits présents dans repo.objects, y compris
+   * ceux de branches divergentes non accessibles depuis HEAD.
+   *
+   * Chaque commit est décoré avec ses branches et tags (identique à `commits`).
+   *
+   * Utilisé par GraphView.vue via : `snapshot.allCommits ?? snapshot.commits`
+   * pour rétro-compatibilité.
+   *
+   * Tri : profondeur croissante (feuilles = commits sans enfants en tête, racines en bas).
+   * Cette convention est cohérente avec l'algorithme de layout (spec 16) qui place
+   * les commits récents (profondeur 0) en haut du canvas (Y le plus petit).
+   */
+  readonly allCommits?: SnapshotCommit[];
+}
+
+// ---------------------------------------------------------------------------
+// Helpers internes (Phase 3)
+// ---------------------------------------------------------------------------
+
+/**
+ * Calcule la liste de TOUS les commits du dépôt en ordre topologique.
+ *
+ * Différence avec `getCommitHistoryWithHashes` : cette fonction parcourt
+ * `repo.objects` entièrement au lieu de partir de HEAD, ce qui permet
+ * de récupérer les commits de branches non accessibles depuis HEAD.
+ *
+ * Algorithme : DFS post-ordre depuis les racines (commits sans parents),
+ * avec tiebreaker par hash pour garantir le déterminisme.
+ *
+ * Ordre de sortie : enfants avant parents (profondeur 0 en tête = commits récents,
+ * racines en fin de liste). Cohérent avec l'algorithme de layout (spec 16).
+ *
+ * Complexité : O(C log C) où C = nombre total de commits.
+ *
+ * @param repo - Le dépôt courant.
+ * @param hashToBranches - Map hash → noms de branches dont le tip est ce commit.
+ * @param hashToTags - Map hash → noms de tags pointant sur ce commit.
+ * @returns Liste de SnapshotCommit décorés, triés topologiquement.
+ */
+function getAllCommitsTopologicalOrder(
+  repo: import('./model').Repository,
+  hashToBranches: Record<string, string[]>,
+  hashToTags: Record<string, string[]>,
+): SnapshotCommit[] {
+  // 1. Collecter tous les commits depuis repo.objects
+  const commitEntries: Array<{ hash: string; commit: import('./model').Commit }> = [];
+  for (const [hash, obj] of Object.entries(repo.objects)) {
+    if (obj && obj.type === 'commit') {
+      commitEntries.push({ hash, commit: obj });
+    }
+  }
+
+  if (commitEntries.length === 0) return [];
+
+  // 2. Construire les maps de lookup
+  const commitMap = new Map<string, import('./model').Commit>();
+  for (const { hash, commit } of commitEntries) {
+    commitMap.set(hash, commit);
+  }
+
+  // Map parent → liste d'enfants (inverse de parents)
+  const childrenMap = new Map<string, string[]>();
+  for (const { hash, commit } of commitEntries) {
+    for (const parentHash of commit.parents) {
+      if (!childrenMap.has(parentHash)) {
+        childrenMap.set(parentHash, []);
+      }
+      childrenMap.get(parentHash)!.push(hash);
+    }
+  }
+
+  // 3. Tri topologique : DFS post-ordre depuis les racines
+  const visited = new Set<string>();
+  const result: string[] = [];
+
+  function dfs(hash: string): void {
+    if (visited.has(hash)) return;
+    visited.add(hash);
+
+    const commit = commitMap.get(hash);
+    if (!commit) return;
+
+    // Trier les enfants par hash pour déterminisme
+    const children = [...(childrenMap.get(hash) ?? [])].sort();
+    for (const childHash of children) {
+      dfs(childHash);
+    }
+
+    // Post-ordre : ajouter après les enfants
+    result.push(hash);
+  }
+
+  // Identifier les racines (commits sans parents) et les trier par hash
+  const roots = commitEntries
+    .filter(({ commit }) => commit.parents.length === 0)
+    .map(({ hash }) => hash)
+    .sort();
+
+  if (roots.length === 0) {
+    // Cas pathologique : commencer par le commit avec le hash le plus petit
+    const firstHash = commitEntries.map(e => e.hash).sort()[0]!;
+    dfs(firstHash);
+  } else {
+    for (const rootHash of roots) {
+      dfs(rootHash);
+    }
+  }
+
+  // Visiter les commits non encore atteints (graphes non-connectés)
+  if (visited.size < commitEntries.length) {
+    const unvisited = commitEntries
+      .map(e => e.hash)
+      .filter(h => !visited.has(h))
+      .sort();
+    for (const hash of unvisited) {
+      dfs(hash);
+    }
+  }
+
+  // 4. Décorer les commits avec branches et tags
+  return result.map((hash) => {
+    const commit = commitMap.get(hash)!;
+    return Object.freeze({
+      hash,
+      shortHash: shortHash(hash),
+      message: commit.message,
+      parents: Object.freeze([...commit.parents]) as string[],
+      branches: Object.freeze([...(hashToBranches[hash] ?? [])]) as string[],
+      tags: Object.freeze([...(hashToTags[hash] ?? [])]) as string[],
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -208,6 +344,9 @@ export class GitEngine {
       files.push({ path, status });
     }
 
+    // Phase 3 : tous les commits du dépôt en ordre topologique
+    const allCommitsRaw = getAllCommitsTopologicalOrder(repo, hashToBranches, hashToTags);
+
     // Immuabilité (cf. contrat RepoSnapshot) : on gèle les conteneurs pour
     // qu'un composant ne puisse pas muter le snapshot posé dans le store.
     return Object.freeze({
@@ -218,6 +357,7 @@ export class GitEngine {
       tags: Object.freeze(tags),
       indexPaths: Object.freeze(indexPaths) as string[],
       files: Object.freeze(files.map((f) => Object.freeze(f))) as SnapshotFile[],
+      allCommits: Object.freeze(allCommitsRaw) as SnapshotCommit[],
     });
   }
 }

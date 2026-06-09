@@ -723,9 +723,172 @@ Switched to branch 'feature'
 
 ---
 
-## À venir en Phase 3+
+## Visualisation graphique (Phase 3)
 
-Les fonctionnalités suivantes ne sont **pas disponibles en Phase 2** mais seront implémentées ultérieurement :
+### Comprendre le graphe
+
+La visualisation graphique affiche vos commits sous forme d'un **arbre** où vous pouvez voir comment votre dépôt a évolué : les branches, les points de divergence, et où pointe HEAD.
+
+#### Structure du graphe
+
+Le graphe se lit de haut en bas :
+
+- **Haut = commits récents**
+- **Bas = commit initial (racine)**
+- **Chaque colonne = une branche** : Git Visualizer assigne une colonne (lane) à chaque branche pour la garder visuellement cohérente
+- **Couleurs** : chaque branche a sa propre couleur pour la distinguer rapidement
+- **Nœuds** : les cercles de couleur représentent les commits
+- **Lignes** : les arêtes relient les parents aux enfants
+
+#### Exemples de lecture
+
+**Cas 1 : Historique linéaire**
+
+```
+(récent) ● Commit 3
+         |
+         ● Commit 2
+         |
+         ● Commit 1
+(ancien) |
+```
+
+Tous les commits sont sur la même colonne, une seule branche (`main` généralement).
+
+**Cas 2 : Branches divergentes**
+
+```
+(récent) ● Commit D (feature)      ● Commit C (main)
+         |                         |
+         ● Commit B (feature)      |
+         |                         |
+         +----→ Commit A (merge point)
+(ancien) 
+```
+
+La `main` est à gauche, `feature` à droite. Ils divergent du commit A. Les deux branches évoluent indépendamment jusqu'à un possible merge.
+
+**Cas 3 : HEAD détaché**
+
+```
+● Commit 3 [main]
+|
+● Commit 2 [HEAD (détaché)]  ← Vous êtes ici
+|
+● Commit 1 [feature]
+```
+
+Un badge spécial "HEAD (détaché)" indique que HEAD pointe directement sur un commit, au lieu de pointer une branche.
+
+#### Badges et libellés
+
+Chaque commit affiche des informations :
+
+- **Hash court** : les 7 premiers caractères du SHA-1 (ex. `abc1234`)
+- **Message** : la première ligne du message du commit
+- **Badge HEAD** : rectangle blanc avec "HEAD" si HEAD pointe ce commit
+- **Badges de branches** : rectangles bleus avec les noms des branches pointant ce commit (ex. `main`, `feature`)
+- **Badges de tags** : rectangles jaunes avec les noms des tags (étiquettes) pointant ce commit
+
+**Exemple de badges sur un commit :**
+
+```
+┌─ HEAD (badge blanc)
+│  ┌─ main (badge bleu)
+│  │  ┌─ v1.0 (badge jaune)
+│  │  │
+│  ○──┴──  abc1234
+     Add feature
+```
+
+Si un commit a plusieurs branches, les badges s'empilent verticalement.
+
+#### Distinction HEAD attaché vs détaché
+
+- **HEAD attaché** : HEAD pointe une branche (comportement normal). Badge "HEAD" sur le commit pointé par la branche courante.
+- **HEAD détaché** : HEAD pointe directement un commit, sans branche. Badge "HEAD (détaché)" sur ce commit (optionnel : peut afficher le hash court), et le commit a une surbrillance visuelle (ex. bordure rouge).
+
+Pour sortir du mode détaché, basculez vers une branche : `git checkout main`.
+
+### Interactions avec le graphe
+
+Le graphe est interactif pour explorer votre historique.
+
+#### Survol (hover)
+
+En plaçant votre souris sur un nœud (commit) :
+
+- Le nœud **s'éclaircit** et son contour épaissit
+- Une **tooltip** apparaît avec :
+  - **Hash complet** du commit (40 caractères)
+  - **Message complet** du commit
+  - **Hashes des parents** (si le commit a plusieurs parents, ex. merge)
+
+Déplacez votre souris pour voir la tooltip suivre.
+
+#### Clic (sélection)
+
+En cliquant sur un nœud :
+
+- Le nœud devient **sélectionné** (surbrillance visuelle distincte, bordure noire/épaisse)
+- Un deuxième click désélectionne
+
+Cela peut servir à focaliser sur un commit particulier.
+
+#### Pan (déplacement du graphe)
+
+Si le graphe est plus grand que votre écran :
+
+- **Clic droit + drag** : déplace le graphe entier pour voir d'autres zones
+- **Déplacement fluid** : le graphe suit votre souris
+
+#### Zoom
+
+Utilisez la **molette de la souris** :
+
+- **Scroll vers le haut** : zoom in (aggrandir)
+- **Scroll vers le bas** : zoom out (réduire)
+- **Limites** : le zoom est restreint entre 0.1x (très loin) et 5x (très proche)
+
+À zoom très faible, les libellés de commits peuvent se chevaucher. Vous pouvez toujours survoler pour voir les détails dans la tooltip.
+
+#### Cas typiques
+
+**Voir tout l'historique d'un coup**
+
+Zoom out (scroll bas) pour voir l'ensemble du dépôt en vue d'ensemble. Parfait pour comprendre la structure globale.
+
+**Explorer un commit spécifique**
+
+Hover sur un commit pour lire son hash et message complets. Zoom in pour mieux voir une zone densément peuplée.
+
+**Naviguer un gros dépôt**
+
+Clic droit + drag pour pan et explorer les zones non-visibles. Combinez avec le zoom pour naviguer librement.
+
+### Cas limites
+
+**Dépôt sans commit**
+
+Si vous venez de faire `git init` sans aucun commit, le graphe affiche un placeholder : "Initialisez un dépôt pour voir le graphe."
+
+**Dépôt vide après `git init`**
+
+Créez au moins un commit avec `git add` + `git commit -m "..."` pour voir le graphe.
+
+**Beaucoup de commits (>100)**
+
+Le graphe peut être grand. Utilisez pan et zoom pour naviguer. Les performances restent bonnes (rendu SVG natif).
+
+**Branches avec noms similaires**
+
+Chaque branche obtient une couleur unique. Si vous avez beaucoup de branches, certaines peuvent partager une couleur dans le cycle de la palette, mais elles restent sur des colonnes distinctes.
+
+---
+
+## À venir en Phase 4+
+
+Les fonctionnalités suivantes ne sont **pas disponibles en Phase 3** mais seront implémentées ultérieurement :
 
 - **Fusion** : `git merge`, `git rebase`
 - **Historique avancé** : `git log -p`, `git log --follow`, `git diff`
@@ -739,17 +902,34 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 2** mais seron
 
 ## Résumé
 
-Vous disposez en Phase 1 de :
+### Phases disponibles
 
-**Utilitaires :**
-- `write <chemin> [contenu]` — Créer/modifier des fichiers virtuels
-- `read <chemin>` — Afficher le contenu d'un fichier
-
-**Commandes Git :**
+**Phase 1 – Commandes Git essentielles :**
 - `git init` — Initialiser le dépôt
 - `git add <chemin...>` — Stager des fichiers
 - `git status [-s]` — Afficher l'état du dépôt
 - `git commit -m "<message>"` — Créer un commit
 - `git log [--oneline]` — Afficher l'historique
+- Utilitaires : `write` et `read` pour gérer les fichiers virtuels
 
-Ces commandes couvrent un workflow Git essentiel : initialiser, créer des fichiers, les stager, les committer, et afficher l'historique. Explorez et visualisez votre dépôt Git directement dans le terminal web !
+**Phase 2 – Gestion des branches et tags :**
+- `git branch` — Lister, créer ou supprimer des branches
+- `git checkout` / `git switch` — Changer de branche ou détacher HEAD
+- `git restore` — Restaurer des fichiers
+- `git tag` — Créer et gérer des étiquettes
+
+**Phase 3 – Visualisation graphique :**
+- **Graphe visuel interactif** : affichage SVG de votre arbre Git
+- **Lecture intuitive** : commits, branches, tags, HEAD sur un diagramme
+- **Interactions** : hover (tooltip), pan (drag), zoom (scroll)
+- **Badges intelligents** : affichage des branches, tags et HEAD sur chaque commit
+
+### Workflow complet
+
+1. Initialisez un dépôt (`git init`)
+2. Créez et stagez des fichiers (`write`, `git add`)
+3. Commitez (`git commit`)
+4. Gérez les branches (`git branch`, `git checkout`)
+5. **Visualisez votre historique en graphe** (Phase 3)
+
+Vous pouvez explorer et maîtriser votre dépôt Git directement dans le terminal web, avec une vue d'ensemble visuelle et intuitive grâce au graphe interactif !

@@ -229,14 +229,76 @@ date   = timestamp Unix, incrémenté par commit
 
 ---
 
-## 🚀 Prochaines étapes
+## Phase 2 : Branches et navigation
 
-Une fois la Phase 1 complète et testée :
+Voir **[README-PHASE2.md](README-PHASE2.md)** pour l'index complet.
 
-- **Phase 1.5** : Suppression de fichiers, `git rm`, `git mv`
-- **Phase 2** : Branches, `git branch`, `git checkout`, `git merge`
-- **Phase 3** : Reset, Restore, Diff
-- **Phase 4+** : Rebase, Stash, Tags, et optimisations UI
+Spécifications Phase 2 :
+- **[09-model-phase2.md](09-model-phase2.md)** : Extension du modèle (refs.tags, HEAD détaché, etc.)
+- **[10-branch.md](10-branch.md)** : `git branch`
+- **[11-checkout.md](11-checkout.md)** : `git checkout`
+- **[12-switch.md](12-switch.md)** : `git switch`
+- **[13-restore.md](13-restore.md)** : `git restore`
+- **[14-tag.md](14-tag.md)** : `git tag`
+
+**Status** : ✓ Phase 2 COMPLETED (299 tests verts)
+
+---
+
+## Phase 3 : Visualisation graphique du DAG
+
+Voir **[PHASE3-INDEX.md](PHASE3-INDEX.md)** pour la vue d'ensemble.
+
+### Spécifications Phase 3
+
+1. **[15-graph-model.md](15-graph-model.md)** : Modèle de données
+   - Extension du snapshot : `allCommits`
+   - Contrats de types (LayoutInput, GraphLayout)
+   - Responsabilités par composant
+
+2. **[16-graph-layout.md](16-graph-layout.md)** : Algorithme de layout
+   - 6 étapes (tri topo, profondeur, lanes, positions, arêtes, couleurs)
+   - Pseudo-code détaillé, complexité O(C+E)
+   - Critères d'acceptation CA-layout-NN (7 CAs)
+
+3. **[17-graph-render.md](17-graph-render.md)** : Rendu SVG et interactions
+   - Composant Vue GraphView (structure, styles, logique)
+   - Pan, zoom, hover, click
+   - Badges (branches, tags, HEAD)
+   - Critères d'acceptation CA-graph-NN (9 CAs)
+
+### Guides de navigation
+
+- **[PHASE3-SUMMARY.md](PHASE3-SUMMARY.md)** : Résumé exécutif (5 décisions structurantes, critères de succès)
+- **[PHASE3-INDEX.md](PHASE3-INDEX.md)** : Guide de lecture détaillé par rôle (PM, dev backend, dev frontend, QA, architect)
+- **[PHASE3-QUICK-START.md](PHASE3-QUICK-START.md)** : TL;DR avec code pour développeurs (3 étapes : core, layout, UI)
+- **[PHASE3-ORCHESTRATION.md](PHASE3-ORCHESTRATION.md)** : Guide complet d'orchestration (5 étapes, timeline, risk management)
+
+### Décisions clés Phase 3
+
+1. **Extension snapshot** : ajouter `allCommits?: SnapshotCommit[]` (optionnel, backward compat).
+2. **Layout pur** : algorithme TypeScript pur, sans dépendances Vue/DOM, testable Vitest.
+3. **SVG custom** : pas de lib gitgraph (reset/rebase réécrivent l'historique).
+4. **Déterminisme** : même input → même géométrie (tiebreakers explicites).
+5. **Orientation** : Y = chronologie (neuf d'abord), X = lanes parallèles.
+
+### Critères de succès Phase 3
+
+- ✓ 3 spécifications écrites (15, 16, 17)
+- ✓ 4 guides auxiliaires (SUMMARY, INDEX, QUICK-START, ORCHESTRATION)
+- ⏳ Core : `getAllCommitsTopologicalOrder()` + `allCommits` dans snapshot
+- ⏳ Layout : `calculateLayout(LayoutInput): GraphLayout` (pur, déterministe, O(C+E))
+- ⏳ UI : `GraphView.vue` (SVG interactif, pan, zoom, hover, click)
+- ⏳ Tests : ≥ 80% couverture, tous CA passent (18 CAs)
+
+**Status** : ✓ Spécifications complètes (2026-06-09) → Développement peut démarrer
+
+---
+
+## 🚀 Phases futures
+
+- **Phase 4** : Merge & Rebase (mutation du DAG, reset)
+- **Phase 5+** : Interactive features, stash, cherry-pick, optimisations UI/perf
 
 ---
 
