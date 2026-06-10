@@ -140,7 +140,7 @@ function onReset(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Export / Import de session (spec 58)
+// Export / Import / Share de session (spec 58-59)
 // ---------------------------------------------------------------------------
 
 const importFileInput = ref<HTMLInputElement | null>(null);
@@ -160,6 +160,32 @@ function onExport(): void {
 
 function onImportClick(): void {
   importFileInput.value?.click();
+}
+
+function onShare(): void {
+  const { link, size } = repo.generateShareableLink(
+    window.location.origin + window.location.pathname,
+  );
+  if (size === 'error') {
+    alert(t('sidebar.shareTooBig'));
+    return;
+  }
+  if (size === 'warning') {
+    if (!confirm(t('sidebar.shareLongWarning'))) return;
+  }
+  if (navigator.clipboard) {
+    navigator.clipboard
+      .writeText(link)
+      .then(() => {
+        alert(t('sidebar.shareCopied'));
+      })
+      .catch(() => {
+        // Copie refusée (permission/contexte non sécurisé) → montrer le lien à copier.
+        prompt(t('sidebar.shareCopied'), link);
+      });
+  } else {
+    prompt(t('sidebar.shareCopied'), link);
+  }
 }
 
 function onImportFileChange(event: Event): void {
@@ -413,6 +439,14 @@ function onStartTutorial(id: string): void {
           {{ t('sidebar.export') }}
         </button>
         <button class="btn btn-import" @click="onImportClick">{{ t('sidebar.import') }}</button>
+        <button
+          class="btn btn-share"
+          :disabled="repo.savedCommands.length === 0"
+          :title="repo.savedCommands.length === 0 ? t('sidebar.exportDisabledTitle') : undefined"
+          @click="onShare"
+        >
+          {{ t('sidebar.share') }}
+        </button>
         <input
           ref="importFileInput"
           type="file"
@@ -795,6 +829,20 @@ h2 {
 .btn-import:hover {
   background: #eff6ff;
   border-color: #93c5fd;
+}
+
+.btn-share {
+  flex: 1;
+}
+
+.btn-share:hover:not(:disabled) {
+  background: #f0f9ff;
+  border-color: #7dd3fc;
+}
+
+.btn-share:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btn-scenario {

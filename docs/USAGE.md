@@ -2207,8 +2207,27 @@ clair **sans toucher** à la session courante. Si une commande échoue au rejeu 
 les exports proviennent de sessions valides), la restauration s'arrête proprement et
 indique la position fautive.
 
-> Le format JSON est volontairement le même que celui réutilisé par les **liens
-> partageables** (à venir).
+#### Liens partageables
+
+Le bouton **Partager** (à côté d'Exporter/Importer) encode la session courante dans
+un **lien web** : `https://…/#session=<données>`. La session (mêmes commandes que
+l'export) est compressée (gzip) puis encodée en base64url dans le **fragment**
+d'URL — tout reste côté client, aucun serveur ne voit la session. Le lien est copié
+dans le presse-papier (avec repli sur un champ si le presse-papier est indisponible).
+
+- Session courte → lien généré directement.
+- Session longue (~1500–2000 caractères) → confirmation (« lien très long »).
+- Session trop grande (> 2000 caractères) → refus, avec invitation à utiliser
+  l'export/import par fichier à la place.
+
+À l'**ouverture d'un lien partagé**, une fenêtre propose de charger la session
+(nombre de commandes, date, description). **Charger** réinitialise puis rejoue la
+session partagée (un lien intentionnel **prime** sur la session locale) ; **Annuler**
+conserve la session locale. Un lien invalide ou corrompu est ignoré silencieusement
+(la session locale se charge normalement). Comme l'URL ne contient que des commandes
+Git rejouées par le moteur, il n'y a **aucun risque d'exécution de code arbitraire**.
+
+> Export/import et liens partagent exactement le même format de session JSON.
 
 ---
 

@@ -89,6 +89,17 @@ export type MessageKey =
   | 'sidebar.importPartial'
   | 'sidebar.importReadError'
   | 'sidebar.exportDisabledTitle'
+  | 'sidebar.share'
+  | 'sidebar.shareCopied'
+  | 'sidebar.shareLongWarning'
+  | 'sidebar.shareTooBig'
+  // Lien partageable (spec 59)
+  | 'share.modalTitle'
+  | 'share.modalCommandCount'
+  | 'share.modalDate'
+  | 'share.modalWarning'
+  | 'share.load'
+  | 'share.cancel'
   // Difficulté (scénarios / tutoriels)
   | 'difficulty.easy'
   | 'difficulty.medium'
@@ -174,6 +185,16 @@ export const MESSAGE_KEYS: readonly MessageKey[] = [
   'sidebar.importPartial',
   'sidebar.importReadError',
   'sidebar.exportDisabledTitle',
+  'sidebar.share',
+  'sidebar.shareCopied',
+  'sidebar.shareLongWarning',
+  'sidebar.shareTooBig',
+  'share.modalTitle',
+  'share.modalCommandCount',
+  'share.modalDate',
+  'share.modalWarning',
+  'share.load',
+  'share.cancel',
   'difficulty.easy',
   'difficulty.medium',
   'difficulty.hard',

@@ -6,6 +6,7 @@ import RefsSidebar from '@/components/RefsSidebar.vue';
 import InteractiveRebaseModal from '@/components/InteractiveRebaseModal.vue';
 import ConflictEditorModal from '@/components/ConflictEditorModal.vue';
 import GuidedTutorialModal from '@/components/GuidedTutorialModal.vue';
+import LoadSharedSessionModal from '@/components/LoadSharedSessionModal.vue';
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue';
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 import CommandPalette from '@/components/CommandPalette.vue';
@@ -13,6 +14,7 @@ import { useRepoStore } from '@/stores/repo';
 import { useTheme } from '@/composables/useTheme';
 import { useGraphAnimations } from '@/composables/useGraphAnimations';
 import { useI18n } from '@/i18n';
+import { getSessionFromUrl } from '@/utils/share';
 
 const store = useRepoStore();
 const { initTheme } = useTheme();
@@ -26,9 +28,17 @@ initGraphAnimations();
 // Charger la langue (localStorage → navigator → fr).
 initI18n();
 
-// PHASE 6 : Restaurer la session depuis localStorage avant toute interaction utilisateur.
+// PHASE 6 + spec 59 : Au boot, l'URL prime sur le localStorage.
+// Si un fragment #session= est présent, on pose la session en attente et le
+// modal LoadSharedSessionModal prend le relais (CA-share-11).
+// Sinon, on charge normalement depuis localStorage.
 onMounted(() => {
-  store.loadFromStorage();
+  const shared = getSessionFromUrl();
+  if (shared) {
+    store.pendingSharedSession = shared;
+  } else {
+    store.loadFromStorage();
+  }
 });
 </script>
 
@@ -37,6 +47,7 @@ onMounted(() => {
   <InteractiveRebaseModal />
   <ConflictEditorModal />
   <GuidedTutorialModal />
+  <LoadSharedSessionModal />
   <CommandPalette />
   <div class="layout">
     <header class="topbar">

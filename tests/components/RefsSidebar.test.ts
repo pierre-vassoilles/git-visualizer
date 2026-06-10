@@ -224,4 +224,14 @@ describe('RefsSidebar — export/import de session (spec 58)', () => {
     expect(input.exists()).toBe(true);
     expect(input.attributes('accept')).toBe('.json');
   });
+
+  it('CA-share-02 : bouton Partager présent, désactivé sans commande', async () => {
+    const { wrapper, store } = mountSidebar();
+    const shareBtn = wrapper.find('.btn-share');
+    expect(shareBtn.exists()).toBe(true);
+    expect(shareBtn.attributes('disabled')).toBeDefined();
+    store.execute('git init');
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.btn-share').attributes('disabled')).toBeUndefined();
+  });
 });

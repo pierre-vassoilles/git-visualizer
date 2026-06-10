@@ -7,6 +7,7 @@ import type { RepoSnapshot } from '@/core/engine';
 import type { TodoItem } from '@/core/model';
 import { loadHistory, saveHistory, clearHistory } from '@/utils/storage';
 import { buildExportedSession, type ExportedSession } from '@/utils/export-import';
+import { encodeSession, checkSessionSize, type SessionSize } from '@/utils/share';
 import { getScenarioById } from '@/constants/scenarios';
 import { parseConflictContent, buildResolvedContent } from '@/core/repository';
 import { getTutorialById } from '@/constants/tutorials';
@@ -41,6 +42,14 @@ export const useRepoStore = defineStore('repo', () => {
    * Distinctes de `history` (qui contient toutes les commandes tapées, pour ↑/↓).
    */
   const savedCommands = ref<string[]>([]);
+
+  /**
+   * PHASE B3 (spec 59) : session partagée détectée dans l'URL au boot, EN ATTENTE
+   * de confirmation utilisateur (modal). `null` = aucune. App.vue la pose au
+   * montage ; le modal de chargement la lit, puis appelle importSession (Charger)
+   * ou loadFromStorage (Annuler) et la remet à null.
+   */
+  const pendingSharedSession = ref<ExportedSession | null>(null);
 
   /** Exécute une commande, l'enregistre dans le journal et renvoie le résultat. */
   function execute(command: string): CommandResult {
@@ -225,6 +234,22 @@ export const useRepoStore = defineStore('repo', () => {
       partial,
       ...(errorIndex !== undefined ? { errorIndex } : {}),
     };
+  }
+
+  /**
+   * PHASE B3 (spec 59) : Génère un lien partageable encodant la session courante.
+   *
+   * `baseUrl` (origin + pathname) est injecté par l'UI. Renvoie le lien complet et
+   * un verdict de taille (`ok`/`warning`/`error`) pour que l'UI avertisse ou refuse
+   * sans dupliquer les seuils.
+   */
+  function generateShareableLink(baseUrl: string): { link: string; size: SessionSize } {
+    const session = buildExportedSession(savedCommands.value, Date.now());
+    // Encoder une seule fois (la taille se mesure sur la partie encodée, hors baseUrl).
+    const encoded = encodeSession(session);
+    const link = `${baseUrl}#session=${encoded}`;
+    const size = checkSessionSize(encoded);
+    return { link, size };
   }
 
   /**
@@ -418,6 +443,8 @@ export const useRepoStore = defineStore('repo', () => {
     executeScenario,
     exportSession,
     importSession,
+    generateShareableLink,
+    pendingSharedSession,
     getCatalog,
     readFile,
     getConflictSections,
