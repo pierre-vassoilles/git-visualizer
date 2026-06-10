@@ -11,6 +11,7 @@ import {
 } from '../repository';
 import { hashBlob } from '../objectStore';
 import { shortHash } from '../sha1';
+import { isIgnored, loadIgnorePatterns } from '../gitignore';
 import { notARepo } from './init';
 
 /**
@@ -94,9 +95,12 @@ export function cmdStatus(repo: Repository, flags: string[]): CommandResult {
   //    est défini par l'index (pas par HEAD) : un fichier retiré de l'index via
   //    `git rm --cached` mais conservé dans le WT redevient untracked, comme
   //    dans le vrai git (qui affiche alors « D » staged + « ?? » untracked).
+  //    Les fichiers ignorés par .gitignore (et non suivis) sont exclus.
+  const ignorePatterns = loadIgnorePatterns(repo);
   const untracked: string[] = [];
   for (const filepath of Object.keys(repo.workingTree)) {
     if (!(filepath in repo.index)) {
+      if (isIgnored(filepath, ignorePatterns)) continue;
       untracked.push(filepath);
     }
   }

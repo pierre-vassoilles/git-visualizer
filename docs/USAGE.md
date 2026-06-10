@@ -3746,6 +3746,27 @@ Dessine le DAG directement dans le terminal avec `*` (commit), `|` (branche),
 
 ---
 
+## Fichiers ignorés : `.gitignore` (Axe B1)
+
+Créez un fichier `.gitignore` (via `write`) pour exclure des chemins du suivi :
+
+```bash
+write .gitignore "*.log\nnode_modules/\n!important.log"
+```
+
+Les fichiers correspondants disparaissent des **untracked** de `git status` et
+`git add` les refuse (sauf `git add -f`). Patterns supportés : globs `*`/`?`,
+récursif `**/`, répertoires `dir/`, négation `!`, ancrage `/`, commentaires `#`.
+Règle « last match wins ». Un fichier **déjà suivi** n'est jamais ignoré.
+
+```bash
+git add debug.log     # fatal: ... is ignored ... use 'add -f'
+git add -f debug.log  # force l'ajout
+git add .             # ajoute tout sauf les ignorés
+```
+
+---
+
 ## À venir en Phase 10+
 
 Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seront implémentées ultérieurement :
