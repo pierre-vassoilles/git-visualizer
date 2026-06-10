@@ -7,19 +7,24 @@ import InteractiveRebaseModal from '@/components/InteractiveRebaseModal.vue';
 import ConflictEditorModal from '@/components/ConflictEditorModal.vue';
 import GuidedTutorialModal from '@/components/GuidedTutorialModal.vue';
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue';
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 import CommandPalette from '@/components/CommandPalette.vue';
 import { useRepoStore } from '@/stores/repo';
 import { useTheme } from '@/composables/useTheme';
 import { useGraphAnimations } from '@/composables/useGraphAnimations';
+import { useI18n } from '@/i18n';
 
 const store = useRepoStore();
 const { initTheme } = useTheme();
 const { initGraphAnimations } = useGraphAnimations();
+const { t, initI18n } = useI18n();
 
 // Appliquer le thème (light/dark/auto) avant le premier rendu visible.
 initTheme();
 // Charger la préférence d'animation + détecter prefers-reduced-motion.
 initGraphAnimations();
+// Charger la langue (localStorage → navigator → fr).
+initI18n();
 
 // PHASE 6 : Restaurer la session depuis localStorage avant toute interaction utilisateur.
 onMounted(() => {
@@ -36,8 +41,11 @@ onMounted(() => {
   <div class="layout">
     <header class="topbar">
       <span class="brand">Git Visualizer</span>
-      <span class="subtitle">terminal virtuel &amp; visualisation de l'arbre git</span>
-      <ThemeSwitcher class="topbar-theme" />
+      <span class="subtitle">{{ t('app.subtitle') }}</span>
+      <div class="topbar-controls">
+        <LanguageSwitcher />
+        <ThemeSwitcher />
+      </div>
     </header>
 
     <main class="main">
@@ -79,8 +87,11 @@ onMounted(() => {
   font-size: 0.8rem;
   color: #b0b6bd;
 }
-.topbar-theme {
+.topbar-controls {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .main {
   grid-area: main;

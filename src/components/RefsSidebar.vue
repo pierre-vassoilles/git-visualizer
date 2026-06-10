@@ -3,8 +3,11 @@ import { computed } from 'vue';
 import { useRepoStore } from '@/stores/repo';
 import { getAllScenarios } from '@/constants/scenarios';
 import { getAllTutorials } from '@/constants/tutorials';
+import { useI18n } from '@/i18n';
+import type { MessageKey } from '@/i18n/messages';
 
 const repo = useRepoStore();
+const { t } = useI18n();
 
 // ---------------------------------------------------------------------------
 // Branches
@@ -65,13 +68,14 @@ const operationState = computed(() => repo.snapshot.operationState ?? null);
 
 /** Libellé lisible selon le type d'opération. */
 function operationLabel(type: string): string {
-  const labels: Record<string, string> = {
-    merging: 'Merge en cours',
-    rebasing: 'Rebase en cours',
-    cherryPicking: 'Cherry-pick en cours',
-    reverting: 'Revert en cours',
+  const keys: Record<string, MessageKey> = {
+    merging: 'op.merging',
+    rebasing: 'op.rebasing',
+    cherryPicking: 'op.cherryPicking',
+    reverting: 'op.reverting',
   };
-  return labels[type] ?? type;
+  const key = keys[type];
+  return key ? t(key) : type;
 }
 
 /** Commande --continue selon le type. */
@@ -125,7 +129,7 @@ const recentCommands = computed(() => [...repo.history].slice(-10).reverse());
 // ---------------------------------------------------------------------------
 
 function onReset(): void {
-  if (confirm("Réinitialiser le dépôt et effacer l'historique localStorage ?")) {
+  if (confirm(t('sidebar.confirmReset'))) {
     repo.resetStorage();
   }
 }
@@ -185,7 +189,7 @@ function onFetch(): void {
 function onPush(): void {
   const head = repo.snapshot.head;
   if (head.type === 'detached') {
-    alert('HEAD est detache. Checkout une branche avant de pousser.');
+    alert(t('sidebar.detachedPushAlert'));
     return;
   }
   repo.execute(`git push`);
@@ -194,7 +198,7 @@ function onPush(): void {
 function onPull(): void {
   const head = repo.snapshot.head;
   if (head.type === 'detached') {
-    alert('HEAD est detache. Checkout une branche avant de tirer.');
+    alert(t('sidebar.detachedPullAlert'));
     return;
   }
   repo.execute(`git pull`);
@@ -207,13 +211,13 @@ function onPull(): void {
 const scenarios = computed(() => getAllScenarios());
 
 function onLoadScenario(id: string): void {
-  if (confirm('Charger ce scénario ? Le dépôt courant sera réinitialisé.')) {
+  if (confirm(t('sidebar.confirmScenario'))) {
     repo.executeScenario(id);
   }
 }
 
 function difficultyLabel(d: 1 | 2 | 3): string {
-  return d === 1 ? 'Facile' : d === 2 ? 'Moyen' : 'Difficile';
+  return d === 1 ? t('difficulty.easy') : d === 2 ? t('difficulty.medium') : t('difficulty.hard');
 }
 
 // ---------------------------------------------------------------------------
@@ -223,33 +227,37 @@ function difficultyLabel(d: 1 | 2 | 3): string {
 const tutorials = computed(() => getAllTutorials());
 
 function onStartTutorial(id: string): void {
-  if (confirm('Démarrer ce tutoriel ? Le dépôt courant sera réinitialisé.')) {
+  if (confirm(t('sidebar.confirmTutorial'))) {
     repo.startTutorial(id);
   }
 }
 </script>
 
 <template>
-  <aside class="refs-sidebar" role="complementary" aria-label="État du dépôt">
+  <aside class="refs-sidebar" role="complementary" :aria-label="t('sidebar.ariaLabel')">
     <!-- ================================================================
          Branches
     ================================================================ -->
     <section>
-      <h2>Branches</h2>
+      <h2>{{ t('sidebar.branches') }}</h2>
       <ul class="item-list">
         <li
           v-for="name in branchNames"
           :key="name"
           class="item-row"
           :class="{ 'item-current': isCurrentBranch(name), clickable: !isCurrentBranch(name) }"
-          :title="isCurrentBranch(name) ? 'Branche courante' : `Checkout ${name}`"
+          :title="
+            isCurrentBranch(name)
+              ? t('sidebar.currentBranch')
+              : t('sidebar.checkoutTitle', { name })
+          "
           @click="checkoutBranch(name)"
         >
           <span class="indicator">{{ isCurrentBranch(name) ? '●' : '○' }}</span>
           <span class="item-name">{{ name }}</span>
           <span class="item-hash">{{ branchShortHash(name) }}</span>
         </li>
-        <li v-if="branchNames.length === 0" class="muted">aucune branche</li>
+        <li v-if="branchNames.length === 0" class="muted">{{ t('sidebar.noBranches') }}</li>
       </ul>
     </section>
 
@@ -257,18 +265,18 @@ function onStartTutorial(id: string): void {
          HEAD
     ================================================================ -->
     <section>
-      <h2>HEAD</h2>
+      <h2>{{ t('sidebar.head') }}</h2>
       <div
         class="head-box"
         :class="headInfo.detached ? 'head-detached' : 'head-symbolic'"
         aria-live="polite"
-        aria-label="Cible HEAD courante"
+        :aria-label="t('sidebar.headAriaLabel')"
       >
         <template v-if="!headInfo.detached">
           <span class="head-label">{{ headInfo.label }}</span>
         </template>
         <template v-else>
-          <span class="head-label">détaché</span>
+          <span class="head-label">{{ t('sidebar.detached') }}</span>
           <code class="head-hash">{{ headInfo.label }}</code>
         </template>
       </div>
@@ -278,13 +286,13 @@ function onStartTutorial(id: string): void {
          Tags
     ================================================================ -->
     <section v-if="tagEntries.length > 0">
-      <h2>Tags</h2>
+      <h2>{{ t('sidebar.tags') }}</h2>
       <ul class="item-list">
         <li
           v-for="tag in tagEntries"
           :key="tag.name"
           class="item-row clickable"
-          :title="`Checkout ${tag.name} (HEAD détaché)`"
+          :title="t('sidebar.checkoutTagTitle', { name: tag.name })"
           @click="checkoutTag(tag.name)"
         >
           <span class="tag-icon">⬡</span>
@@ -298,11 +306,11 @@ function onStartTutorial(id: string): void {
          Opération en cours
     ================================================================ -->
     <section v-if="operationState">
-      <h2>⚠ Opération en cours</h2>
+      <h2>{{ t('sidebar.operation') }}</h2>
       <div class="operation-box">
         <p class="op-type">{{ operationLabel(operationState.type) }}</p>
         <p v-if="operationState.branchName" class="op-detail">
-          Branche : <strong>{{ operationState.branchName }}</strong>
+          {{ t('sidebar.branchLabel') }} : <strong>{{ operationState.branchName }}</strong>
         </p>
         <div class="op-actions">
           <button
@@ -310,10 +318,10 @@ function onStartTutorial(id: string): void {
             class="btn btn-continue"
             @click="onContinue"
           >
-            Continuer
+            {{ t('sidebar.continue') }}
           </button>
           <button v-if="abortCmd(operationState.type)" class="btn btn-abort" @click="onAbort">
-            Annuler
+            {{ t('sidebar.abort') }}
           </button>
         </div>
       </div>
@@ -323,29 +331,29 @@ function onStartTutorial(id: string): void {
          Stash
     ================================================================ -->
     <section v-if="stashCount > 0">
-      <h2>Stash</h2>
-      <p class="stash-count">{{ stashCount }} entrée{{ stashCount > 1 ? 's' : '' }}</p>
+      <h2>{{ t('sidebar.stash') }}</h2>
+      <p class="stash-count">{{ t('sidebar.stashEntries', { n: stashCount }) }}</p>
     </section>
 
     <!-- ================================================================
          Commandes récentes
     ================================================================ -->
     <section>
-      <h2>Commandes récentes</h2>
+      <h2>{{ t('sidebar.recentCommands') }}</h2>
       <ul class="item-list history-list">
         <li v-for="(cmd, i) in recentCommands" :key="i" class="history-item">
           <code>{{ cmd }}</code>
         </li>
-        <li v-if="recentCommands.length === 0" class="muted">aucune commande</li>
+        <li v-if="recentCommands.length === 0" class="muted">{{ t('sidebar.noCommands') }}</li>
       </ul>
-      <button class="btn btn-reset" @click="onReset">Réinitialiser</button>
+      <button class="btn btn-reset" @click="onReset">{{ t('sidebar.reset') }}</button>
     </section>
 
     <!-- ================================================================
          Distant
     ================================================================ -->
     <section v-if="hasRemotes">
-      <h2>Distant</h2>
+      <h2>{{ t('sidebar.remote') }}</h2>
 
       <!-- Liste des remotes -->
       <div class="remote-list">
@@ -379,22 +387,24 @@ function onStartTutorial(id: string): void {
               "
               class="synced-label"
             >
-              a jour
+              {{ t('sidebar.upToDate') }}
             </span>
-            <span v-if="trackingInfo(name)!.gone" class="gone-label"> (gone) </span>
+            <span v-if="trackingInfo(name)!.gone" class="gone-label">
+              {{ t('sidebar.gone') }}
+            </span>
             <span v-if="upstreamLabel(name)" class="upstream-label">
               [{{ upstreamLabel(name) }}]
             </span>
-            <span v-else class="no-upstream-label">(pas d'upstream)</span>
+            <span v-else class="no-upstream-label">{{ t('sidebar.noUpstream') }}</span>
           </div>
         </div>
       </div>
 
       <!-- Boutons d'action -->
       <div class="remote-actions">
-        <button class="btn btn-fetch" @click="onFetch">Fetch</button>
-        <button class="btn btn-push" @click="onPush">Push</button>
-        <button class="btn btn-pull" @click="onPull">Pull</button>
+        <button class="btn btn-fetch" @click="onFetch">{{ t('sidebar.fetch') }}</button>
+        <button class="btn btn-push" @click="onPush">{{ t('sidebar.push') }}</button>
+        <button class="btn btn-pull" @click="onPull">{{ t('sidebar.pull') }}</button>
       </div>
     </section>
 
@@ -402,7 +412,7 @@ function onStartTutorial(id: string): void {
          Scénarios
     ================================================================ -->
     <section>
-      <h2>Scénarios</h2>
+      <h2>{{ t('sidebar.scenarios') }}</h2>
       <ul class="item-list scenario-list">
         <li v-for="s in scenarios" :key="s.id" class="scenario-item">
           <div class="scenario-header">
@@ -412,7 +422,9 @@ function onStartTutorial(id: string): void {
             </span>
           </div>
           <p class="scenario-desc">{{ s.description }}</p>
-          <button class="btn btn-scenario" @click="onLoadScenario(s.id)">Charger</button>
+          <button class="btn btn-scenario" @click="onLoadScenario(s.id)">
+            {{ t('sidebar.load') }}
+          </button>
         </li>
       </ul>
     </section>
@@ -421,18 +433,24 @@ function onStartTutorial(id: string): void {
          Tutoriels guidés
     ================================================================ -->
     <section>
-      <h2>Tutoriels guidés</h2>
+      <h2>{{ t('sidebar.tutorials') }}</h2>
       <ul class="item-list scenario-list">
-        <li v-for="t in tutorials" :key="t.id" class="scenario-item">
+        <li v-for="tuto in tutorials" :key="tuto.id" class="scenario-item">
           <div class="scenario-header">
-            <span class="scenario-title">{{ t.title }}</span>
-            <span class="scenario-difficulty" :class="`diff-${t.difficulty}`">
-              {{ difficultyLabel(t.difficulty) }}
+            <span class="scenario-title">{{ tuto.title }}</span>
+            <span class="scenario-difficulty" :class="`diff-${tuto.difficulty}`">
+              {{ difficultyLabel(tuto.difficulty) }}
             </span>
           </div>
-          <p class="scenario-desc">{{ t.description }}</p>
-          <p class="tuto-meta">{{ t.steps.length }} étapes · ~{{ t.duration }} min</p>
-          <button class="btn btn-tutorial" @click="onStartTutorial(t.id)">Commencer</button>
+          <p class="scenario-desc">{{ tuto.description }}</p>
+          <p class="tuto-meta">
+            {{
+              t('sidebar.stepsAndDuration', { steps: tuto.steps.length, duration: tuto.duration })
+            }}
+          </p>
+          <button class="btn btn-tutorial" @click="onStartTutorial(tuto.id)">
+            {{ t('sidebar.start') }}
+          </button>
         </li>
       </ul>
     </section>

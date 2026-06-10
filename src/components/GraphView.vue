@@ -6,8 +6,10 @@ import GraphCanvas from './GraphCanvas.vue';
 import type { Badge } from '@/graph/types';
 import type { RepoSnapshot } from '@/core/engine';
 import { useGraphAnimations } from '@/composables/useGraphAnimations';
+import { useI18n } from '@/i18n';
 
 const repo = useRepoStore();
+const { t } = useI18n();
 const {
   userEnabled: animationsEnabled,
   reducedMotion,
@@ -436,17 +438,17 @@ function runMenuAction(action: string): void {
       repo.execute(`git checkout ${short}`);
       break;
     case 'reset-soft':
-      if (confirm('Reset --soft vers ce commit ? (working tree et index inchangés)')) {
+      if (confirm(t('ctx.confirmResetSoft'))) {
         repo.execute(`git reset --soft ${short}`);
       }
       break;
     case 'reset-mixed':
-      if (confirm("Reset --mixed vers ce commit ? L'index sera réinitialisé.")) {
+      if (confirm(t('ctx.confirmResetMixed'))) {
         repo.execute(`git reset --mixed ${short}`);
       }
       break;
     case 'reset-hard':
-      if (confirm('DANGER : reset --hard supprime définitivement les changements. Continuer ?')) {
+      if (confirm(t('ctx.confirmResetHard'))) {
         repo.execute(`git reset --hard ${short}`);
       }
       break;
@@ -457,7 +459,7 @@ function runMenuAction(action: string): void {
       repo.execute(`git cherry-pick ${short}`);
       break;
     case 'tag': {
-      const name = prompt('Nom du tag :');
+      const name = prompt(t('ctx.promptTagName'));
       if (name && name.trim()) repo.execute(`git tag ${name.trim()} ${short}`);
       break;
     }
@@ -487,7 +489,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
           :class="{ active: displayMode === 'local' }"
           @click="setMode('local')"
         >
-          Local
+          {{ t('graph.local') }}
         </button>
         <button
           class="mode-btn"
@@ -495,7 +497,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
           :disabled="!hasRemote"
           @click="setMode('split')"
         >
-          Split
+          {{ t('graph.split') }}
         </button>
         <button
           class="mode-btn"
@@ -503,18 +505,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
           :disabled="!hasRemote"
           @click="setMode('remote')"
         >
-          Distant
+          {{ t('graph.remote') }}
         </button>
       </div>
 
       <label v-if="hasRemote" class="sync-label">
         <input v-model="syncZoomPan" type="checkbox" />
-        <span>Sync zoom/pan</span>
+        <span>{{ t('graph.syncZoomPan') }}</span>
       </label>
 
       <label
         class="sync-label anim-label"
-        :title="reducedMotion ? 'Désactivé par le système (prefers-reduced-motion)' : ''"
+        :title="reducedMotion ? t('graph.animationsDisabledHint') : ''"
       >
         <input
           type="checkbox"
@@ -522,7 +524,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
           :disabled="reducedMotion"
           @change="setAnimations(($event.target as HTMLInputElement).checked)"
         />
-        <span>Animations</span>
+        <span>{{ t('graph.animations') }}</span>
       </label>
     </div>
 
@@ -534,7 +536,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
         class="graph-pane"
         :class="displayMode === 'split' ? 'pane-half' : 'pane-full'"
       >
-        <div v-if="displayMode === 'split'" class="pane-header">Local</div>
+        <div v-if="displayMode === 'split'" class="pane-header">{{ t('graph.local') }}</div>
         <div class="pane-body">
           <GraphCanvas
             v-if="localLayout"
@@ -551,12 +553,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
             @node-context-menu="onNodeContextMenu"
           />
           <div v-else-if="!repo.snapshot.initialized" class="graph-placeholder">
-            <p class="title">Graphe Git</p>
-            <p class="hint">Initialisez un depot pour voir le graphe.</p>
+            <p class="title">{{ t('graph.placeholderTitle') }}</p>
+            <p class="hint">{{ t('graph.initHint') }}</p>
           </div>
           <div v-else class="graph-placeholder">
-            <p class="title">Graphe Git</p>
-            <p class="hint">Aucun commit pour l'instant.</p>
+            <p class="title">{{ t('graph.placeholderTitle') }}</p>
+            <p class="hint">{{ t('graph.noCommits') }}</p>
           </div>
         </div>
       </div>
@@ -571,7 +573,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
         :class="displayMode === 'split' ? 'pane-half' : 'pane-full'"
       >
         <div v-if="displayMode === 'split'" class="pane-header">
-          {{ firstRemoteName }} (distant)
+          {{ firstRemoteName }} {{ t('graph.remoteSuffix') }}
         </div>
         <div class="pane-body">
           <GraphCanvas
@@ -588,8 +590,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
             @pan="onPanRemote"
           />
           <div v-else class="graph-placeholder">
-            <p class="title">Graphe distant</p>
-            <p class="hint">Aucun commit distant disponible.</p>
+            <p class="title">{{ t('graph.remoteTitle') }}</p>
+            <p class="hint">{{ t('graph.noRemoteCommits') }}</p>
           </div>
         </div>
       </div>
@@ -608,22 +610,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
           class="ctx-item"
           @click="runMenuAction('checkout')"
         >
-          Checkout (détaché)
+          {{ t('ctx.checkout') }}
         </div>
-        <div class="ctx-item" @click="runMenuAction('reset-soft')">Reset --soft</div>
-        <div class="ctx-item" @click="runMenuAction('reset-mixed')">Reset --mixed</div>
-        <div class="ctx-item danger" @click="runMenuAction('reset-hard')">Reset --hard</div>
+        <div class="ctx-item" @click="runMenuAction('reset-soft')">{{ t('ctx.resetSoft') }}</div>
+        <div class="ctx-item" @click="runMenuAction('reset-mixed')">{{ t('ctx.resetMixed') }}</div>
+        <div class="ctx-item danger" @click="runMenuAction('reset-hard')">
+          {{ t('ctx.resetHard') }}
+        </div>
         <div
           v-if="!isRootCommit(contextMenu.hash)"
           class="ctx-item"
           @click="runMenuAction('revert')"
         >
-          Revert
+          {{ t('ctx.revert') }}
         </div>
-        <div class="ctx-item" @click="runMenuAction('cherry-pick')">Cherry-pick</div>
-        <div class="ctx-item" @click="runMenuAction('tag')">Tag…</div>
+        <div class="ctx-item" @click="runMenuAction('cherry-pick')">{{ t('ctx.cherryPick') }}</div>
+        <div class="ctx-item" @click="runMenuAction('tag')">{{ t('ctx.tag') }}</div>
         <div class="ctx-separator" />
-        <div class="ctx-item" @click="runMenuAction('copy-hash')">Copier le hash</div>
+        <div class="ctx-item" @click="runMenuAction('copy-hash')">{{ t('ctx.copyHash') }}</div>
       </div>
     </template>
   </div>

@@ -3,8 +3,10 @@
  * Sélecteur de thème clair/sombre/auto (spec 56). Aucune logique métier.
  */
 import { useTheme, type Theme } from '@/composables/useTheme';
+import { useI18n } from '@/i18n';
 
 const { currentTheme, setTheme } = useTheme();
+const { t } = useI18n();
 
 function onChange(e: Event): void {
   setTheme((e.target as HTMLSelectElement).value as Theme);
@@ -13,18 +15,18 @@ function onChange(e: Event): void {
 
 <template>
   <div class="theme-switcher">
-    <label for="theme-select" class="sr-only">Thème</label>
+    <label for="theme-select" class="sr-only">{{ t('theme.label') }}</label>
     <span class="theme-icon" aria-hidden="true">🎨</span>
     <select
       id="theme-select"
       class="theme-select"
       :value="currentTheme"
-      aria-label="Choisir le thème"
+      :aria-label="t('theme.label')"
       @change="onChange"
     >
-      <option value="light">Clair</option>
-      <option value="dark">Sombre</option>
-      <option value="auto">Auto</option>
+      <option value="light">{{ t('theme.light') }}</option>
+      <option value="dark">{{ t('theme.dark') }}</option>
+      <option value="auto">{{ t('theme.auto') }}</option>
     </select>
   </div>
 </template>
