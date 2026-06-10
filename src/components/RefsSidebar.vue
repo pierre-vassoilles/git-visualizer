@@ -230,7 +230,7 @@ function onStartTutorial(id: string): void {
 </script>
 
 <template>
-  <aside class="refs-sidebar">
+  <aside class="refs-sidebar" role="complementary" aria-label="État du dépôt">
     <!-- ================================================================
          Branches
     ================================================================ -->
@@ -258,7 +258,12 @@ function onStartTutorial(id: string): void {
     ================================================================ -->
     <section>
       <h2>HEAD</h2>
-      <div class="head-box" :class="headInfo.detached ? 'head-detached' : 'head-symbolic'">
+      <div
+        class="head-box"
+        :class="headInfo.detached ? 'head-detached' : 'head-symbolic'"
+        aria-live="polite"
+        aria-label="Cible HEAD courante"
+      >
         <template v-if="!headInfo.detached">
           <span class="head-label">{{ headInfo.label }}</span>
         </template>
@@ -440,8 +445,9 @@ function onStartTutorial(id: string): void {
   height: 100%;
   box-sizing: border-box;
   overflow-y: auto;
-  background: #f3f3f3;
-  border-left: 1px solid #ddd;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-left: 1px solid var(--border-color);
   font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
   font-size: 0.78rem;
 }
@@ -454,10 +460,10 @@ h2 {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #666;
+  color: var(--text-secondary);
   margin: 0 0 6px;
   padding-bottom: 3px;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--border-color);
 }
 
 /* --- Listes génériques --- */
@@ -472,7 +478,7 @@ h2 {
   align-items: center;
   gap: 4px;
   padding: 2px 0;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .item-row.clickable {
@@ -480,7 +486,7 @@ h2 {
 }
 
 .item-row.clickable:hover {
-  background: #eef4ff;
+  background: var(--bg-tertiary);
 }
 
 .item-current .item-name {

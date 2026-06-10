@@ -445,7 +445,7 @@ function onNodeContextMenu(hash: string, e: MouseEvent): void {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #fafafa;
+  background: var(--graph-canvas-bg, #fafafa);
   position: relative;
   user-select: none;
   cursor: grab;

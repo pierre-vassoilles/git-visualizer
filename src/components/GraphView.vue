@@ -472,7 +472,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
 </script>
 
 <template>
-  <div class="graph-view">
+  <div class="graph-view" role="img" aria-label="Graphe des commits Git">
     <!-- Toolbar mode split-screen -->
     <div class="graph-toolbar">
       <div class="mode-buttons">
@@ -625,8 +625,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
   align-items: center;
   gap: 12px;
   padding: 4px 8px;
-  border-bottom: 1px solid #ddd;
-  background: #f5f5f5;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
   flex-shrink: 0;
   min-height: 30px;
 }
@@ -639,8 +640,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
 .mode-btn {
   padding: 2px 10px;
   font-size: 0.72rem;
-  border: 1px solid #ccc;
-  background: #fff;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
   border-radius: 3px;
   cursor: pointer;
   font-family: ui-monospace, monospace;
@@ -712,9 +714,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #666;
-  background: #f0f0f0;
-  border-bottom: 1px solid #e0e0e0;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
