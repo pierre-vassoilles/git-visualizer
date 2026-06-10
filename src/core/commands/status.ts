@@ -90,10 +90,13 @@ export function cmdStatus(repo: Repository, flags: string[]): CommandResult {
     }
   }
 
-  // 3. Untracked files : dans working tree, pas dans index ni HEAD
+  // 3. Untracked files : dans le working tree mais PAS dans l'index. Le suivi
+  //    est défini par l'index (pas par HEAD) : un fichier retiré de l'index via
+  //    `git rm --cached` mais conservé dans le WT redevient untracked, comme
+  //    dans le vrai git (qui affiche alors « D » staged + « ?? » untracked).
   const untracked: string[] = [];
   for (const filepath of Object.keys(repo.workingTree)) {
-    if (!(filepath in repo.index) && !(filepath in headFiles)) {
+    if (!(filepath in repo.index)) {
       untracked.push(filepath);
     }
   }

@@ -37,6 +37,8 @@ import { cmdPull } from './commands/pull';
 import { cmdRevParse } from './commands/rev-parse';
 import { cmdDiff } from './commands/diff';
 import { cmdShow } from './commands/show';
+import { cmdRm } from './commands/rm';
+import { cmdMv } from './commands/mv';
 
 // ---------------------------------------------------------------------------
 // Tokenisation
@@ -181,6 +183,12 @@ export function dispatch(repo: Repository, input: string): CommandResult {
 
     case 'show':
       return cmdShow(repo, rest);
+
+    case 'rm':
+      return cmdRm(repo, rest);
+
+    case 'mv':
+      return cmdMv(repo, rest);
 
     default:
       return fail([`git: '${subcommand}' is not a git command. See 'git --help'.`]);

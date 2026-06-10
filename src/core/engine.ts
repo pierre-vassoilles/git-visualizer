@@ -421,8 +421,11 @@ export class GitEngine {
           status = 'staged';
         }
       } else if (!indexEntry && headBlobHash) {
-        // Dans HEAD mais supprimé de l'index
-        status = 'deleted';
+        // Dans HEAD mais retiré de l'index. Le suivi est défini par l'index :
+        //  - encore présent dans le WT (ex. `git rm --cached`) → untracked (`??`)
+        //    — cohérent avec `git status -s` ;
+        //  - absent du WT (ex. `git rm`) → suppression stagée (`deleted`).
+        status = wtEntry ? 'untracked' : 'deleted';
       } else if (indexEntry && headBlobHash) {
         // Fichier tracké
         if (!wtEntry) {

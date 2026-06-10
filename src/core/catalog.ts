@@ -126,6 +126,45 @@ const COMMANDS_BY_CATEGORY: Record<string, CommandMetadata[]> = {
       ],
     },
     {
+      name: 'rm',
+      description: 'Supprimer des fichiers du working tree et de l\'index',
+      category: 'Fichiers & Index',
+      flags: [
+        { name: '--cached', hasArgument: false, description: 'Retirer de l\'index seulement (garde le fichier)', isCommon: true },
+        { name: '-r', hasArgument: false, description: 'Supprimer récursivement un répertoire', isCommon: true },
+        { name: '-f', hasArgument: false, description: 'Forcer même si le fichier est modifié', isCommon: false },
+        { name: '<pathspec>', hasArgument: true, description: 'Fichier(s) à supprimer', isCommon: true },
+      ],
+      synopsis: 'git rm [--cached] [-r] [-f] <pathspec>...',
+      longDescription:
+        'Supprime des fichiers du working tree et de l\'index. Avec --cached, retire de l\'index ' +
+        'sans supprimer le fichier (il redevient untracked). Refuse un fichier modifié sauf avec -f.',
+      examples: [
+        'git rm file.txt',
+        'git rm --cached file.txt',
+        'git rm -r src/',
+      ],
+    },
+    {
+      name: 'mv',
+      description: 'Déplacer ou renommer un fichier',
+      category: 'Fichiers & Index',
+      flags: [
+        { name: '-f', hasArgument: false, description: 'Écraser la destination si elle existe', isCommon: false },
+        { name: '<src>', hasArgument: true, description: 'Fichier source', isCommon: true },
+        { name: '<dst>', hasArgument: true, description: 'Destination (fichier ou répertoire)', isCommon: true },
+      ],
+      synopsis: 'git mv [-f] <src> <dst>',
+      longDescription:
+        'Renomme ou déplace un fichier dans le working tree et l\'index (hash du blob conservé). ' +
+        'Si <dst> est un répertoire, le fichier y est déplacé sous son nom. Refuse d\'écraser sauf avec -f.',
+      examples: [
+        'git mv old.txt new.txt',
+        'git mv file.txt dir/',
+        'git mv -f a.txt b.txt',
+      ],
+    },
+    {
       name: 'write',
       description: 'Écrire des fichiers dans le working tree virtuel',
       category: 'Fichiers & Index',

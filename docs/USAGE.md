@@ -3648,6 +3648,39 @@ puis le diff vs son premier parent (ou vs l'arbre vide pour le commit initial).
 
 ---
 
+## Gérer les fichiers : `git rm` & `git mv` (Axe B1)
+
+### `git rm` — supprimer / désindexer
+
+```bash
+git rm file.txt          # supprime du working tree ET de l'index (suppression stagée)
+git rm --cached file.txt # retire de l'index seulement → le fichier redevient untracked (??)
+git rm -r dir/           # suppression récursive d'un répertoire
+git rm -f file.txt       # force, même si le fichier a des modifications non stagées
+```
+
+Refuse par défaut (exit 1) un fichier **modifié non stagé** (`local modifications`)
+ou aux **changements stagés** différents de HEAD (`staged content…`). Après un
+`git rm`, le fichier apparaît `D` (deleted, stagé) dans `git status -s`.
+
+### `git mv` — déplacer / renommer
+
+```bash
+git mv old.txt new.txt   # renomme (hash du blob conservé)
+git mv file.txt dir/     # déplace dans un répertoire (sous le même nom)
+git mv -f a.txt b.txt    # écrase la destination si elle existe
+```
+
+Refuse (exit 128) si la **destination existe** (sans `-f`), si la **source est
+absente**, ou si **source == destination**. Le renommage préserve le hash du blob.
+
+> **Conflit delete/modify** : `git rm <fichier>` + commit sur une branche, puis
+> `git merge` depuis une branche qui a modifié le même fichier, produit un
+> conflit de fusion (`operationState: merging`) — résolvable via `git add`
+> (garder) ou `git rm` (accepter la suppression).
+
+---
+
 ## À venir en Phase 10+
 
 Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seront implémentées ultérieurement :
