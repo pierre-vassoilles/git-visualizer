@@ -82,6 +82,13 @@ export type MessageKey =
   | 'sidebar.start'
   | 'sidebar.confirmTutorial'
   | 'sidebar.stepsAndDuration'
+  | 'sidebar.export'
+  | 'sidebar.import'
+  | 'sidebar.exportDescriptionPrompt'
+  | 'sidebar.importSuccess'
+  | 'sidebar.importPartial'
+  | 'sidebar.importReadError'
+  | 'sidebar.exportDisabledTitle'
   // Difficulté (scénarios / tutoriels)
   | 'difficulty.easy'
   | 'difficulty.medium'
@@ -160,6 +167,13 @@ export const MESSAGE_KEYS: readonly MessageKey[] = [
   'sidebar.start',
   'sidebar.confirmTutorial',
   'sidebar.stepsAndDuration',
+  'sidebar.export',
+  'sidebar.import',
+  'sidebar.exportDescriptionPrompt',
+  'sidebar.importSuccess',
+  'sidebar.importPartial',
+  'sidebar.importReadError',
+  'sidebar.exportDisabledTitle',
   'difficulty.easy',
   'difficulty.medium',
   'difficulty.hard',

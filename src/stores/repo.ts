@@ -6,6 +6,7 @@ import type { CommandResult } from '@/core/types';
 import type { RepoSnapshot } from '@/core/engine';
 import type { TodoItem } from '@/core/model';
 import { loadHistory, saveHistory, clearHistory } from '@/utils/storage';
+import { buildExportedSession, type ExportedSession } from '@/utils/export-import';
 import { getScenarioById } from '@/constants/scenarios';
 import { parseConflictContent, buildResolvedContent } from '@/core/repository';
 import { getTutorialById } from '@/constants/tutorials';
@@ -165,6 +166,65 @@ export const useRepoStore = defineStore('repo', () => {
     savedCommands.value = replayed;
     saveHistory(replayed);
     snapshot.value = engine.value.snapshot();
+  }
+
+  /**
+   * PHASE B3 (spec 58) : Construit l'objet session exportable depuis les commandes
+   * réussies. La date est injectée ici (`Date.now()`) ; la sérialisation et le
+   * téléchargement (Blob + ancre) sont du ressort de l'UI.
+   */
+  function exportSession(description?: string): ExportedSession {
+    return buildExportedSession(savedCommands.value, Date.now(), description);
+  }
+
+  /** Résultat d'un import : nombre de commandes rejouées + rejeu partiel éventuel. */
+  interface ImportResult {
+    replayed: number;
+    /** true si le rejeu s'est arrêté avant la fin (commande en échec réel). */
+    partial: boolean;
+    /** Position 1-based de la commande fautive (si partial). */
+    errorIndex?: number;
+  }
+
+  /**
+   * PHASE B3 (spec 58) : Restaure une session déjà validée (cf. parseExportedSession).
+   *
+   * Miroir de `loadFromStorage` : reset propre puis rejeu déterministe dans un
+   * nouveau moteur, arrêt au premier échec RÉEL (exitCode != 0 SANS opération en
+   * cours — un conflit merge/rebase légitime ne stoppe pas). La session rejouée est
+   * persistée dans localStorage (un rechargement reproduit l'import).
+   */
+  function importSession(session: ExportedSession): ImportResult {
+    const newEngine = new GitEngine();
+    const replayed: string[] = [];
+    let partial = false;
+    let errorIndex: number | undefined;
+
+    for (let i = 0; i < session.commands.length; i++) {
+      const cmd = session.commands[i]!;
+      const result = newEngine.execute(cmd);
+      if (result.exitCode !== 0 && newEngine.snapshot().operationState == null) {
+        partial = true;
+        errorIndex = i + 1; // 1-based pour le message utilisateur
+        break;
+      }
+      replayed.push(cmd);
+    }
+
+    // Reconstruire l'état réactif et persister la session importée.
+    engine.value = newEngine;
+    savedCommands.value = replayed;
+    saveHistory(replayed);
+    log.value = [];
+    history.value = [];
+    nextId = 0;
+    snapshot.value = engine.value.snapshot();
+
+    return {
+      replayed: replayed.length,
+      partial,
+      ...(errorIndex !== undefined ? { errorIndex } : {}),
+    };
   }
 
   /**
@@ -356,6 +416,8 @@ export const useRepoStore = defineStore('repo', () => {
     loadFromStorage,
     resetStorage,
     executeScenario,
+    exportSession,
+    importSession,
     getCatalog,
     readFile,
     getConflictSections,

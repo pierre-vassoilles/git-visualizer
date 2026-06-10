@@ -2187,6 +2187,29 @@ Après un reset :
 2. Le dépôt est réinitialisé (vierge)
 3. Vous commencez une nouvelle session
 
+#### Export / import de session
+
+À côté du bouton **Réinitialiser**, deux boutons permettent de sauvegarder et
+restaurer une session sous forme de fichier JSON.
+
+- **Exporter** — télécharge un fichier `git-visualizer-<timestamp>.json` contenant
+  la liste des commandes réussies + des métadonnées (version, date, description
+  optionnelle saisie au moment de l'export). Le bouton est désactivé si aucune
+  commande n'a encore été exécutée.
+- **Importer** — sélectionne un fichier `.json` exporté précédemment ; après
+  validation, la session courante est **réinitialisée puis rejouée** à l'identique
+  (le rejeu est déterministe : mêmes commits, mêmes hashes). La session importée
+  est aussi persistée dans le localStorage (un rechargement la reproduit).
+
+Le fichier est validé à l'import : un JSON corrompu, une version incompatible, un
+schéma incorrect ou un nombre de commandes incohérent affichent un message d'erreur
+clair **sans toucher** à la session courante. Si une commande échoue au rejeu (rare,
+les exports proviennent de sessions valides), la restauration s'arrête proprement et
+indique la position fautive.
+
+> Le format JSON est volontairement le même que celui réutilisé par les **liens
+> partageables** (à venir).
+
 ---
 
 ### Scénarios pédagogiques préchargés

@@ -198,3 +198,30 @@ describe('RefsSidebar — refs cliquables (spec 53)', () => {
     expect(store.snapshot.head.type).toBe('detached');
   });
 });
+
+describe('RefsSidebar — export/import de session (spec 58)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('CA-export-import-15 : bouton Exporter désactivé sans commande', () => {
+    const { wrapper } = mountSidebar();
+    const exportBtn = wrapper.find('.btn-export');
+    expect(exportBtn.exists()).toBe(true);
+    expect(exportBtn.attributes('disabled')).toBeDefined();
+  });
+
+  it('CA-export-import-15 : bouton Exporter actif après une commande', async () => {
+    const { wrapper, store } = mountSidebar();
+    store.execute('git init');
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.btn-export').attributes('disabled')).toBeUndefined();
+  });
+
+  it('CA-export-import-14 : file input filtre .json', () => {
+    const { wrapper } = mountSidebar();
+    const input = wrapper.find('input[type="file"]');
+    expect(input.exists()).toBe(true);
+    expect(input.attributes('accept')).toBe('.json');
+  });
+});

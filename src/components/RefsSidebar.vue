@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRepoStore } from '@/stores/repo';
 import { getAllScenarios } from '@/constants/scenarios';
 import { getAllTutorials } from '@/constants/tutorials';
 import { useI18n } from '@/i18n';
 import type { MessageKey } from '@/i18n/messages';
+import {
+  serializeExportedSession,
+  exportFilename,
+  parseExportedSession,
+} from '@/utils/export-import';
 
 const repo = useRepoStore();
 const { t } = useI18n();
@@ -132,6 +137,57 @@ function onReset(): void {
   if (confirm(t('sidebar.confirmReset'))) {
     repo.resetStorage();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Export / Import de session (spec 58)
+// ---------------------------------------------------------------------------
+
+const importFileInput = ref<HTMLInputElement | null>(null);
+
+function onExport(): void {
+  const description = prompt(t('sidebar.exportDescriptionPrompt')) ?? undefined;
+  const session = repo.exportSession(description);
+  const json = serializeExportedSession(session);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = exportFilename(session.metadata.exportDate);
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function onImportClick(): void {
+  importFileInput.value?.click();
+}
+
+function onImportFileChange(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const text = typeof reader.result === 'string' ? reader.result : '';
+    const result = parseExportedSession(text);
+    if (!result.ok) {
+      alert(result.error);
+    } else {
+      const importResult = repo.importSession(result.session);
+      if (importResult.partial) {
+        alert(t('sidebar.importPartial', { index: String(importResult.errorIndex ?? '?') }));
+      } else {
+        alert(t('sidebar.importSuccess', { count: String(importResult.replayed) }));
+      }
+    }
+    // Réinitialise l'input pour permettre de réimporter le même fichier.
+    input.value = '';
+  };
+  reader.onerror = () => {
+    alert(t('sidebar.importReadError'));
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -346,7 +402,25 @@ function onStartTutorial(id: string): void {
         </li>
         <li v-if="recentCommands.length === 0" class="muted">{{ t('sidebar.noCommands') }}</li>
       </ul>
-      <button class="btn btn-reset" @click="onReset">{{ t('sidebar.reset') }}</button>
+      <div class="session-actions">
+        <button class="btn btn-reset" @click="onReset">{{ t('sidebar.reset') }}</button>
+        <button
+          class="btn btn-export"
+          :disabled="repo.savedCommands.length === 0"
+          :title="repo.savedCommands.length === 0 ? t('sidebar.exportDisabledTitle') : undefined"
+          @click="onExport"
+        >
+          {{ t('sidebar.export') }}
+        </button>
+        <button class="btn btn-import" @click="onImportClick">{{ t('sidebar.import') }}</button>
+        <input
+          ref="importFileInput"
+          type="file"
+          accept=".json"
+          class="sr-only"
+          @change="onImportFileChange"
+        />
+      </div>
     </section>
 
     <!-- ================================================================
@@ -685,13 +759,42 @@ h2 {
   border-color: #fca5a5;
 }
 
-.btn-reset {
+.session-actions {
   margin-top: 6px;
-  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.session-actions .btn-reset {
+  flex: 1 1 100%;
 }
 
 .btn-reset:hover {
   background: #f1f5f9;
+}
+
+.btn-export {
+  flex: 1;
+}
+
+.btn-export:hover:not(:disabled) {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.btn-export:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-import {
+  flex: 1;
+}
+
+.btn-import:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
 }
 
 .btn-scenario {
