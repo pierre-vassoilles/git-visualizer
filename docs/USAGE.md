@@ -3724,6 +3724,28 @@ branche** (moyen), **Annuler avec reset & reflog** (moyen).
 
 ---
 
+## Graphe ASCII : `git log --graph` (Axe B2)
+
+```bash
+git log --graph            # historique en ASCII (format long)
+git log --graph --oneline  # version compacte (une ligne par commit)
+```
+
+Dessine le DAG directement dans le terminal avec `*` (commit), `|` (branche),
+`\` (bifurcation de merge) et `/` (convergence), avec les décorations
+`(HEAD -> main, tag: v1, feature)`. Exemple :
+
+```
+* 282d781 (HEAD -> main) Merge feature
+| \
+* | d734a6e Main
+| * e3f14e9 (feature) Feature
+| /
+*   1fa009f Ancestor
+```
+
+---
+
 ## À venir en Phase 10+
 
 Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seront implémentées ultérieurement :

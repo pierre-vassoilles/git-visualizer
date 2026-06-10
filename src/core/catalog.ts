@@ -223,15 +223,18 @@ const COMMANDS_BY_CATEGORY: Record<string, CommandMetadata[]> = {
       category: 'Commits',
       flags: [
         { name: '--oneline', hasArgument: false, description: 'Format compact (une ligne par commit)', isCommon: true },
+        { name: '--graph', hasArgument: false, description: 'Graphe ASCII des branches/merges', isCommon: true },
         { name: '[<ref>]', hasArgument: true, description: 'Ref ou commit de départ (optionnel)', isCommon: false },
       ],
-      synopsis: 'git log [--oneline] [<ref>]',
+      synopsis: 'git log [--oneline] [--graph] [<ref>]',
       longDescription:
         'Affiche l\'historique des commits depuis HEAD (ou depuis la ref spécifiée), du plus récent au plus ancien. ' +
-        'Avec --oneline, chaque commit est affiché sur une seule ligne.',
+        'Avec --oneline, chaque commit est affiché sur une seule ligne. ' +
+        'Avec --graph, l\'historique est dessiné en ASCII (* | / \\) pour visualiser branches et merges.',
       examples: [
         'git log',
         'git log --oneline',
+        'git log --graph --oneline',
         'git log main',
       ],
     },
