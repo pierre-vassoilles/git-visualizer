@@ -2796,20 +2796,449 @@ fatal: Couldn't find remote ref nosuchbranch
 
 ---
 
-## À venir en Phase 8+
+### Envoyer vos changements vers le distant
 
-Les fonctionnalités suivantes ne sont **pas disponibles en Phase 7** mais seront implémentées ultérieurement :
+#### `git push` — Envoyer les commits locaux vers le dépôt distant
 
-- **`git push`** : Envoyer vos commits vers le dépôt distant
-- **`git pull`** : Combinaison de `git fetch` + `git merge` en une seule commande
-- **`git branch -vv`** : Affichage détaillé des upstreams et ahead/behind count
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git push [<remote>] [<branch>] [-u \| --set-upstream] [--force \| -f]` |
+| **Description** | Envoie les commits locaux d'une branche vers le dépôt distant, met à jour les références de suivi locales, et protège contre les écritures non-fast-forward par défaut |
+| **Options Phase 8** | `<remote>` : nom du distant (défaut : `origin`) ; `<branch>` : branche à pousser (défaut : branche courante ou upstream) ; `-u` / `--set-upstream` : configure l'upstream après le push ; `--force` / `-f` : force le push même si non-fast-forward |
+
+##### Concept clé : Protection fast-forward
+
+Contrairement à `fetch`, `push` **modifie le distant**. Pour éviter une perte de données accidentelle, Git **refuse** un push si :
+- La branche distante a avancé d'une façon incompatible avec votre historique local
+- Vous avez rebasé ou rembobiné votre branche
+
+C'est le **non-fast-forward check**. Vous devez résoudre avec un `pull` d'abord, ou forcer avec `--force` (à utiliser avec précaution !).
+
+---
+
+##### Exemple 1 : Push simple (fast-forward)
+
+**Situation** :
+- Vous avez 2 commits locaux sur `main` que le distant n'a pas
+- Personne d'autre n'a poussé vers `main` distant
+
+```bash
+$ git log --oneline
+abc1234 My second commit
+def5678 My first commit
+ghi9012 Initial commit (same as origin/main)
+
+$ git push origin main
+Pushing to origin...
+ def5678..abc1234  main -> main
+Your branch is up to date with 'origin/main'.
+
+# Le distant est maintenant à jour
+$ git status
+On branch main
+Your branch is up to date with 'origin/main'.
+```
+
+---
+
+##### Exemple 2 : Push avec `-u` (configuration upstream)
+
+**Situation** :
+- Vous avez une branche locale `feature` sans upstream configuré
+- Vous voulez pousser vers le distant ET configurer le suivi
+
+```bash
+$ git branch -vv
+  main                abc1234 [origin/main]
+  feature             def5678 (no upstream)
+
+$ git push -u origin feature
+Pushing to origin...
+ * [new branch]      feature -> feature
+Branch 'feature' set up to track 'origin/feature'.
+
+# Maintenant feature a un upstream
+$ git branch -vv
+  feature             def5678 [origin/feature]
+
+# `git push` sans arguments pousse vers origin/feature
+$ git push
+Pushing to origin...
+Everything up-to-date.
+```
+
+---
+
+##### Exemple 3 : Push rejeté (non-fast-forward)
+
+**Situation** :
+- Vous avez rebasé `main` localement
+- Le distant a une version antérieure
+- Quelqu'un d'autre a aussi poussé entre-temps
+
+```bash
+$ git log --oneline
+abc1234 Rebased commit (local)
+def5678 Initial commit
+
+$ git branch -vv
+* main                abc1234 [origin/main: ahead 1]
+
+# Le distant est à origin/main : ghi9012 (un commit différent)
+# Vous essayez de pousser sans --force
+$ git push origin main
+To <url>
+ ! [rejected]       main -> main (non-fast-forward)
+error: failed to push some refs to '<url>'
+
+# Solution 1 : Pull d'abord pour intégrer les changements distants
+$ git pull
+# Cela merge ou rebase les changements distants dans votre branche
+
+# Solution 2 : Force le push (à utiliser avec prudence si vous travaillez seul)
+$ git push --force origin main
+To <url>
+ + ghi9012...abc1234 main -> main (forced update)
+```
+
+⚠️ **Attention** : `--force` écrase l'historique distant. N'utilisez que si vous êtes certain que c'est intentionnel et que personne d'autre n'a basé de travail sur la version antérieure.
+
+---
+
+##### Exemple 4 : Push sans upstream (erreur)
+
+**Situation** :
+- Vous tapez `git push` sans arguments
+- Votre branche courante n'a pas d'upstream configuré
+
+```bash
+$ git push
+fatal: The current branch feature has no upstream branch.
+To push the current branch and set the remote as upstream, use
+    git push --set-upstream origin feature
+
+# Solution : utilisez -u pour configurer
+$ git push -u origin feature
+```
+
+---
+
+### Récupérer et intégrer les changements distants
+
+#### `git pull` — Récupérer et fusionner les changements distants
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git pull [options] [<remote>] [<branch>]` |
+| **Description** | Combinaison de `git fetch` + intégration (merge ou rebase) : récupère les nouveaux commits distants et les fusionne ou rejoue dans votre branche courante |
+| **Options Phase 8** | `[<remote>]` : nom du distant (défaut : origin) ; `[<branch>]` : branche à puller (défaut : branche upstream) ; `--rebase` : utilise rebase au lieu de merge ; `--no-rebase` : force merge (défaut) |
+
+##### Concept : Fetch + Merge (ou Rebase)
+
+`git pull` est un raccourci pour :
+1. `git fetch [<remote>] [<branch>]` — Copie les objets distants, met à jour les références de suivi
+2. Intégration : **merge** (par défaut) ou **rebase** (si `--rebase`)
+
+Cela permet de récupérer ET d'intégrer en une seule commande, idéal dans un workflow collaboratif.
+
+---
+
+##### Exemple 1 : Pull simple (fast-forward merge)
+
+**Situation** :
+- Vous avez clonée `main` depuis le distant
+- Le distant a de nouveaux commits
+- Vous n'avez fait aucun commit local
+
+```bash
+$ git status
+On branch main
+Your branch is behind 'origin/main' by 2 commits.
+
+$ git pull
+From <url>
+ abc1234..def5678  main       -> origin/main
+Updating abc1234..def5678
+Fast-forward
+ file.txt | 1 +
+ 1 file changed, 1 insertion(+)
+
+$ git status
+On branch main
+Your branch is up to date with 'origin/main'.
+```
+
+---
+
+##### Exemple 2 : Pull avec merge (branches divergentes)
+
+**Situation** :
+- Vous avez 1 commit local sur `main`
+- Le distant a avancé aussi (commits différents)
+- Pas de conflit
+
+```bash
+$ git log --oneline
+abc1234 My local change
+def5678 Initial commit (shared)
+
+$ git pull origin main
+From <url>
+ def5678..ghi9012  main       -> origin/main
+Merge made by the '3-way' merge strategy.
+ remote.txt | 1 +
+ 1 file changed, 1 insertion(+)
+
+# Un commit de merge est créé
+$ git log --oneline
+jkl3456 Merge branch 'main' of <url>
+abc1234 My local change
+ghi9012 Remote change
+def5678 Initial commit
+```
+
+---
+
+##### Exemple 3 : Pull avec conflit
+
+**Situation** :
+- Vous et quelqu'un d'autre avez modifié le même fichier
+- Le pull détecte un conflit
+
+```bash
+$ git pull origin main
+From <url>
+ ...
+CONFLICT (content): Merge conflict in config.txt
+Automatic merge failed.
+
+$ git status
+On branch main
+You have unmerged paths.
+  (fix conflicts and run "git commit")
+
+Unmerged paths:
+  (use "git add <file>..." to mark resolution)
+        both modified: config.txt
+
+# Résoudre le conflit
+$ read config.txt
+<<<<<<< HEAD
+DEBUG = true
+=======
+DEBUG = false
+>>>>>>> origin/main
+
+# Choisir ou combiner
+$ write config.txt "DEBUG = true"
+$ git add config.txt
+$ git commit -m "Resolve merge conflict"
+[main jkl3456] Merge branch 'main'
+```
+
+---
+
+##### Exemple 4 : Pull avec --rebase (historique linéaire)
+
+**Situation** :
+- Vous avez 1 commit local
+- Le distant a avancé
+- Vous préférez une histoire linéaire (pas de merge)
+
+```bash
+$ git pull --rebase origin main
+From <url>
+ def5678..ghi9012  main       -> origin/main
+First, rewinding head to replay your work on top of main...
+Applying: My local change
+
+$ git log --oneline
+abc1234 My local change (nouveau hash !)
+ghi9012 Remote change
+def5678 Initial commit
+```
+
+**Différence** : Avec `--rebase`, vos commits sont rejoués au-dessus des commits distants, au lieu de créer un merge commit. Historique plus propre, mais nécessite attention si vous avez partagé vos commits.
+
+---
+
+### Suivi des branches (Upstream tracking)
+
+#### Configurer le suivi : `git branch --set-upstream-to`
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git branch --set-upstream-to=<remote>/<branch> [<branchname>]` (ou `-u` pour court) |
+| **Description** | Configure la relation entre une branche locale et une branche distante, permettant à `git pull`/`git push` de deviner le destination par défaut |
+
+**Exemples** :
+
+```bash
+# Configurer main pour suivre origin/main
+$ git branch -u origin/main
+
+# Configurer feature pour suivre origin/develop (branche différente)
+$ git branch -u origin/develop feature
+
+# Vérifier l'upstream configuré
+$ git branch -vv
+* main                abc1234 [origin/main: ahead 1]
+  feature             def5678 [origin/develop]
+```
+
+Une fois configurée, vous pouvez :
+- `git pull` sans arguments → pull depuis l'upstream
+- `git push` sans arguments → push vers l'upstream
+- `git status` affiche un message de suivi (ahead/behind)
+
+---
+
+#### Affichage détaillé : `git branch -vv`
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git branch -vv` (verbose verbose) |
+| **Description** | Liste les branches avec le commit court, l'upstream, et l'écart (ahead/behind) |
+
+**Exemple** :
+
+```bash
+$ git branch -vv
+  main                abc1234 [origin/main: ahead 2, behind 1]
+  feature             def5678 [origin/develop]
+  develop             ghi9012 (no upstream)
+```
+
+**Colonnes** :
+1. `*` : branche courante
+2. Nom de branche
+3. Hash court du commit
+4. Upstream et écart :
+   - `[origin/main]` : à jour
+   - `[origin/main: ahead 2]` : 2 commits à pousser
+   - `[origin/main: behind 3]` : 3 commits à récupérer
+   - `[origin/main: ahead 1, behind 2]` : divergence
+   - `(no upstream)` : pas d'upstream configuré
+
+---
+
+#### Retirer le suivi : `git branch --unset-upstream`
+
+```bash
+$ git branch --unset-upstream feature
+$ git branch -vv
+  feature             def5678 (no upstream)
+```
+
+---
+
+### Messages de suivi dans `git status`
+
+Quand une branche a un upstream configuré, `git status` affiche un message de suivi :
+
+```bash
+# Ahead (à pousser)
+$ git status
+On branch main
+Your branch is ahead of 'origin/main' by 2 commits.
+  (use "git push" to publish your local commits)
+
+# Behind (à récupérer)
+$ git status
+On branch feature
+Your branch is behind 'origin/develop' by 3 commits, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+
+# Diverged (branches divergentes)
+$ git status
+On branch feature
+Your branch and 'origin/develop' have diverged,
+and have 1 and 2 different commits each, respectively.
+  (use "git pull" to merge the remote branch into yours)
+
+# Up to date (synchronisé)
+$ git status
+On branch main
+Your branch is up to date with 'origin/main'.
+```
+
+---
+
+### Workflow complet : Collaboration locale-distante
+
+Voici une session réaliste illustrant tout le workflow distant :
+
+```bash
+# 1. Cloner un dépôt
+$ git clone collab-repo
+Cloning into 'local-copy'...
+...
+
+# 2. Vérifier l'état : main a un upstream d'emblée
+$ git branch -vv
+* main    abc1234 [origin/main]
+
+# 3. Créer une branche feature
+$ git switch -c feature
+$ write feature.txt "New feature"
+$ git add feature.txt
+$ git commit -m "Add feature"
+[feature def5678] Add feature
+
+# 4. Pousser feature vers le distant avec upstream
+$ git push -u origin feature
+...
+Branch 'feature' set up to track 'origin/feature'.
+
+# 5. Plus tard, le distant a des changements sur main
+# (quelqu'un d'autre a poussé)
+
+# 6. Récupérer les changements (pull)
+$ git checkout main
+$ git pull
+From <url>
+ abc1234..ghi9012  main       -> origin/main
+Fast-forward
+ ...
+
+$ git status
+On branch main
+Your branch is up to date with 'origin/main'.
+
+# 7. Basculer sur feature et pousser
+$ git checkout feature
+$ write feature.txt "Updated feature"
+$ git add feature.txt
+$ git commit -m "Improve feature"
+[feature xyz1234] Improve feature
+
+# Push sans arguments (utilise origin/feature)
+$ git push
+Pushing to origin...
+ def5678..xyz1234  feature -> feature
+
+# 8. Afficher l'écart
+$ git branch -vv
+  main              ghi9012 [origin/main]
+* feature           xyz1234 [origin/feature]
+```
+
+---
+
+## À venir en Phase 9+
+
+Les fonctionnalités suivantes ne sont **pas disponibles en Phase 8** mais seront implémentées ultérieurement :
+
 - **Split-screen** : Visualisation côte à côte du dépôt local et du distant
 - **Interactions avancées** : Clic sur une branche pour checkout, clic sur tag pour inspect
 - **Historique avancé** : `git log -p` (affichage des diffs), `git log --follow` (historique des fichiers renommés)
 - **Shell interactif** : Un shell complet avec `echo`, `cat`, `touch`, etc.
 - **Export/Import** : Sauvegarder une session en fichier, charger depuis un fichier
+- **`git remote set-url`** : Modifier l'URL d'un remote
+- **`git push --delete`** : Supprimer une branche distante
+- **`git pull --force`** : Options de contrôle plus fine sur les pulls
 
-**Phase 7 ajoute le modèle distant complet** : création de remotes, clone de dépôts source prédéfinis, synchronisation via fetch. Vous avez maintenant les briques fondamentales pour simuler la collaboration Git !
+**Phase 8 ajoute la synchronisation complète** : poussez vos commits locaux, intégrez les changements distants, et configurez le suivi des branches pour un workflow collaboratif fluide !
 
 ---
 
@@ -2873,6 +3302,18 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 7** mais seron
 - **Dépôts source prédéfinis** : `public-repo` (simple), `collab-repo` (avec branches)
 - **Concept** : Fetch récupère sans modifier les branches locales ; à fusionner explicitement
 
+**Phase 8 – Push, Pull & Upstream tracking :**
+- `git push [<remote>] [<branch>] [-u | --set-upstream] [--force | -f]` — Envoyer les commits locaux vers le distant
+- **Protection fast-forward** : refus du push non-fast-forward (sauf `--force`)
+- **Configuration upstream** : `-u` après un push configure le suivi automatique
+- `git pull [<remote>] [<branch>] [--rebase]` — Récupérer + intégrer : fetch puis merge ou rebase
+- `git branch --set-upstream-to=<remote>/<branch>` (ou `-u`) — Configurer l'upstream d'une branche
+- `git branch --unset-upstream` — Retirer l'upstream
+- `git branch -vv` — Affichage détaillé avec upstream et ahead/behind count
+- **Messages de suivi** : `git status` affiche l'écart (ahead/behind/diverged/gone)
+- **Révisions** : `@{upstream}` / `@{u}` pour référencer le commit de l'upstream
+- **Workflow collaboratif** : clone → commit → push/pull pour la synchronisation continue
+
 ### Workflow complet
 
 1. Initialisez un dépôt (`git init`)
@@ -2884,5 +3325,7 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 7** mais seron
 7. **Utilisez les outils avancés** : rebase interactif, stash, reflog (Phase 5)
 8. **Découvrez avec autocomplétion et aide** : tap Tab pour compléter, `git help` pour apprendre (Phase 6)
 9. **Chargez des scénarios** pour apprendre, explorez la sidebar pour maîtriser l'état (Phase 6)
+10. **Clonez et synchronisez avec des dépôts distants** : `git clone`, `git fetch`, `git remote` (Phase 7)
+11. **Poussez et tirez les changements** : `git push`, `git pull`, et configurez le suivi avec `git branch -u` (Phase 8)
 
-Vous pouvez explorer et maîtriser votre dépôt Git directement dans le terminal web avec un contrôle complet du workflow collaboratif : création de branches, fusion, réécriture d'historique, rebase interactif avec édition visuelle, gestion des modifications temporaires via stash, et récupération des commits "perdus" via reflog. La **Phase 7 ajoute le modèle distant** : clonez des dépôts prédéfinis, configurez plusieurs remotes, et synchronisez vos changements via fetch. Tout cela avec une vue d'ensemble visuelle et intuitive grâce au graphe interactif, aidé par l'autocomplétion intelligente, les scénarios pédagogiques, et une sidebar enrichie pour maîtriser chaque aspect du dépôt local et distant !
+Vous pouvez explorer et maîtriser votre dépôt Git directement dans le terminal web avec un contrôle complet du workflow collaboratif : création de branches, fusion, réécriture d'historique, rebase interactif avec édition visuelle, gestion des modifications temporaires via stash, et récupération des commits "perdus" via reflog. La **Phase 7 ajoute le modèle distant** : clonez des dépôts prédéfinis, configurez plusieurs remotes, et synchronisez vos changements via fetch. La **Phase 8 complète la synchronisation** : poussez vos commits locaux vers le distant avec `git push` (protection fast-forward incluse), récupérez et intégrez les changements avec `git pull` (merge ou rebase), et configurez le suivi des branches pour que Git devine les destinations par défaut. Tout cela avec une vue d'ensemble visuelle et intuitive grâce au graphe interactif, aidé par l'autocomplétion intelligente, les scénarios pédagogiques, et une sidebar enrichie pour maîtriser chaque aspect du dépôt local et distant !

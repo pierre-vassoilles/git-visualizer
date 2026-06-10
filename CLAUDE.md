@@ -105,6 +105,15 @@ Développement par phases (voir la liste de tâches).
   - Cast `{objects} as Repository` dans `engine.snapshot()` (réutilisation de `getAllCommitsTopologicalOrder`) ; rétro-compat des champs distant dupliquée dans `cmdRemote`/`cmdFetch` (extraire un `ensureRemoteFields`).
   - CA-clone-05 (HEAD détaché côté source) non couverte (pas de dépôt prédéfini détaché) ; cas fetch fast-forward/rewind/divergent (CA-fetch-05/08) couverts en Phase 8 (nécessitent `push` pour faire diverger le distant).
 
+- **Phase 8 terminée** : synchronisation distant ↔ local. `git push [<remote>] [<branch>] [-u|--set-upstream] [-f|--force]` (vérification fast-forward via `isAncestor`, **refus non-ff → exitCode 1** sauf `--force` ; maj double `remote.refs.heads` + `repo.refs.remotes` ; copie d'objets local→remote ; `-u` pose l'upstream). `git pull [<remote>] [<branch>] [--rebase|--no-rebase]` = **composition** `cmdFetch` + `cmdMerge`/`cmdRebase` (réutilise Phase 4 ; conflits → operationState hérité ; « no tracking information » exit 1). Suivi : `git branch -u <r>/<b>` / `--set-upstream-to=` / `--unset-upstream`, `git branch -vv` (ahead/behind/gone), `git status` enrichi (ahead/behind/diverged/gone/up-to-date), `git rev-parse <rev>` (nouveau). **`resolveCommitish` étendu** : refs de suivi `<remote>/<branch>` (depuis `refs.remotes`) + `@{upstream}`/`@{u}`/`<branch>@{u}` (priorité : branche locale AVANT remote/branch). Snapshot : `branchUpstream` (gelé) + `tracking{upstream,ahead,behind,gone}` (via `computeAheadBehind`, = sémantique `upstream..HEAD`/`HEAD..upstream`). Catalogue étendu (push/pull/rev-parse + flags branch). Doc `docs/USAGE.md` §14. Specs `37-39`. 879 tests verts.
+
+  Dette Phase 8 (revue QA) — non bloquante, à traiter avant/pendant Phase 9 :
+  - `pull` suppose la convention de nommage de ref de suivi `<remote>/<branch>` écrite par `fetch` (couplage implicite non contractualisé) — R1 (string-match sur l'erreur de fetch) déjà corrigé en vérifiant `repo.remotes` dans pull.
+  - Logique `@{u}` dupliquée entre `rev-parse.ts` et `resolveCommitish` → extraire un `resolveUpstream(repo, branch)` (prévu spec 38) consommé par les deux.
+  - Classification de l'état de suivi (gone/ahead/behind/diverged/up-to-date) re-dérivée 3× (branch -vv, status, snapshot) → exposer un discriminant `state` dans `snapshot.tracking` (utile pour la sidebar Phase 9).
+  - Init défensif des champs distant copié dans push/pull/branch → helper `ensureRemoteFields` (dette Phase 7 toujours ouverte).
+  - `pull origin <branche-inexistante>` renvoie 128 (la spec voulait 1) ; pas d'ambiguïté signalée branche-locale-à-slash vs `remote/branch` (ordre correct, sans warning).
+
 
 ### Graphe (à connaître pour la Phase 4)
 

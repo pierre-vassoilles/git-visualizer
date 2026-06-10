@@ -326,19 +326,41 @@ export function setPrevBranch(repo: Repository, branchName: string | null): void
 
 /**
  * Résout un committish (nom de branche, nom de tag, hash court ou long,
- * ou révision ~n / @{n}) en hash de commit complet, ou null si introuvable.
+ * ou révision ~n / @{n} / @{upstream} / @{u}) en hash de commit complet,
+ * ou null si introuvable.
  *
  * Ordre de résolution :
- * 0a. Si l'input contient `@{n}`, résoudre via le reflog
- * 0b. Si l'input contient `~n`, résoudre la base puis remonter n parents
+ * 0a. Si l'input est `@{upstream}` / `@{u}` ou `<branch>@{upstream}` / `<branch>@{u}` →
+ *     résoudre via branchUpstream puis refs.remotes
+ * 0b. Si l'input contient `@{n}` (chiffres), résoudre via le reflog
+ * 0c. Si l'input contient `~n`, résoudre la base puis remonter n parents
  * 1. HEAD
  * 2. Nom de branche dans refs.heads
  * 3. Nom de tag dans refs.tags
- * 4. Hash exact dans objects (commit complet)
- * 5. Hash court (préfixe, min 4 chars) dans objects
+ * 4. Ref de suivi distant `<remote>/<branch>` dans refs.remotes
+ * 5. Hash exact dans objects (commit complet)
+ * 6. Hash court (préfixe, min 4 chars) dans objects
  */
 export function resolveCommitish(repo: Repository, ref: string): string | null {
-  // 0a. Supporter la notation @{n} pour le reflog : HEAD@{n}, <branch>@{n}
+  // 0a. Supporter @{upstream} / @{u} / <branch>@{upstream} / <branch>@{u}
+  //     Attention : distinguer du @{n} numérique (reflog).
+  const upstreamMatch = /^(.*?)@\{(?:upstream|u)\}$/.exec(ref);
+  if (upstreamMatch) {
+    const branchPrefix = upstreamMatch[1]!;
+    // Déterminer la branche locale cible
+    let targetBranch: string | null;
+    if (branchPrefix === '' || branchPrefix === 'HEAD') {
+      targetBranch = currentBranch(repo);
+    } else {
+      targetBranch = branchPrefix;
+    }
+    if (!targetBranch) return null;
+    const upstream = repo.branchUpstream?.[targetBranch];
+    if (!upstream) return null; // pas d'upstream → null (l'appelant gère l'erreur)
+    return repo.refs.remotes?.[upstream.remote]?.[upstream.branch] ?? null;
+  }
+
+  // 0b. Supporter la notation @{n} pour le reflog : HEAD@{n}, <branch>@{n}
   const atMatch = /^(.+?)@\{(\d+)\}$/.exec(ref);
   if (atMatch) {
     const base = atMatch[1]!;
@@ -351,7 +373,7 @@ export function resolveCommitish(repo: Repository, ref: string): string | null {
     return null; // revision not found
   }
 
-  // 0b. Supporter la notation ~n : regex greedy, format <base>~<n>
+  // 0c. Supporter la notation ~n : regex greedy, format <base>~<n>
   const tildeMatch = /^(.+?)~(\d+)$/.exec(ref);
   if (tildeMatch) {
     const base = tildeMatch[1]!;
@@ -385,13 +407,25 @@ export function resolveCommitish(repo: Repository, ref: string): string | null {
     return repo.refs.tags[ref]!;
   }
 
-  // 4. Hash exact (commit)
+  // 4. Ref de suivi distant : <remote>/<branch>
+  //    Tenter de séparer le premier composant comme remote et le reste comme branch.
+  if (ref.includes('/')) {
+    const slashIdx = ref.indexOf('/');
+    const remotePart = ref.slice(0, slashIdx);
+    const branchPart = ref.slice(slashIdx + 1);
+    const remoteHash = repo.refs.remotes?.[remotePart]?.[branchPart];
+    if (remoteHash) {
+      return remoteHash;
+    }
+  }
+
+  // 5. Hash exact (commit)
   const exactObj = repo.objects[ref];
   if (exactObj && exactObj.type === 'commit') {
     return ref;
   }
 
-  // 5. Hash court (préfixe, min 4 chars)
+  // 6. Hash court (préfixe, min 4 chars)
   if (ref.length >= 4) {
     const matches = Object.keys(repo.objects).filter(
       (h) => h.startsWith(ref) && repo.objects[h]?.type === 'commit',

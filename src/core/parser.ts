@@ -31,6 +31,9 @@ import { cmdHelp } from './commands/help';
 import { cmdRemote } from './commands/remote';
 import { cmdClone } from './commands/clone';
 import { cmdFetch } from './commands/fetch';
+import { cmdPush } from './commands/push';
+import { cmdPull } from './commands/pull';
+import { cmdRevParse } from './commands/rev-parse';
 
 // ---------------------------------------------------------------------------
 // Tokenisation
@@ -191,6 +194,15 @@ export function dispatch(repo: Repository, input: string): CommandResult {
 
     case 'fetch':
       return cmdFetch(repo, rest);
+
+    case 'push':
+      return cmdPush(repo, rest);
+
+    case 'pull':
+      return cmdPull(repo, rest);
+
+    case 'rev-parse':
+      return cmdRevParse(repo, rest);
 
     default:
       return fail([`git: '${subcommand}' is not a git command. See 'git --help'.`]);

@@ -1,6 +1,14 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
-import { currentBranch, flattenTree, headCommit, isHeadDetached, isInitialized } from '../repository';
+import {
+  computeAheadBehind,
+  currentBranch,
+  flattenTree,
+  headCommit,
+  headCommitHash,
+  isHeadDetached,
+  isInitialized,
+} from '../repository';
 import { hashBlob } from '../objectStore';
 import { shortHash } from '../sha1';
 import { notARepo } from './init';
@@ -20,6 +28,12 @@ export function cmdStatus(repo: Repository, flags: string[]): CommandResult {
     branchDisplay = `HEAD detached at ${shortHash(detachedHash)}`;
   } else {
     branchDisplay = currentBranch(repo) ?? '(HEAD detached)';
+  }
+
+  // Calculer les infos de suivi upstream (uniquement pour le format long)
+  let upstreamLines: string[] = [];
+  if (!isShort) {
+    upstreamLines = buildUpstreamLines(repo);
   }
 
   const commit = headCommit(repo);
@@ -101,6 +115,7 @@ export function cmdStatus(repo: Repository, flags: string[]): CommandResult {
   return buildLongOutput(
     branchDisplay,
     commit === null,
+    upstreamLines,
     sort(stagedNew),
     sort(stagedModified),
     sort(stagedDeleted),
@@ -117,6 +132,7 @@ export function cmdStatus(repo: Repository, flags: string[]): CommandResult {
 function buildLongOutput(
   branch: string,
   noCommits: boolean,
+  upstreamLines: string[],
   stagedNew: string[],
   stagedModified: string[],
   stagedDeleted: string[],
@@ -127,6 +143,12 @@ function buildLongOutput(
   const lines: string[] = [];
 
   lines.push(`On branch ${branch}`);
+
+  // Lignes de suivi upstream (si présentes)
+  for (const upLine of upstreamLines) {
+    lines.push(upLine);
+  }
+
   lines.push('');
 
   const hasStaged = stagedNew.length + stagedModified.length + stagedDeleted.length > 0;
@@ -173,6 +195,68 @@ function buildLongOutput(
   }
 
   return ok(lines);
+}
+
+// ---------------------------------------------------------------------------
+// Lignes de suivi upstream
+// ---------------------------------------------------------------------------
+
+/**
+ * Construit les lignes de suivi upstream à afficher après "On branch X".
+ * Retourne un tableau vide si pas d'upstream ou HEAD détaché.
+ */
+function buildUpstreamLines(repo: Repository): string[] {
+  const branch = currentBranch(repo);
+  if (!branch) return []; // HEAD détaché
+
+  const upstream = repo.branchUpstream?.[branch];
+  if (!upstream) return []; // pas d'upstream configuré
+
+  const upstreamLabel = `'${upstream.remote}/${upstream.branch}'`;
+
+  const remoteHash = repo.refs.remotes?.[upstream.remote]?.[upstream.branch];
+  if (!remoteHash) {
+    // Gone : la ref distante a disparu
+    return [
+      `Your branch is based on ${upstreamLabel}, but the upstream branch has been deleted.`,
+      `  (use "git branch --unset-upstream" to forget the upstream)`,
+    ];
+  }
+
+  const localHash = headCommitHash(repo);
+  if (!localHash) {
+    // Branche sans commit (vide) — pas de ligne de suivi
+    return [];
+  }
+
+  const { ahead, behind } = computeAheadBehind(repo, localHash, remoteHash);
+
+  if (ahead === 0 && behind === 0) {
+    return [`Your branch is up to date with ${upstreamLabel}.`];
+  }
+
+  if (ahead > 0 && behind === 0) {
+    const s = ahead === 1 ? '' : 's';
+    return [
+      `Your branch is ahead of ${upstreamLabel} by ${ahead} commit${s}.`,
+      `  (use "git push" to publish your local commits)`,
+    ];
+  }
+
+  if (ahead === 0 && behind > 0) {
+    const s = behind === 1 ? '' : 's';
+    return [
+      `Your branch is behind ${upstreamLabel} by ${behind} commit${s}, and can be fast-forwarded.`,
+      `  (use "git pull" to update your local branch)`,
+    ];
+  }
+
+  // Diverged
+  return [
+    `Your branch and ${upstreamLabel} have diverged,`,
+    `and have ${ahead} and ${behind} different commits each, respectively.`,
+    `  (use "git pull" to merge the remote branch into yours)`,
+  ];
 }
 
 // ---------------------------------------------------------------------------

@@ -206,16 +206,28 @@ const COMMANDS_BY_CATEGORY: Record<string, CommandMetadata[]> = {
       flags: [
         { name: '-d', hasArgument: false, description: 'Supprimer une branche (seulement si fusionnée)', isCommon: true },
         { name: '-D', hasArgument: false, description: 'Forcer la suppression d\'une branche', isCommon: false },
+        { name: '-v', hasArgument: false, description: 'Afficher le hash et le message de chaque branche', isCommon: false },
+        { name: '-vv', hasArgument: false, description: 'Afficher aussi l\'upstream et l\'écart ahead/behind', isCommon: true },
+        { name: '-u', hasArgument: true, description: 'Configurer le suivi upstream : -u <remote>/<branch>', isCommon: true },
+        { name: '--set-upstream-to=<upstream>', hasArgument: true, description: 'Configurer l\'upstream (longue forme)', isCommon: false },
+        { name: '--unset-upstream', hasArgument: false, description: 'Retirer la configuration upstream', isCommon: false },
         { name: '[<branchname>]', hasArgument: true, description: 'Nom de la branche à créer', isCommon: true },
       ],
-      synopsis: 'git branch [<branchname>]\ngit branch -d <branchname>\ngit branch -D <branchname>',
+      synopsis:
+        'git branch [<branchname>]\ngit branch -d <branchname>\ngit branch -D <branchname>\n' +
+        'git branch -vv\ngit branch -u <remote>/<branch> [<branchname>]\ngit branch --unset-upstream [<branchname>]',
       longDescription:
         'Sans argument, liste les branches existantes. Avec un nom, crée une nouvelle branche à partir de HEAD. ' +
-        'Avec -d/-D, supprime la branche spécifiée.',
+        'Avec -d/-D, supprime la branche spécifiée. ' +
+        'Avec -vv, affiche le détail de chaque branche (hash, upstream, ahead/behind). ' +
+        'Avec -u, configure l\'upstream de la branche courante ou spécifiée.',
       examples: [
         'git branch',
         'git branch feature/login',
         'git branch -d feature/login',
+        'git branch -vv',
+        'git branch -u origin/main',
+        'git branch --unset-upstream feature',
       ],
     },
     {
@@ -477,6 +489,68 @@ const COMMANDS_BY_CATEGORY: Record<string, CommandMetadata[]> = {
         'git fetch',
         'git fetch origin',
         'git fetch origin main',
+      ],
+    },
+    {
+      name: 'push',
+      description: 'Envoyer les commits locaux vers un dépôt distant',
+      category: 'Distant',
+      flags: [
+        { name: '<remote>', hasArgument: true, description: 'Nom du remote (défaut : upstream)', isCommon: true },
+        { name: '<branch>', hasArgument: true, description: 'Branche locale à pousser (défaut : branche courante)', isCommon: true },
+        { name: '-u', hasArgument: false, description: 'Configurer l\'upstream après le push', isCommon: true },
+        { name: '--set-upstream', hasArgument: false, description: 'Alias de -u', isCommon: false },
+        { name: '--force', hasArgument: false, description: 'Forcer même si non-fast-forward', isCommon: false },
+        { name: '-f', hasArgument: false, description: 'Alias de --force', isCommon: false },
+      ],
+      synopsis: 'git push [<remote>] [<branch>] [-u] [--force]',
+      longDescription:
+        'Envoie les commits locaux vers le dépôt distant. ' +
+        'Par défaut, protège contre les push non-fast-forward (utiliser --force pour contourner). ' +
+        'Avec -u, configure l\'upstream de la branche locale.',
+      examples: [
+        'git push',
+        'git push origin main',
+        'git push -u origin feature',
+        'git push --force origin main',
+      ],
+    },
+    {
+      name: 'pull',
+      description: 'Récupérer et intégrer les commits d\'un dépôt distant',
+      category: 'Distant',
+      flags: [
+        { name: '<remote>', hasArgument: true, description: 'Nom du remote (défaut : upstream)', isCommon: true },
+        { name: '<branch>', hasArgument: true, description: 'Branche distante à intégrer', isCommon: true },
+        { name: '--rebase', hasArgument: false, description: 'Utiliser rebase au lieu de merge', isCommon: true },
+        { name: '--no-rebase', hasArgument: false, description: 'Forcer le merge (annule --rebase)', isCommon: false },
+      ],
+      synopsis: 'git pull [<remote>] [<branch>] [--rebase]',
+      longDescription:
+        'Équivalent à git fetch suivi de git merge (ou git rebase avec --rebase). ' +
+        'Sans argument, utilise l\'upstream de la branche courante. ' +
+        'Gère les conflits identiquement à merge/rebase.',
+      examples: [
+        'git pull',
+        'git pull origin main',
+        'git pull --rebase',
+      ],
+    },
+    {
+      name: 'rev-parse',
+      description: 'Résoudre une révision en hash complet',
+      category: 'Distant',
+      flags: [
+        { name: '<revision>', hasArgument: true, description: 'Révision à résoudre (ref, @{u}, etc.)', isCommon: true },
+      ],
+      synopsis: 'git rev-parse <revision>',
+      longDescription:
+        'Résout une révision (branche, tag, hash court, @{upstream}, @{u}, etc.) en hash complet de 40 caractères. ' +
+        'Utile pour inspecter les refs de suivi et les révisions avancées.',
+      examples: [
+        'git rev-parse HEAD',
+        'git rev-parse @{u}',
+        'git rev-parse feature@{upstream}',
       ],
     },
   ],

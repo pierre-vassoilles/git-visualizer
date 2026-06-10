@@ -136,13 +136,20 @@ export interface RepoSnapshot {
   readonly remoteTrackingRefs?: Record<string, Record<string, string>>;
   /**
    * PHASE 7 : Infos de synchronisation par branche locale.
-   * Pour chaque branche ayant un upstream, expose ahead/behind.
+   * Pour chaque branche ayant un upstream, expose ahead/behind/gone.
    */
   readonly tracking?: Record<string, {
     readonly upstream?: { readonly remote: string; readonly branch: string };
     readonly ahead?: number;
     readonly behind?: number;
+    /** true si l'upstream est configuré mais que la ref distante a disparu */
+    readonly gone?: boolean;
   }>;
+  /**
+   * PHASE 8 : Upstream configuré par branche locale.
+   * Copie de repo.branchUpstream.
+   */
+  readonly branchUpstream?: Record<string, { readonly remote: string; readonly branch: string }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -526,13 +533,14 @@ export class GitEngine {
       remoteTrackingRefs = Object.freeze(rtCopy);
     }
 
-    // Phase 7 : tracking ahead/behind
+    // Phase 7/8 : tracking ahead/behind/gone
     let tracking: RepoSnapshot['tracking'] = undefined;
     if (repo.branchUpstream && Object.keys(repo.branchUpstream).length > 0) {
       const trackingObj: Record<string, {
         upstream?: { remote: string; branch: string };
         ahead?: number;
         behind?: number;
+        gone?: boolean;
       }> = {};
 
       for (const [localBranch, upstream] of Object.entries(repo.branchUpstream)) {
@@ -541,8 +549,12 @@ export class GitEngine {
 
         let ahead: number | undefined;
         let behind: number | undefined;
+        let gone: boolean | undefined;
 
-        if (localHash && remoteTrackHash) {
+        if (!remoteTrackHash) {
+          // Upstream configuré mais ref distante absente → gone
+          gone = true;
+        } else if (localHash && remoteTrackHash) {
           const ab = computeAheadBehind(repo, localHash, remoteTrackHash);
           ahead = ab.ahead;
           behind = ab.behind;
@@ -552,9 +564,20 @@ export class GitEngine {
           upstream: Object.freeze({ ...upstream }),
           ahead,
           behind,
+          gone,
         });
       }
       tracking = Object.freeze(trackingObj);
+    }
+
+    // Phase 8 : branchUpstream snapshot
+    let branchUpstreamSnapshot: RepoSnapshot['branchUpstream'] = undefined;
+    if (repo.branchUpstream && Object.keys(repo.branchUpstream).length > 0) {
+      const buCopy: Record<string, { remote: string; branch: string }> = {};
+      for (const [branch, upstream] of Object.entries(repo.branchUpstream)) {
+        buCopy[branch] = Object.freeze({ ...upstream });
+      }
+      branchUpstreamSnapshot = Object.freeze(buCopy);
     }
 
     // Immuabilité (cf. contrat RepoSnapshot) : on gèle les conteneurs pour
@@ -574,6 +597,7 @@ export class GitEngine {
       remotes: remotesSnapshot,
       remoteTrackingRefs,
       tracking,
+      branchUpstream: branchUpstreamSnapshot,
     });
   }
 }
