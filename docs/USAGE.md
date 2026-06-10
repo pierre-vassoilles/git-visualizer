@@ -2229,6 +2229,26 @@ Git rejouées par le moteur, il n'y a **aucun risque d'exécution de code arbitr
 
 > Export/import et liens partagent exactement le même format de session JSON.
 
+#### Annuler / Refaire (undo / redo applicatif)
+
+Les boutons **↶ Annuler** / **↷ Refaire** (et les raccourcis **Ctrl/Cmd+Z** /
+**Ctrl+Y** ou **Cmd+Shift+Z**) naviguent dans l'historique des **états du dépôt**,
+indépendamment du `git reflog`. Le modèle est un **rejeu déterministe** : annuler
+revient à rejouer les commandes jusqu'à une position antérieure ; refaire avance à
+nouveau.
+
+- **Annuler** est désactivé au tout début (rien à annuler) ; **Refaire** est
+  désactivé s'il n'y a rien devant.
+- Exécuter une **nouvelle commande après un annuler** abandonne la partie « refaire »
+  (modèle classique).
+- La position est **persistée** : au rechargement, vous reprenez là où vous étiez
+  (et pouvez encore refaire).
+- C'est un mécanisme **applicatif** : il n'altère pas le `git reflog` ni
+  l'historique ↑/↓ du terminal, qui restent des axes indépendants.
+
+> `git reflog` reste l'outil Git pour retrouver des commits ; annuler/refaire est un
+> confort d'exploration de l'interface.
+
 ---
 
 ### Scénarios pédagogiques préchargés

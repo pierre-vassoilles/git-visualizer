@@ -5,7 +5,7 @@ import type { CommandCatalog } from '@/core/catalog';
 import type { CommandResult } from '@/core/types';
 import type { RepoSnapshot } from '@/core/engine';
 import type { TodoItem } from '@/core/model';
-import { loadHistory, saveHistory, clearHistory } from '@/utils/storage';
+import { loadHistory, loadCurrentIndex, saveHistory, clearHistory } from '@/utils/storage';
 import { buildExportedSession, type ExportedSession } from '@/utils/export-import';
 import { encodeSession, checkSessionSize, type SessionSize } from '@/utils/share';
 import { getScenarioById } from '@/constants/scenarios';
@@ -38,10 +38,25 @@ export const useRepoStore = defineStore('repo', () => {
   const snapshot = ref<RepoSnapshot>(engine.value.snapshot());
 
   /**
-   * Commandes RÉUSSIES uniquement (exitCode === 0), utilisées pour la persistance.
-   * Distinctes de `history` (qui contient toutes les commandes tapées, pour ↑/↓).
+   * PHASE B3 (spec 60) : timeline complète des commandes PERSISTABLES (réussies, ou
+   * laissant une opération en cours). `currentIndex` = nombre de commandes
+   * APPLIQUÉES (0 = boot, length = fin). undo/redo déplacent `currentIndex` DANS
+   * cette timeline sans la tronquer ; une NOUVELLE commande après un undo tronque la
+   * partie « future » (redo perdu).
    */
-  const savedCommands = ref<string[]>([]);
+  const commandHistory = ref<string[]>([]);
+  const currentIndex = ref(0);
+
+  /**
+   * Commandes actuellement APPLIQUÉES (= timeline jusqu'à `currentIndex`). Exposé en
+   * computed pour la rétro-compat (export/share/persistance lisent l'état courant).
+   * Distinct de `history` (toutes les commandes tapées, pour ↑/↓).
+   */
+  const savedCommands = computed(() => commandHistory.value.slice(0, currentIndex.value));
+
+  /** PHASE B3 (spec 60) : disponibilité de l'undo / du redo. */
+  const canUndo = computed(() => currentIndex.value > 0);
+  const canRedo = computed(() => currentIndex.value < commandHistory.value.length);
 
   /**
    * PHASE B3 (spec 59) : session partagée détectée dans l'URL au boot, EN ATTENTE
@@ -64,8 +79,13 @@ export const useRepoStore = defineStore('repo', () => {
     // légitime à reconstruire au rechargement). Une vraie erreur utilisateur
     // (exitCode != 0 sans opération en cours) n'est pas persistée.
     if (command.trim() !== '' && (result.exitCode === 0 || snap.operationState != null)) {
-      savedCommands.value.push(command);
-      saveHistory(savedCommands.value);
+      // Une nouvelle commande après un undo tronque la partie « future » (redo perdu).
+      if (currentIndex.value < commandHistory.value.length) {
+        commandHistory.value = commandHistory.value.slice(0, currentIndex.value);
+      }
+      commandHistory.value.push(command);
+      currentIndex.value = commandHistory.value.length;
+      saveHistory(commandHistory.value, currentIndex.value);
     }
     // Recalculer le snapshot après chaque commande
     snapshot.value = snap;
@@ -89,43 +109,84 @@ export const useRepoStore = defineStore('repo', () => {
     engine.value = new GitEngine();
     log.value = [];
     history.value = [];
-    savedCommands.value = [];
+    commandHistory.value = [];
+    currentIndex.value = 0;
     snapshot.value = engine.value.snapshot();
   }
 
   /**
-   * PHASE 6 : Charge et rejoue l'historique depuis localStorage.
+   * PHASE B3 (spec 60) : reconstruit un moteur neuf en rejouant `commands[0..limit]`.
+   * S'arrête au 1er échec RÉEL (exitCode != 0 SANS opération en cours — un conflit
+   * merge/rebase légitime ne stoppe pas). Rejeu déterministe. Renvoie le moteur et
+   * le nombre de commandes effectivement appliquées (≤ limit).
+   */
+  function buildEngineUpTo(
+    commands: string[],
+    limit: number,
+  ): { engine: GitEngine; applied: number } {
+    const e = new GitEngine();
+    let applied = 0;
+    const bound = Math.min(limit, commands.length);
+    for (let i = 0; i < bound; i++) {
+      const result = e.execute(commands[i]!);
+      if (result.exitCode !== 0 && e.snapshot().operationState == null) break;
+      applied++;
+    }
+    return { engine: e, applied };
+  }
+
+  /**
+   * PHASE 6 / B3 : Charge et rejoue l'historique depuis localStorage.
    *
-   * - Lit l'historique persisté via loadHistory().
-   * - Rejoue chaque commande via engine.execute() (silencieux : pas d'echo terminal).
-   * - S'arrête au premier échec réel (exitCode !== 0 SANS opération en cours) ;
-   *   un état conflictuel légitime (merge/rebase en cours) ne stoppe pas le rejeu.
-   * - Alimente savedCommands avec les commandes rejouées.
-   * - Recalcule le snapshot après le rejeu.
+   * - `commandHistory` = TOUTE la timeline persistée (redo possible après reload).
+   * - `currentIndex` = position persistée (spec 60) ; à défaut, fin de l'historique.
+   * - Rejoue jusqu'à `currentIndex` (déterministe), arrêt au 1er échec réel.
    */
   function loadFromStorage(): void {
     const commands = loadHistory();
     if (commands === null) return;
 
-    const newEngine = new GitEngine();
-    const replayed: string[] = [];
+    commandHistory.value = commands;
+    const persisted = loadCurrentIndex();
+    const target =
+      persisted !== null && persisted >= 0 && persisted <= commands.length
+        ? persisted
+        : commands.length;
 
-    for (const cmd of commands) {
-      const result = newEngine.execute(cmd);
-      if (result.exitCode !== 0 && newEngine.snapshot().operationState == null) {
-        // Échec réel (pas un conflit en cours) → arrêt du rejeu
-        break;
-      }
-      replayed.push(cmd);
-    }
-
-    // Remplacer le moteur et reconstruire l'état réactif
-    engine.value = newEngine;
-    savedCommands.value = replayed;
+    const { engine: e, applied } = buildEngineUpTo(commands, target);
+    engine.value = e;
+    currentIndex.value = applied;
     log.value = [];
     history.value = [];
     nextId = 0;
-    snapshot.value = engine.value.snapshot();
+    snapshot.value = e.snapshot();
+  }
+
+  /**
+   * PHASE B3 (spec 60) : positionne l'état applicatif à `targetIndex` par rejeu
+   * déterministe de la timeline. Conserve `commandHistory` (donc le redo). Ne touche
+   * PAS au journal terminal (`log`) ni à l'historique ↑/↓ (`history`) : undo/redo et
+   * l'historique du terminal sont deux axes indépendants (spec 60 §Historique terminal).
+   */
+  function rebuildState(targetIndex: number): void {
+    const clamped = Math.max(0, Math.min(targetIndex, commandHistory.value.length));
+    const { engine: e, applied } = buildEngineUpTo(commandHistory.value, clamped);
+    engine.value = e;
+    currentIndex.value = applied;
+    snapshot.value = e.snapshot();
+    saveHistory(commandHistory.value, currentIndex.value);
+  }
+
+  /** PHASE B3 (spec 60) : annule la dernière commande appliquée (rétrograde d'un cran). */
+  function undo(): void {
+    if (!canUndo.value) return;
+    rebuildState(currentIndex.value - 1);
+  }
+
+  /** PHASE B3 (spec 60) : refait la commande suivante de la timeline. */
+  function redo(): void {
+    if (!canRedo.value) return;
+    rebuildState(currentIndex.value + 1);
   }
 
   /**
@@ -172,8 +233,9 @@ export const useRepoStore = defineStore('repo', () => {
       log.value.push({ id: nextId++, command: cmd, result });
     }
 
-    savedCommands.value = replayed;
-    saveHistory(replayed);
+    commandHistory.value = replayed;
+    currentIndex.value = replayed.length;
+    saveHistory(replayed, replayed.length);
     snapshot.value = engine.value.snapshot();
   }
 
@@ -221,9 +283,11 @@ export const useRepoStore = defineStore('repo', () => {
     }
 
     // Reconstruire l'état réactif et persister la session importée.
+    // (spec 60 : un import restaure à la FIN de l'historique → currentIndex = length)
     engine.value = newEngine;
-    savedCommands.value = replayed;
-    saveHistory(replayed);
+    commandHistory.value = replayed;
+    currentIndex.value = replayed.length;
+    saveHistory(replayed, replayed.length);
     log.value = [];
     history.value = [];
     nextId = 0;
@@ -445,6 +509,12 @@ export const useRepoStore = defineStore('repo', () => {
     importSession,
     generateShareableLink,
     pendingSharedSession,
+    // Undo / redo applicatif (spec 60)
+    currentIndex,
+    canUndo,
+    canRedo,
+    undo,
+    redo,
     getCatalog,
     readFile,
     getConflictSections,

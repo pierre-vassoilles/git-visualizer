@@ -235,3 +235,32 @@ describe('RefsSidebar — export/import de session (spec 58)', () => {
     expect(wrapper.find('.btn-share').attributes('disabled')).toBeUndefined();
   });
 });
+
+describe('RefsSidebar — undo/redo (spec 60)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('CA-undo-14 : boutons Undo/Redo présents, désactivés au boot', () => {
+    const { wrapper } = mountSidebar();
+    const undo = wrapper.find('.btn-undo');
+    const redo = wrapper.find('.btn-redo');
+    expect(undo.exists()).toBe(true);
+    expect(redo.exists()).toBe(true);
+    expect(undo.attributes('disabled')).toBeDefined();
+    expect(redo.attributes('disabled')).toBeDefined();
+  });
+
+  it('CA-undo-14 : après une commande, Undo actif ; après clic, Redo actif', async () => {
+    const { wrapper, store } = mountSidebar();
+    store.execute('git init');
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.btn-undo').attributes('disabled')).toBeUndefined();
+    expect(wrapper.find('.btn-redo').attributes('disabled')).toBeDefined();
+
+    await wrapper.find('.btn-undo').trigger('click');
+    await wrapper.vm.$nextTick();
+    expect(store.currentIndex).toBe(0);
+    expect(wrapper.find('.btn-redo').attributes('disabled')).toBeUndefined();
+  });
+});

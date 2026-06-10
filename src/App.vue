@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, onUnmounted } from 'vue';
 import GraphView from '@/components/GraphView.vue';
 import TerminalPanel from '@/components/TerminalPanel.vue';
 import RefsSidebar from '@/components/RefsSidebar.vue';
@@ -39,7 +39,46 @@ onMounted(() => {
   } else {
     store.loadFromStorage();
   }
+  window.addEventListener('keydown', handleUndoRedoKey);
 });
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleUndoRedoKey);
+});
+
+/** Raccourcis clavier Undo/Redo (spec 60).
+ *  Ignoré si le focus est dans un champ texte éditable (sauf xterm .xterm-helper-textarea).
+ */
+function handleUndoRedoKey(event: KeyboardEvent): void {
+  const target = event.target as Element | null;
+  if (target) {
+    const tag = target.tagName.toLowerCase();
+    const isEditable =
+      tag === 'input' ||
+      (tag === 'textarea' && !target.classList.contains('xterm-helper-textarea')) ||
+      (target as HTMLElement).isContentEditable;
+    if (isEditable) return;
+  }
+
+  const key = event.key.toLowerCase();
+
+  // Undo : Ctrl+Z (Win/Linux) ou Cmd+Z (macOS) sans Shift
+  const isCtrlZ = event.ctrlKey && !event.metaKey && key === 'z';
+  const isCmdZ = event.metaKey && !event.ctrlKey && key === 'z';
+  if (!event.shiftKey && (isCtrlZ || isCmdZ)) {
+    event.preventDefault();
+    store.undo();
+    return;
+  }
+
+  // Redo : Ctrl+Y (Win/Linux) ou Cmd+Shift+Z (macOS)
+  const isCtrlY = event.ctrlKey && !event.metaKey && key === 'y';
+  const isCmdShiftZ = event.metaKey && !event.ctrlKey && event.shiftKey && key === 'z';
+  if (isCtrlY || isCmdShiftZ) {
+    event.preventDefault();
+    store.redo();
+  }
+}
 </script>
 
 <template>

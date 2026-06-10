@@ -19,6 +19,12 @@ export interface StoredHistory {
   commands: string[];
   /** Timestamp de la dernière sauvegarde (Date.now()). */
   lastSaved: number;
+  /**
+   * PHASE B3 (spec 60) : position courante de l'undo/redo applicatif (nombre de
+   * commandes appliquées). Optionnel (absent des sessions sauvegardées avant
+   * l'undo/redo → traité comme « tout appliqué » au chargement).
+   */
+  currentIndex?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,7 +90,7 @@ export function loadHistory(): string[] | null {
   }
 
   // Validation du contenu du tableau
-  if (!data.commands.every(c => typeof c === 'string')) {
+  if (!data.commands.every((c) => typeof c === 'string')) {
     localStorage.removeItem(STORAGE_KEY);
     return null;
   }
@@ -97,17 +103,41 @@ export function loadHistory(): string[] | null {
  *
  * @param commands - Liste des commandes réussies à persister.
  */
-export function saveHistory(commands: string[]): void {
+export function saveHistory(commands: string[], currentIndex?: number): void {
   const data: StoredHistory = {
     version: '1.0',
     commands,
     lastSaved: Date.now(),
+    ...(currentIndex !== undefined ? { currentIndex } : {}),
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch {
     // Quota dépassé ou accès refusé → ignore silencieusement
   }
+}
+
+/**
+ * PHASE B3 (spec 60) : lit la position undo/redo persistée (`currentIndex`).
+ * Retourne `null` si absente, invalide, ou si la clé/JSON n'est pas exploitable.
+ * Ne purge pas (loadHistory gère déjà la corruption).
+ */
+export function loadCurrentIndex(): number | null {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      typeof (parsed as Record<string, unknown>).currentIndex === 'number'
+    ) {
+      return (parsed as StoredHistory).currentIndex!;
+    }
+  } catch {
+    // JSON invalide → null (loadHistory purgera)
+  }
+  return null;
 }
 
 /**

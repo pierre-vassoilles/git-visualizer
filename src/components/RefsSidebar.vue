@@ -430,6 +430,12 @@ function onStartTutorial(id: string): void {
       </ul>
       <div class="session-actions">
         <button class="btn btn-reset" @click="onReset">{{ t('sidebar.reset') }}</button>
+        <button class="btn btn-undo" :disabled="!repo.canUndo" @click="repo.undo()">
+          ↶ {{ t('sidebar.undo') }}
+        </button>
+        <button class="btn btn-redo" :disabled="!repo.canRedo" @click="repo.redo()">
+          ↷ {{ t('sidebar.redo') }}
+        </button>
         <button
           class="btn btn-export"
           :disabled="repo.savedCommands.length === 0"
@@ -806,6 +812,23 @@ h2 {
 
 .btn-reset:hover {
   background: #f1f5f9;
+}
+
+.btn-undo,
+.btn-redo {
+  flex: 1;
+}
+
+.btn-undo:hover:not(:disabled),
+.btn-redo:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.btn-undo:disabled,
+.btn-redo:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .btn-export {

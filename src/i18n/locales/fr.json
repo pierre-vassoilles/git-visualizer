@@ -65,6 +65,8 @@
   "sidebar.start": "Commencer",
   "sidebar.confirmTutorial": "Démarrer ce tutoriel ? Le dépôt courant sera réinitialisé.",
   "sidebar.stepsAndDuration": "{steps} étapes · ~{duration} min",
+  "sidebar.undo": "Annuler",
+  "sidebar.redo": "Refaire",
   "sidebar.export": "Exporter",
   "sidebar.import": "Importer",
   "sidebar.exportDescriptionPrompt": "Description de la session (optionnel) :",

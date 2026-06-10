@@ -65,6 +65,8 @@
   "sidebar.start": "Start",
   "sidebar.confirmTutorial": "Start this tutorial? The current repository will be reset.",
   "sidebar.stepsAndDuration": "{steps} steps · ~{duration} min",
+  "sidebar.undo": "Undo",
+  "sidebar.redo": "Redo",
   "sidebar.export": "Export",
   "sidebar.import": "Import",
   "sidebar.exportDescriptionPrompt": "Session description (optional):",

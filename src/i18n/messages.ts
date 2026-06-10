@@ -82,6 +82,8 @@ export type MessageKey =
   | 'sidebar.start'
   | 'sidebar.confirmTutorial'
   | 'sidebar.stepsAndDuration'
+  | 'sidebar.undo'
+  | 'sidebar.redo'
   | 'sidebar.export'
   | 'sidebar.import'
   | 'sidebar.exportDescriptionPrompt'
@@ -178,6 +180,8 @@ export const MESSAGE_KEYS: readonly MessageKey[] = [
   'sidebar.start',
   'sidebar.confirmTutorial',
   'sidebar.stepsAndDuration',
+  'sidebar.undo',
+  'sidebar.redo',
   'sidebar.export',
   'sidebar.import',
   'sidebar.exportDescriptionPrompt',
