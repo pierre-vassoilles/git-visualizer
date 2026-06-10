@@ -5,18 +5,21 @@ import { getCommit } from '../objectStore';
 import { notARepo } from './init';
 
 /**
- * git restore <pathspec...>                   — restaure WT depuis l'index
- * git restore --staged <pathspec...>          — retire du staging (index ← HEAD)
- * git restore --source=<commit> <pathspec...> — restaure depuis un commit spécifique
+ * git restore <pathspec...>                            — Cas 1 : WT ← index
+ * git restore --staged <pathspec...>                   — Cas 2 : index ← HEAD
+ * git restore --source=<commit> <pathspec...>          — Cas 3 : WT ← commit
+ * git restore --staged --source=<commit> <pathspec...> — Cas 4 : index ← commit
+ *
+ * Règle du quadrant (spec 46) : `--staged` PRIME — s'il est présent, la cible est
+ * toujours l'index (Cas 2/4), sinon le working tree (Cas 1/3). `--source` ne fait
+ * que changer la SOURCE des blobs, jamais la cible.
+ *
+ * Atomicité : tous les pathspecs explicites sont validés avant toute écriture ;
+ * un seul pathspec introuvable → erreur, aucune restauration.
  */
 export function cmdRestore(repo: Repository, args: string[]): CommandResult {
   if (!isInitialized(repo)) return notARepo();
 
-  if (args.length === 0) {
-    return fail(['fatal: pathspec cannot be empty']);
-  }
-
-  // Parser les options
   const isStaged = args.includes('--staged');
   let sourceRef: string | null = null;
   const pathspecs: string[] = [];
@@ -34,157 +37,58 @@ export function cmdRestore(repo: Repository, args: string[]): CommandResult {
     return fail(['fatal: pathspec cannot be empty']);
   }
 
-  // Résoudre la source commit si --source est spécifié
+  // Résoudre la source --source en table path → blobHash (si fournie).
+  let commitFiles: Record<string, string> | null = null;
   if (sourceRef !== null) {
     const commitHash = resolveCommitish(repo, sourceRef);
     if (!commitHash) {
       return fail([`fatal: reference is not a tree: '${sourceRef}'`]);
     }
-    return restoreFromCommit(repo, pathspecs, commitHash);
+    const commit = getCommit(repo, commitHash);
+    if (!commit) {
+      return fail([`fatal: reference is not a tree: '${sourceRef}'`]);
+    }
+    commitFiles = flattenTree(repo, commit.tree);
   }
 
-  if (isStaged) {
-    return restoreStaged(repo, pathspecs);
-  }
-
-  return restoreFromIndex(repo, pathspecs);
+  return isStaged
+    ? restoreToIndex(repo, pathspecs, commitFiles)
+    : restoreToWorkingTree(repo, pathspecs, commitFiles);
 }
 
-/** Restaure le working tree depuis l'index. */
-function restoreFromIndex(repo: Repository, pathspecs: string[]): CommandResult {
-  const toRestore = resolvePathspecs(repo, pathspecs);
-
-  if (toRestore.length === 0) {
-    // Vérifier si au moins un pathspec existait dans l'index
-    const missingPaths: string[] = [];
-    for (const spec of pathspecs) {
-      if (spec !== '.' && !(spec in repo.index)) {
-        missingPaths.push(spec);
-      }
-    }
-    if (missingPaths.length > 0) {
-      return fail([`error: pathspec '${missingPaths[0]}' did not match any files`]);
-    }
-    return ok();
-  }
-
-  // Vérifier que tous les pathspecs ont au moins une entrée source
-  if (pathspecs.length === 1 && pathspecs[0] !== '.') {
-    const spec = pathspecs[0]!;
-    if (!(spec in repo.index) && !(spec in repo.workingTree)) {
-      return fail([`error: pathspec '${spec}' did not match any files`]);
-    }
-    if (!(spec in repo.index)) {
-      return fail([`error: pathspec '${spec}' did not match any files`]);
-    }
-  }
-
-  for (const path of toRestore) {
-    const indexEntry = repo.index[path];
-    if (!indexEntry) continue;
-
-    repo.workingTree[path] = {
-      content: indexEntry.content,
-      mode: indexEntry.mode,
-    };
-  }
-
-  return ok();
-}
-
-/** Retire du staging : index ← HEAD. */
-function restoreStaged(repo: Repository, pathspecs: string[]): CommandResult {
-  const headHash = headCommitHash(repo);
-
-  // Construire la map HEAD filepath → blobHash
-  const headFiles: Record<string, string> = {}; // path → blobHash
-  if (headHash) {
-    const commit = getCommit(repo, headHash);
-    if (commit) {
-      Object.assign(headFiles, flattenTree(repo, commit.tree));
-    }
-  }
-
-  const toUnstage = resolvePathspecs(repo, pathspecs, headFiles);
-
-  if (toUnstage.length === 0 && pathspecs.length === 1 && pathspecs[0] !== '.') {
-    const spec = pathspecs[0]!;
-    if (!(spec in repo.index) && !(spec in headFiles)) {
-      return fail([`error: pathspec '${spec}' did not match any files`]);
-    }
-  }
-
-  for (const path of toUnstage) {
-    const headBlobHash = headFiles[path];
-    if (!headBlobHash) {
-      // Fichier n'existe pas dans HEAD → supprimer de l'index
-      delete repo.index[path];
-    } else {
-      // Restaurer depuis HEAD
-      const obj = repo.objects[headBlobHash];
-      if (obj && obj.type === 'blob') {
-        repo.index[path] = {
-          blobHash: headBlobHash,
-          content: obj.content,
-          mode: '100644',
-        };
-      }
-    }
-  }
-
-  return ok();
-}
-
-/** Restaure le working tree (et éventuellement l'index) depuis un commit spécifique. */
-function restoreFromCommit(
+/**
+ * Cas 1 (commitFiles === null, source = index) et Cas 3 (commitFiles, source = commit).
+ * Cible : working tree.
+ */
+function restoreToWorkingTree(
   repo: Repository,
   pathspecs: string[],
-  commitHash: string,
+  commitFiles: Record<string, string> | null,
 ): CommandResult {
-  const commit = getCommit(repo, commitHash);
-  if (!commit) {
-    return fail([`fatal: reference is not a tree: '${commitHash}'`]);
-  }
+  // Un chemin est "connu" s'il existe dans la source ; pour une source commit,
+  // un chemin présent dans le WT mais absent du commit est aussi valide (il sera
+  // supprimé du WT, comme le vrai git).
+  const inSource = (p: string): boolean =>
+    commitFiles ? p in commitFiles || p in repo.workingTree : p in repo.index;
 
-  const commitFiles = flattenTree(repo, commit.tree); // path → blobHash
+  const { paths, error } = expandAndValidate(repo, pathspecs, inSource, commitFiles);
+  if (error) return error;
 
-  const allPaths: string[] = [];
-  for (const spec of pathspecs) {
-    if (spec === '.') {
-      allPaths.push(...Object.keys(commitFiles));
-      // Aussi les fichiers du WT qui seraient supprimés
-      allPaths.push(...Object.keys(repo.workingTree));
-    } else {
-      allPaths.push(spec);
-    }
-  }
-
-  // Dédoublonner
-  const uniquePaths = [...new Set(allPaths)];
-
-  if (
-    uniquePaths.length === 0 ||
-    (pathspecs.length === 1 &&
-      pathspecs[0] !== '.' &&
-      !(pathspecs[0] in commitFiles) &&
-      !(pathspecs[0] in repo.workingTree))
-  ) {
-    const spec = pathspecs[0] ?? '';
-    return fail([`error: pathspec '${spec}' did not match any files`]);
-  }
-
-  for (const path of uniquePaths) {
-    const blobHash = commitFiles[path];
-    if (!blobHash) {
-      // Fichier absent du commit → supprimer du working tree
-      delete repo.workingTree[path];
-    } else {
+  for (const path of paths) {
+    if (commitFiles) {
+      const blobHash = commitFiles[path];
+      if (!blobHash) {
+        delete repo.workingTree[path];
+        continue;
+      }
       const obj = repo.objects[blobHash];
       if (obj && obj.type === 'blob') {
-        repo.workingTree[path] = {
-          content: obj.content,
-          mode: '100644',
-        };
+        repo.workingTree[path] = { content: obj.content, mode: '100644' };
+      }
+    } else {
+      const indexEntry = repo.index[path];
+      if (indexEntry) {
+        repo.workingTree[path] = { content: indexEntry.content, mode: indexEntry.mode };
       }
     }
   }
@@ -193,24 +97,84 @@ function restoreFromCommit(
 }
 
 /**
- * Résout les pathspecs en liste de chemins réels.
- * Si '.' → tous les fichiers dans l'index ou dans la source additionnelle.
+ * Cas 2 (commitFiles === null, source = HEAD) et Cas 4 (commitFiles, source = commit).
+ * Cible : index.
  */
-function resolvePathspecs(
+function restoreToIndex(
   repo: Repository,
   pathspecs: string[],
-  additionalSource: Record<string, string> = {},
-): string[] {
-  const result: string[] = [];
-
-  for (const spec of pathspecs) {
-    if (spec === '.') {
-      const allPaths = new Set([...Object.keys(repo.index), ...Object.keys(additionalSource)]);
-      result.push(...allPaths);
-    } else {
-      result.push(spec);
+  commitFiles: Record<string, string> | null,
+): CommandResult {
+  // Source : HEAD (Cas 2) ou le commit --source (Cas 4).
+  let sourceFiles: Record<string, string>;
+  if (commitFiles) {
+    sourceFiles = commitFiles;
+  } else {
+    sourceFiles = {};
+    const headHash = headCommitHash(repo);
+    if (headHash) {
+      const commit = getCommit(repo, headHash);
+      if (commit) Object.assign(sourceFiles, flattenTree(repo, commit.tree));
     }
   }
 
-  return [...new Set(result)];
+  // Un chemin est valide s'il existe dans la source OU dans l'index : un fichier
+  // présent dans l'index mais absent de la source est désindexé (supprimé de l'index).
+  const inSource = (p: string): boolean => p in sourceFiles || p in repo.index;
+
+  const { paths, error } = expandAndValidate(repo, pathspecs, inSource, sourceFiles);
+  if (error) return error;
+
+  for (const path of paths) {
+    const blobHash = sourceFiles[path];
+    if (!blobHash) {
+      delete repo.index[path];
+      continue;
+    }
+    const obj = repo.objects[blobHash];
+    if (obj && obj.type === 'blob') {
+      repo.index[path] = { blobHash, content: obj.content, mode: '100644' };
+    }
+  }
+
+  return ok();
+}
+
+/**
+ * Développe les pathspecs (`.` → tous les chemins de la source + du WT) et valide
+ * atomiquement les pathspecs explicites. `globSource` fournit les chemins pour `.`
+ * (l'index quand null).
+ */
+function expandAndValidate(
+  repo: Repository,
+  pathspecs: string[],
+  inSource: (p: string) => boolean,
+  globSource: Record<string, string> | null,
+): { paths: string[]; error: CommandResult | null } {
+  const missing: string[] = [];
+  const expanded: string[] = [];
+
+  for (const spec of pathspecs) {
+    if (spec === '.') {
+      // Opération globale : pas de validation, on prend tout ce qui est connu.
+      const base = globSource ?? repo.index;
+      expanded.push(...Object.keys(base));
+      expanded.push(...Object.keys(repo.workingTree));
+      continue;
+    }
+    if (!inSource(spec)) {
+      missing.push(spec);
+    } else {
+      expanded.push(spec);
+    }
+  }
+
+  if (missing.length > 0) {
+    return {
+      paths: [],
+      error: fail(missing.map((ps) => `error: pathspec '${ps}' did not match any files`)),
+    };
+  }
+
+  return { paths: [...new Set(expanded)], error: null };
 }

@@ -427,10 +427,12 @@ export function resolveCommitish(repo: Repository, ref: string): string | null {
     return headCommitHash(repo);
   }
 
-  // 2. Branche
+  // 2. Branche — une branche vide ("") est ignorée (traitée comme inexistante)
+  //    pour ne pas court-circuiter un tag/hash court homonyme (spec 46).
   if (branchExists(repo, ref)) {
     const h = repo.refs.heads[ref]!;
-    return h || null; // branche vide → null
+    if (h) return h;
+    // branche vide → tomber sur tag / hash court ci-dessous
   }
 
   // 3. Tag

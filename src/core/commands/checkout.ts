@@ -15,6 +15,7 @@ import {
 } from '../repository';
 import { shortHash } from '../sha1';
 import { notARepo } from './init';
+import { cmdRestore } from './restore';
 
 /**
  * git checkout <branchname>          — bascule vers une branche
@@ -29,6 +30,13 @@ export function cmdCheckout(repo: Repository, args: string[]): CommandResult {
   // git checkout - (revenir à la branche précédente)
   if (args.length === 1 && args[0] === '-') {
     return checkoutPrevBranch(repo);
+  }
+
+  // git checkout -- <pathspec...> : alias de `git restore <pathspec...>` (WT ← index, Cas 1).
+  const dashDashIdx = args.indexOf('--');
+  if (dashDashIdx !== -1) {
+    const pathspecs = args.slice(dashDashIdx + 1);
+    return cmdRestore(repo, pathspecs);
   }
 
   // git checkout --detach <commit>

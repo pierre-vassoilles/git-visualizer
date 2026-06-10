@@ -511,13 +511,28 @@ git restore --staged file.txt
 
 # Restaurer un fichier depuis un commit spécifique
 git restore --source=abc1234 file.txt
+
+# Restaurer l'index depuis un commit (combinaison --staged --source)
+git restore --staged --source=abc1234 file.txt
 ```
 
-**Comportement :**
+**Comportement — quadrant `--staged` × `--source` :** `--staged` décide la **cible**
+(présent → l'index, absent → le working tree) ; `--source` ne change que la **source**
+des contenus (par défaut : l'index pour le WT, HEAD pour l'index).
 
-- **Restore (défaut)** : Écrase le working tree avec le contenu de l'index
-- **Restore --staged** : Remplace l'index avec le contenu de HEAD (retire du staging)
-- **Restore --source** : Restaure depuis un commit spécifié
+| Flags                  | Source  | Cible        |
+| ---------------------- | ------- | ------------ |
+| (aucun)                | index   | working tree |
+| `--source=<commit>`    | commit  | working tree |
+| `--staged`             | HEAD    | index        |
+| `--staged --source=<commit>` | commit | index   |
+
+**Pathspecs multiples — atomicité :** si l'un des chemins énumérés n'existe pas dans
+la source, la commande échoue (`error: pathspec '<x>' did not match any files`, code 1)
+**sans rien restaurer**. `git restore .` (opération globale) ne génère pas cette erreur.
+
+**`git checkout -- <pathspec...>`** est un alias de `git restore <pathspec...>`
+(working tree ← index).
 
 **Code de sortie :** 0 (succès) | 1 (erreur) | 128 (dépôt non initialisé)
 
