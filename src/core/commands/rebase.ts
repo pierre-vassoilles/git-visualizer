@@ -64,9 +64,7 @@ export function cmdRebase(repo: Repository, args: string[]): CommandResult {
   const baseHash = resolveCommitish(repo, baseRef);
   if (!baseHash) {
     return fail(
-      [
-        `fatal: ambiguous argument '${baseRef}': unknown revision or path not in working tree`,
-      ],
+      [`fatal: ambiguous argument '${baseRef}': unknown revision or path not in working tree`],
       128,
     );
   }
@@ -228,10 +226,7 @@ export function cmdRebase(repo: Repository, args: string[]): CommandResult {
  * @param todoList - Todo list éditée par l'utilisateur
  * @returns CommandResult (succès, conflit ou erreur)
  */
-export function executeRebaseInteractive(
-  repo: Repository,
-  todoList: TodoItem[],
-): CommandResult {
+export function executeRebaseInteractive(repo: Repository, todoList: TodoItem[]): CommandResult {
   if (!repo.rebasing || !repo.rebasing.interactive) {
     return fail(['fatal: No interactive rebase in progress.']);
   }
@@ -344,9 +339,8 @@ function runInteractiveTodoList(
         label: item.commitHash.slice(0, 7),
       });
 
-      const combinedMessage = item.action === 'squash'
-        ? `${lastCommitMessage}\n\n${item.message}`
-        : lastCommitMessage;
+      const combinedMessage =
+        item.action === 'squash' ? `${lastCommitMessage}\n\n${item.message}` : lastCommitMessage;
 
       if (!result.newHash) {
         // Conflit lors du squash
@@ -415,9 +409,8 @@ function runInteractiveTodoList(
 
     // pick / reword / edit : rejouer normalement
     const messageToUse = item.action === 'reword' ? item.message : origCommit.message;
-    const commitToReplay = item.action === 'reword'
-      ? { ...origCommit, message: messageToUse }
-      : origCommit;
+    const commitToReplay =
+      item.action === 'reword' ? { ...origCommit, message: messageToUse } : origCommit;
 
     const result = replayCommit(repo, {
       origCommit: commitToReplay,
@@ -482,12 +475,8 @@ function rebaseAbort(repo: Repository): CommandResult {
     return fail(['fatal: There is no rebase in progress.']);
   }
 
-  const {
-    headHashBeforeRebase,
-    branchBeforeRebase,
-    indexBeforeRebase,
-    workingTreeBeforeRebase,
-  } = repo.rebasing;
+  const { headHashBeforeRebase, branchBeforeRebase, indexBeforeRebase, workingTreeBeforeRebase } =
+    repo.rebasing;
 
   if (branchBeforeRebase !== null) {
     repo.refs.heads[branchBeforeRebase] = headHashBeforeRebase;
@@ -513,7 +502,9 @@ function rebaseContinue(repo: Repository): CommandResult {
 
   // Si en mode interactif en attente d'édition, cannot continue
   if (rebasing.interactive?.awaitingTodoEdit) {
-    return fail(['fatal: Interactive rebase in progress; cannot continue without submitting todo list.']);
+    return fail([
+      'fatal: Interactive rebase in progress; cannot continue without submitting todo list.',
+    ]);
   }
 
   const { toReplay, replayed, currentCommitMessage } = rebasing;
@@ -524,12 +515,10 @@ function rebaseContinue(repo: Repository): CommandResult {
   if (rebasing.interactive?.pendingSquashMessage !== undefined) {
     const squashMessage = rebasing.interactive.pendingSquashMessage;
     // replayed[last] = D1' (le commit précédent à remplacer)
-    const prevCommitHash = replayed.length > 0
-      ? replayed[replayed.length - 1]!
-      : rebasing.base;
+    const prevCommitHash = replayed.length > 0 ? replayed[replayed.length - 1]! : rebasing.base;
     const prevCommit = getCommit(repo, prevCommitHash);
     // Le parent du commit squashé est le parent de D1' (= la base / C1)
-    const parentOfPrev = (prevCommit?.parents[0]) ?? rebasing.base;
+    const parentOfPrev = prevCommit?.parents[0] ?? rebasing.base;
 
     const squashedTree = buildTreeFromIndex(repo, repo.index);
     const squashedHash = createCommitWithParents(repo, {
@@ -547,9 +536,10 @@ function rebaseContinue(repo: Repository): CommandResult {
     }
 
     // Remplacer D1' par le commit squashé dans replayed
-    const newReplayed = replayed.length > 0
-      ? [...replayed.slice(0, replayed.length - 1), squashedHash]
-      : [squashedHash];
+    const newReplayed =
+      replayed.length > 0
+        ? [...replayed.slice(0, replayed.length - 1), squashedHash]
+        : [squashedHash];
 
     const { todoList, currentIndex } = rebasing.interactive;
     const nextIndex = currentIndex + 1;
@@ -573,9 +563,8 @@ function rebaseContinue(repo: Repository): CommandResult {
           label: item.commitHash.slice(0, 7),
         });
 
-        const combinedMessage = item.action === 'squash'
-          ? `${lastCommitMessage}\n\n${item.message}`
-          : lastCommitMessage;
+        const combinedMessage =
+          item.action === 'squash' ? `${lastCommitMessage}\n\n${item.message}` : lastCommitMessage;
 
         if (!result.newHash) {
           const parentOfLast = getCommit(repo, lastCommitHash)?.parents[0] ?? rebasing.base;
@@ -638,9 +627,8 @@ function rebaseContinue(repo: Repository): CommandResult {
       }
 
       const messageToUse = item.action === 'reword' ? item.message : origCommit.message;
-      const commitToReplay = item.action === 'reword'
-        ? { ...origCommit, message: messageToUse }
-        : origCommit;
+      const commitToReplay =
+        item.action === 'reword' ? { ...origCommit, message: messageToUse } : origCommit;
 
       const result = replayCommit(repo, {
         origCommit: commitToReplay,
@@ -696,9 +684,7 @@ function rebaseContinue(repo: Repository): CommandResult {
   }
 
   // Créer le commit du step courant avec l'index actuel (pick/reword/edit normal)
-  const parentHash = replayed.length > 0
-    ? replayed[replayed.length - 1]!
-    : rebasing.base;
+  const parentHash = replayed.length > 0 ? replayed[replayed.length - 1]! : rebasing.base;
 
   const newCommitHash = replayCommitContinue(repo, {
     commitMessage: currentCommitMessage,
@@ -732,9 +718,8 @@ function rebaseContinue(repo: Repository): CommandResult {
           label: item.commitHash.slice(0, 7),
         });
 
-        const combinedMessage = item.action === 'squash'
-          ? `${lastCommitMessage}\n\n${item.message}`
-          : lastCommitMessage;
+        const combinedMessage =
+          item.action === 'squash' ? `${lastCommitMessage}\n\n${item.message}` : lastCommitMessage;
 
         if (!result.newHash) {
           const parentOfLast = getCommit(repo, lastCommitHash)?.parents[0] ?? rebasing.base;
@@ -797,9 +782,8 @@ function rebaseContinue(repo: Repository): CommandResult {
       }
 
       const messageToUse = item.action === 'reword' ? item.message : origCommit.message;
-      const commitToReplay = item.action === 'reword'
-        ? { ...origCommit, message: messageToUse }
-        : origCommit;
+      const commitToReplay =
+        item.action === 'reword' ? { ...origCommit, message: messageToUse } : origCommit;
 
       const result = replayCommit(repo, {
         origCommit: commitToReplay,

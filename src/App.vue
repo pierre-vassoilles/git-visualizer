@@ -6,6 +6,7 @@ import RefsSidebar from '@/components/RefsSidebar.vue';
 import InteractiveRebaseModal from '@/components/InteractiveRebaseModal.vue';
 import ConflictEditorModal from '@/components/ConflictEditorModal.vue';
 import GuidedTutorialModal from '@/components/GuidedTutorialModal.vue';
+import TutorialLauncherModal from '@/components/TutorialLauncherModal.vue';
 import LoadSharedSessionModal from '@/components/LoadSharedSessionModal.vue';
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue';
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
@@ -39,6 +40,8 @@ onMounted(() => {
   } else {
     store.loadFromStorage();
   }
+  // Restaure la progression d'un tutoriel interrompu (spec 62, C4).
+  store.restoreTutorialProgress();
   window.addEventListener('keydown', handleUndoRedoKey);
 });
 
@@ -86,6 +89,7 @@ function handleUndoRedoKey(event: KeyboardEvent): void {
   <InteractiveRebaseModal />
   <ConflictEditorModal />
   <GuidedTutorialModal />
+  <TutorialLauncherModal />
   <LoadSharedSessionModal />
   <CommandPalette />
   <div class="layout">

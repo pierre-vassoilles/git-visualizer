@@ -37,12 +37,7 @@ function engineWithThreeCommits(): { engine: GitEngine; hashes: string[] } {
 
 describe('HEAD détaché — snapshot.head.type', () => {
   it('snapshot.head.type est "branch" initialement', () => {
-    const engine = replay([
-      'git init',
-      'write f.txt "x"',
-      'git add f.txt',
-      'git commit -m "c"',
-    ]);
+    const engine = replay(['git init', 'write f.txt "x"', 'git add f.txt', 'git commit -m "c"']);
     const snap = engine.snapshot();
     expect(snap.head.type).toBe('branch');
     if (snap.head.type === 'branch') {
@@ -99,21 +94,12 @@ describe('HEAD détaché — git status', () => {
 
     expect(result.exitCode).toBe(0);
     expect(
-      result.output.some(
-        (l) =>
-          l.toLowerCase().includes('head detached') &&
-          l.includes(shortH),
-      ),
+      result.output.some((l) => l.toLowerCase().includes('head detached') && l.includes(shortH)),
     ).toBe(true);
   });
 
   it('git status affiche "On branch main" quand HEAD symbolique', () => {
-    const engine = replay([
-      'git init',
-      'write f.txt "x"',
-      'git add f.txt',
-      'git commit -m "c"',
-    ]);
+    const engine = replay(['git init', 'write f.txt "x"', 'git add f.txt', 'git commit -m "c"']);
     const result = engine.execute('git status');
     expect(result.output.some((l) => l.includes('On branch main'))).toBe(true);
   });
@@ -268,12 +254,7 @@ describe('HEAD détaché — déterminisme', () => {
   });
 
   it('deux engines avec checkout vers le même commit ont le même hash détaché', () => {
-    const cmds = [
-      'git init',
-      'write f.txt "v1"',
-      'git add f.txt',
-      'git commit -m "c1"',
-    ];
+    const cmds = ['git init', 'write f.txt "v1"', 'git add f.txt', 'git commit -m "c1"'];
     const e1 = replay(cmds);
     const e2 = replay(cmds);
 
@@ -296,12 +277,7 @@ describe('HEAD détaché — déterminisme', () => {
 
 describe('HEAD détaché — invariants modèle (spec 09)', () => {
   it('en mode symbolique : head.type=branch et name correspond à la branche courante', () => {
-    const engine = replay([
-      'git init',
-      'write f.txt "x"',
-      'git add f.txt',
-      'git commit -m "c"',
-    ]);
+    const engine = replay(['git init', 'write f.txt "x"', 'git add f.txt', 'git commit -m "c"']);
     const snap = engine.snapshot();
     expect(snap.head.type).toBe('branch');
     if (snap.head.type === 'branch') {

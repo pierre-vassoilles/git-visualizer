@@ -238,10 +238,10 @@ describe('git help — CA-help-06 : commande inconnue', () => {
   it('CA-help-06 : errors contient "is not a git command"', () => {
     const engine = newEngine();
     const result = engine.execute('git help nosuchcommand');
-    expect(result.errors.some(e => e.includes('is not a git command'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('is not a git command'))).toBe(true);
   });
 
-  it('CA-help-06 : aucune modification à l\'état du dépôt', () => {
+  it("CA-help-06 : aucune modification à l'état du dépôt", () => {
     const engine = replay([
       'git init',
       'write f.txt "hello"',
@@ -275,7 +275,7 @@ describe('git help — CA-help-07 : format des catégories', () => {
       'Outils',
       'Aide',
     ];
-    const found = categories.filter(cat => combined.includes(cat));
+    const found = categories.filter((cat) => combined.includes(cat));
     expect(found.length).toBeGreaterThanOrEqual(5);
   });
 
@@ -283,7 +283,18 @@ describe('git help — CA-help-07 : format des catégories', () => {
     const engine = newEngine();
     const result = engine.execute('git help');
     const combined = result.output.join('\n');
-    const requiredCmds = ['init', 'add', 'status', 'commit', 'log', 'branch', 'checkout', 'merge', 'reset', 'help'];
+    const requiredCmds = [
+      'init',
+      'add',
+      'status',
+      'commit',
+      'log',
+      'branch',
+      'checkout',
+      'merge',
+      'reset',
+      'help',
+    ];
     for (const cmd of requiredCmds) {
       expect(combined).toContain(cmd);
     }
@@ -304,7 +315,7 @@ describe('git help — CA-help-08 : typo dans la commande', () => {
   it('CA-help-08 : git help chckout — errors contient "is not a git command"', () => {
     const engine = newEngine();
     const result = engine.execute('git help chckout');
-    expect(result.errors.some(e => e.includes('is not a git command'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('is not a git command'))).toBe(true);
   });
 });
 

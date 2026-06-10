@@ -69,11 +69,15 @@ describe('Store — persistance localStorage', () => {
     expect(Object.keys(s2.snapshot.branches).sort()).toEqual(['feature', 'main']);
   });
 
-  it('CA-persist-06 : le rejeu s\'arrête au premier échec réel', () => {
+  it("CA-persist-06 : le rejeu s'arrête au premier échec réel", () => {
     // On force un historique avec une commande invalide au milieu
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ version: '1.0', commands: ['git init', 'git bogus', 'write a.txt "x"'], lastSaved: 0 }),
+      JSON.stringify({
+        version: '1.0',
+        commands: ['git init', 'git bogus', 'write a.txt "x"'],
+        lastSaved: 0,
+      }),
     );
     const store = useRepoStore();
     store.loadFromStorage();

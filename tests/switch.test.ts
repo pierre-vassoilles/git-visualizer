@@ -84,7 +84,9 @@ describe('git switch — CA-switch-02 : créer et basculer avec -c', () => {
     const result = engine.execute('git switch -c newbranch');
 
     expect(result.exitCode).toBe(0);
-    expect(result.output.some((l) => l.includes("Switched to a new branch 'newbranch'"))).toBe(true);
+    expect(result.output.some((l) => l.includes("Switched to a new branch 'newbranch'"))).toBe(
+      true,
+    );
 
     const snap = engine.snapshot();
     expect('newbranch' in snap.branches).toBe(true);
@@ -173,9 +175,7 @@ describe('git switch — CA-switch-05 : erreur branche inexistante', () => {
     expect(
       result.errors.some(
         (e) =>
-          e.includes('invalid choice') ||
-          e.includes('is not a tree') ||
-          e.includes('nosuchbranch'),
+          e.includes('invalid choice') || e.includes('is not a tree') || e.includes('nosuchbranch'),
       ),
     ).toBe(true);
 
@@ -216,7 +216,9 @@ describe('git switch — CA-switch-07 : erreur -c avec branche existante', () =>
     const result = engine.execute('git switch -c main');
 
     expect(result.exitCode).toBe(1);
-    expect(result.errors.some((e) => e.includes("A branch named 'main' already exists."))).toBe(true);
+    expect(result.errors.some((e) => e.includes("A branch named 'main' already exists."))).toBe(
+      true,
+    );
   });
 });
 
@@ -231,11 +233,7 @@ describe('git switch — CA-switch-08 : erreur pas de branche précédente', () 
     const result = engine.execute('git switch -');
 
     expect(result.exitCode).toBe(1);
-    expect(
-      result.errors.some((e) =>
-        e.toLowerCase().includes('no previous branch'),
-      ),
-    ).toBe(true);
+    expect(result.errors.some((e) => e.toLowerCase().includes('no previous branch'))).toBe(true);
   });
 });
 

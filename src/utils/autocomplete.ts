@@ -86,10 +86,7 @@ function singleCompletion(candidates: string[]): string {
 
 /** Retourne les noms de refs (branches + tags) triés alphabétiquement. */
 function getCandidateRefs(snapshot: RepoSnapshot): string[] {
-  const refs = [
-    ...Object.keys(snapshot.branches),
-    ...Object.keys(snapshot.tags),
-  ];
+  const refs = [...Object.keys(snapshot.branches), ...Object.keys(snapshot.tags)];
   return refs.sort();
 }
 
@@ -128,7 +125,7 @@ export function autocomplete(
   if (tokens.length <= 2) {
     const prefix = tokens.length === 1 ? '' : tokens[1].toLowerCase();
     const allNames = Object.keys(catalog.lookup).sort();
-    const candidates = allNames.filter(name => name.toLowerCase().startsWith(prefix));
+    const candidates = allNames.filter((name) => name.toLowerCase().startsWith(prefix));
 
     if (candidates.length === 0) {
       return NONE;
@@ -154,8 +151,8 @@ export function autocomplete(
     // Filtrer les flags dont le nom commence par le préfixe
     // Exclure les placeholders comme "<pathspec>", "[<ref>]", etc.
     const flagNames = meta.flags
-      .map(f => f.name)
-      .filter(name => name.startsWith('-') && name.toLowerCase().startsWith(prefix))
+      .map((f) => f.name)
+      .filter((name) => name.startsWith('-') && name.toLowerCase().startsWith(prefix))
       .sort();
 
     if (flagNames.length === 0) {
@@ -171,7 +168,7 @@ export function autocomplete(
   // --- Complétion de REF (branches / tags) ---
   const prefix = lastToken.toLowerCase();
   const allRefs = getCandidateRefs(snapshot);
-  const candidates = allRefs.filter(ref => ref.toLowerCase().startsWith(prefix));
+  const candidates = allRefs.filter((ref) => ref.toLowerCase().startsWith(prefix));
 
   if (candidates.length === 0) {
     return NONE;

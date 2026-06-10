@@ -27,7 +27,7 @@ describe('virtual fs (write / read)', () => {
       const engine = newEngine();
       engine.execute('write hello.txt "hello world"');
       const snap = engine.snapshot();
-      const file = snap.files.find(f => f.path === 'hello.txt');
+      const file = snap.files.find((f) => f.path === 'hello.txt');
       expect(file).toBeDefined();
     });
 
@@ -54,7 +54,7 @@ describe('virtual fs (write / read)', () => {
       const engine = newEngine();
       engine.execute('write src/core/main.ts "code"');
       const snap = engine.snapshot();
-      const file = snap.files.find(f => f.path === 'src/core/main.ts');
+      const file = snap.files.find((f) => f.path === 'src/core/main.ts');
       expect(file).toBeDefined();
     });
 
@@ -97,7 +97,7 @@ describe('virtual fs (write / read)', () => {
       const engine = newEngine();
       engine.execute('write empty.txt');
       const snap = engine.snapshot();
-      const file = snap.files.find(f => f.path === 'empty.txt');
+      const file = snap.files.find((f) => f.path === 'empty.txt');
       expect(file).toBeDefined();
     });
 
@@ -116,7 +116,7 @@ describe('virtual fs (write / read)', () => {
   // -------------------------------------------------------------------------
   // CA-write-05 : Lire le contenu d'un fichier (read)
   // -------------------------------------------------------------------------
-  describe('CA-write-05 : lire le contenu d\'un fichier', () => {
+  describe("CA-write-05 : lire le contenu d'un fichier", () => {
     it('CA-write-05 : exitCode === 0', () => {
       const engine = replay(['write doc.md "# Heading\nSome text"']);
       const result = engine.execute('read doc.md');
@@ -169,7 +169,7 @@ describe('virtual fs (write / read)', () => {
       expect(result.errors[0]).toContain('invalid path');
     });
 
-    it('CA-write-07 : le working tree n\'est pas modifié', () => {
+    it("CA-write-07 : le working tree n'est pas modifié", () => {
       const engine = newEngine();
       engine.execute('write /absolute/path.txt "content"');
       const snap = engine.snapshot();
@@ -221,21 +221,13 @@ describe('virtual fs (write / read)', () => {
   // -------------------------------------------------------------------------
   describe('CA-write-10 : interaction avec git add et status', () => {
     it('CA-write-10 : git status affiche myfile.txt comme "new file" après write + add', () => {
-      const engine = replay([
-        'git init',
-        'write myfile.txt "content"',
-        'git add myfile.txt',
-      ]);
+      const engine = replay(['git init', 'write myfile.txt "content"', 'git add myfile.txt']);
       const result = engine.execute('git status');
       expect(result.output.join('\n')).toContain('new file:   myfile.txt');
     });
 
-    it('CA-write-10 : l\'index contient myfile.txt après git add', () => {
-      const engine = replay([
-        'git init',
-        'write myfile.txt "content"',
-        'git add myfile.txt',
-      ]);
+    it("CA-write-10 : l'index contient myfile.txt après git add", () => {
+      const engine = replay(['git init', 'write myfile.txt "content"', 'git add myfile.txt']);
       const snap = engine.snapshot();
       expect(snap.indexPaths).toContain('myfile.txt');
     });

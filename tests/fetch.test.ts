@@ -184,8 +184,7 @@ describe('git fetch — CA-fetch-04 : fetch rien à récupérer', () => {
     expect(result.exitCode).toBe(0);
     // Soit output vide, soit contient "Already up to date."
     const output = result.output.join('\n');
-    const isUpToDate =
-      output.includes('Already up to date.') || result.output.length === 0;
+    const isUpToDate = output.includes('Already up to date.') || result.output.length === 0;
     expect(isUpToDate).toBe(true);
   });
 
@@ -238,9 +237,7 @@ describe('git fetch — CA-fetch-07 : branche distante inexistante', () => {
     expect(result.exitCode).toBe(128);
     expect(
       result.errors.some(
-        (e) =>
-          e.includes("Couldn't find remote ref") ||
-          e.includes('No remote tracking branch'),
+        (e) => e.includes("Couldn't find remote ref") || e.includes('No remote tracking branch'),
       ),
     ).toBe(true);
   });
@@ -399,7 +396,7 @@ describe('git fetch — cas limites', () => {
     expect(result.errors.some((e) => e.includes('No remote named'))).toBe(true);
   });
 
-  it('git fetch n\'affecte pas le working tree', () => {
+  it("git fetch n'affecte pas le working tree", () => {
     const engine = clonedPublicRepo();
 
     // Modifier le WT localement

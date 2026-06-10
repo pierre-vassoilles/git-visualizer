@@ -82,7 +82,7 @@ function isHexColor(s: string): boolean {
 // ---------------------------------------------------------------------------
 
 describe('computeLayout — CA-layout-06 : cas limites', () => {
-  it('CA-layout-06 : dépôt vide → layout vide, pas d\'erreur', () => {
+  it("CA-layout-06 : dépôt vide → layout vide, pas d'erreur", () => {
     const layout = computeLayout(makeInput([]));
     expect(layout.nodes).toEqual([]);
     expect(layout.edges).toEqual([]);
@@ -130,9 +130,7 @@ describe('computeLayout — CA-layout-06 : cas limites', () => {
     const a = makeCommit('aaa0001', 'A', []);
     const b = makeCommit('bbb0002', 'B', ['aaa0001'], ['main']);
     const c = makeCommit('ccc0003', 'C', ['aaa0001'], ['feature']);
-    const layout = computeLayout(
-      makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }),
-    );
+    const layout = computeLayout(makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }));
     expect(layout.laneCount).toBeGreaterThanOrEqual(2);
   });
 });
@@ -169,9 +167,7 @@ describe('computeLayout — CA-layout-01 : tri topologique (Y)', () => {
     const b = makeCommit('bbb0002', 'B', ['aaa0001']);
     const c = makeCommit('ccc0003', 'C', ['aaa0001']);
     const d = makeCommit('ddd0004', 'D (merge)', ['bbb0002', 'ccc0003'], ['main']);
-    const layout = computeLayout(
-      makeInput([a, b, c, d], { main: 'ddd0004' }),
-    );
+    const layout = computeLayout(makeInput([a, b, c, d], { main: 'ddd0004' }));
     // A est racine → Y(A) > Y(B), Y(A) > Y(C), Y(A) > Y(D)
     expect(yOf('aaa0001', layout)).toBeGreaterThan(yOf('bbb0002', layout));
     expect(yOf('aaa0001', layout)).toBeGreaterThan(yOf('ccc0003', layout));
@@ -249,9 +245,7 @@ describe('computeLayout — CA-layout-03 : branches cohérentes', () => {
     const a = makeCommit('aaa0001', 'A', []);
     const b = makeCommit('bbb0002', 'B', ['aaa0001'], ['main']);
     const c = makeCommit('ccc0003', 'C', ['aaa0001'], ['feature']);
-    const layout = computeLayout(
-      makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }),
-    );
+    const layout = computeLayout(makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }));
     const mainTipLane = nodeOf('bbb0002', layout).lane;
     const featureTipLane = nodeOf('ccc0003', layout).lane;
     expect(mainTipLane).toBe(0);
@@ -264,9 +258,7 @@ describe('computeLayout — CA-layout-03 : branches cohérentes', () => {
     const a = makeCommit('aaa0001', 'A', []);
     const b = makeCommit('bbb0002', 'B', ['aaa0001'], ['main']);
     const c = makeCommit('ccc0003', 'C', ['aaa0001'], ['feature']);
-    const layout = computeLayout(
-      makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }),
-    );
+    const layout = computeLayout(makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }));
     // A est ancêtre commun → héritage de lane 0 (depuis main, qui est primary)
     expect(nodeOf('aaa0001', layout).lane).toBe(0);
   });
@@ -320,9 +312,7 @@ describe('computeLayout — CA-layout-04 : positions (formules x = paddingLeft +
     const a = makeCommit('aaa0001', 'A', []);
     const b = makeCommit('bbb0002', 'B', ['aaa0001'], ['main']);
     const c = makeCommit('ccc0003', 'C', ['aaa0001'], ['feature']);
-    const layout = computeLayout(
-      makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }),
-    );
+    const layout = computeLayout(makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }));
     const featureNode = nodeOf('ccc0003', layout);
     expect(featureNode.x).toBe(PADDING_LEFT + featureNode.lane * LANE_WIDTH);
   });
@@ -351,9 +341,7 @@ describe('computeLayout — CA-layout-04 : positions (formules x = paddingLeft +
     const a = makeCommit('aaa0001', 'A', []);
     const b = makeCommit('bbb0002', 'B', ['aaa0001'], ['main']);
     const c = makeCommit('ccc0003', 'C', ['aaa0001'], ['feature']);
-    const layout = computeLayout(
-      makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }),
-    );
+    const layout = computeLayout(makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }));
     const positions = layout.nodes.map((n) => `${n.x},${n.y}`);
     const unique = new Set(positions);
     expect(unique.size).toBe(positions.length);
@@ -380,9 +368,7 @@ describe('computeLayout — CA-layout-05 : arêtes routées', () => {
     const b = makeCommit('bbb0002', 'B', ['aaa0001']);
     const c = makeCommit('ccc0003', 'C', ['aaa0001']);
     const d = makeCommit('ddd0004', 'D (merge)', ['bbb0002', 'ccc0003'], ['main']);
-    const layout = computeLayout(
-      makeInput([a, b, c, d], { main: 'ddd0004' }),
-    );
+    const layout = computeLayout(makeInput([a, b, c, d], { main: 'ddd0004' }));
     // Somme parents : A=0, B=1, C=1, D=2 → total 4 arêtes
     expect(layout.edges).toHaveLength(4);
   });
@@ -430,9 +416,7 @@ describe('computeLayout — CA-layout-05 : arêtes routées', () => {
     const b = makeCommit('bbb0002', 'B', ['aaa0001']); // ancêtre de main
     const c = makeCommit('ccc0003', 'C', ['aaa0001']); // tip de feature
     const d = makeCommit('ddd0004', 'D', ['bbb0002', 'ccc0003'], ['main']); // merge commit, tip de main
-    const layout = computeLayout(
-      makeInput([a, b, c, d], { main: 'ddd0004', feature: 'ccc0003' }),
-    );
+    const layout = computeLayout(makeInput([a, b, c, d], { main: 'ddd0004', feature: 'ccc0003' }));
     // L'arête D→C doit être de type merge (D sur lane 0, C sur lane 1)
     const mergeEdges = layout.edges.filter((e) => e.type === 'merge');
     expect(mergeEdges.length).toBeGreaterThanOrEqual(1);
@@ -444,16 +428,14 @@ describe('computeLayout — CA-layout-05 : arêtes routées', () => {
     const b = makeCommit('bbb0002', 'B', ['aaa0001']);
     const c = makeCommit('ccc0003', 'C', ['aaa0001']);
     const d = makeCommit('ddd0004', 'D', ['bbb0002', 'ccc0003'], ['main']);
-    const layout = computeLayout(
-      makeInput([a, b, c, d], { main: 'ddd0004', feature: 'ccc0003' }),
-    );
+    const layout = computeLayout(makeInput([a, b, c, d], { main: 'ddd0004', feature: 'ccc0003' }));
     const mergeEdges = layout.edges.filter((e) => e.type === 'merge');
     for (const edge of mergeEdges) {
       expect(edge.fromLane).not.toBe(edge.toLane);
     }
   });
 
-  it('CA-layout-05 : fromY > toY pour toutes les arêtes (parent plus bas que l\'enfant)', () => {
+  it("CA-layout-05 : fromY > toY pour toutes les arêtes (parent plus bas que l'enfant)", () => {
     // Spec types.ts invariant : Y(from) > Y(to) (parent plus bas, récent en haut)
     const a = makeCommit('aaa0001', 'A', []);
     const b = makeCommit('bbb0002', 'B', ['aaa0001']);
@@ -470,9 +452,7 @@ describe('computeLayout — CA-layout-05 : arêtes routées', () => {
     const b = makeCommit('bbb0002', 'B', ['aaa0001']);
     const c = makeCommit('ccc0003', 'C', ['aaa0001']);
     const d = makeCommit('ddd0004', 'D', ['bbb0002', 'ccc0003'], ['main']);
-    const layout = computeLayout(
-      makeInput([a, b, c, d], { main: 'ddd0004', feature: 'ccc0003' }),
-    );
+    const layout = computeLayout(makeInput([a, b, c, d], { main: 'ddd0004', feature: 'ccc0003' }));
     for (const edge of layout.edges) {
       expect(edge.fromY).toBeGreaterThan(edge.toY);
     }
@@ -531,9 +511,7 @@ describe('computeLayout — CA-layout-07 : assignation de couleurs', () => {
     const a = makeCommit('aaa0001', 'A', []);
     const b = makeCommit('bbb0002', 'B', ['aaa0001'], ['main']);
     const c = makeCommit('ccc0003', 'C', ['aaa0001'], ['feature']);
-    const layout = computeLayout(
-      makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }),
-    );
+    const layout = computeLayout(makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }));
     const mainColor = nodeOf('bbb0002', layout).color;
     const featureColor = nodeOf('ccc0003', layout).color;
     expect(mainColor).not.toBe(featureColor);
@@ -655,7 +633,7 @@ describe('computeLayout — merge réel (régression B1/B2)', () => {
     expect(unique.size).toBe(positions.length);
   });
 
-  it('(b) B et C n\'ont pas la même lane', () => {
+  it("(b) B et C n'ont pas la même lane", () => {
     const layout = computeLayout(buildDiamondInput());
     const laneB = nodeOf(hashB, layout).lane;
     const laneC = nodeOf(hashC, layout).lane;
@@ -686,11 +664,8 @@ describe('computeLayout — dimensions width/height cohérentes', () => {
     const a = makeCommit('aaa0001', 'A', []);
     const b = makeCommit('bbb0002', 'B', ['aaa0001'], ['main']);
     const c = makeCommit('ccc0003', 'C', ['aaa0001'], ['feature']);
-    const layout = computeLayout(
-      makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }),
-    );
-    const expected =
-      layout.padding.left + layout.laneCount * 80 + layout.padding.right;
+    const layout = computeLayout(makeInput([a, b, c], { main: 'bbb0002', feature: 'ccc0003' }));
+    const expected = layout.padding.left + layout.laneCount * 80 + layout.padding.right;
     expect(layout.width).toBe(expected);
   });
 

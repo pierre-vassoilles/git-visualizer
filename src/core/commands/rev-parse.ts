@@ -42,9 +42,7 @@ export function cmdRevParse(repo: Repository, args: string[]): CommandResult {
 
     const hash = repo.refs.remotes?.[upstream.remote]?.[upstream.branch] ?? null;
     if (!hash) {
-      return fail([
-        `fatal: No upstream branch found for '${targetBranch}'`,
-      ], 128);
+      return fail([`fatal: No upstream branch found for '${targetBranch}'`], 128);
     }
 
     return ok([hash]);
@@ -52,7 +50,10 @@ export function cmdRevParse(repo: Repository, args: string[]): CommandResult {
 
   const hash = resolveCommitish(repo, ref);
   if (!hash) {
-    return fail([`fatal: ambiguous argument '${ref}': unknown revision or path not in the working tree.`], 128);
+    return fail(
+      [`fatal: ambiguous argument '${ref}': unknown revision or path not in the working tree.`],
+      128,
+    );
   }
 
   return ok([hash]);

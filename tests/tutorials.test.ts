@@ -28,17 +28,21 @@ import { useRepoStore } from '@/stores/repo';
 // ---------------------------------------------------------------------------
 
 describe('catalogue de tutoriels (CA-01/14)', () => {
-  it('CA-01 : au moins 3 tutoriels bien formés', () => {
+  it('CA-01 : au moins 3 tutoriels bien formés (modèle bilingue, spec 62)', () => {
     const tutos = getAllTutorials();
     expect(tutos.length).toBeGreaterThanOrEqual(3);
     for (const t of tutos) {
       expect(t.id).toBeTruthy();
-      expect(t.title).toBeTruthy();
-      expect(t.description).toBeTruthy();
+      expect(t.title.en).toBeTruthy();
+      expect(t.title.fr).toBeTruthy();
+      expect(t.description.en).toBeTruthy();
+      expect(t.description.fr).toBeTruthy();
       expect(typeof t.duration).toBe('number');
-      expect([1, 2, 3]).toContain(t.difficulty);
+      expect(['basic', 'medium', 'advanced']).toContain(t.level);
       expect(t.steps.length).toBeGreaterThan(0);
       for (const s of t.steps) {
+        expect(s.explanation.en).toBeTruthy();
+        expect(s.graphEffect.en).toBeTruthy();
         expect(s.objectives.length).toBeGreaterThan(0);
         for (const o of s.objectives) expect(typeof o.validate).toBe('function');
       }

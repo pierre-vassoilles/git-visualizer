@@ -363,7 +363,7 @@ describe('replaceLastToken (CA-autocase-01)', () => {
     expect(replaceLastToken('git checkout ', 'main')).toBe('git checkout main');
   });
 
-  it('préserve le préfixe d\'une chaîne de commandes', () => {
+  it("préserve le préfixe d'une chaîne de commandes", () => {
     expect(replaceLastToken('git init && git checkout fe', 'Feature')).toBe(
       'git init && git checkout Feature',
     );

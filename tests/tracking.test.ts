@@ -124,7 +124,7 @@ describe('git branch --unset-upstream — CA-tracking-03 : retirer upstream', ()
     expect('main' in snap.branches).toBe(true);
   });
 
-  it('CA-tracking-03 : unset idempotent (exitCode 0 si pas d\'upstream)', () => {
+  it("CA-tracking-03 : unset idempotent (exitCode 0 si pas d'upstream)", () => {
     const engine = cloneWithFeature();
     // feature n'a pas d'upstream
     const result = engine.execute('git branch --unset-upstream feature');
@@ -151,7 +151,7 @@ describe('git branch -vv — CA-tracking-04 : format détaillé', () => {
     expect(output).toContain('[origin/main]');
   });
 
-  it('CA-tracking-04 : branche sans upstream n\'a pas de [...]', () => {
+  it("CA-tracking-04 : branche sans upstream n'a pas de [...]", () => {
     const engine = cloneWithFeature();
     // feature n'a pas d'upstream
     const result = engine.execute('git branch -vv');
@@ -367,9 +367,7 @@ describe('git status behind — CA-tracking-11 : status enrichi behind', () => {
 
     const result = engine.execute('git status');
     const output = result.output.join('\n');
-    expect(
-      output.includes('can be fast-forwarded') || output.includes('git pull'),
-    ).toBe(true);
+    expect(output.includes('can be fast-forwarded') || output.includes('git pull')).toBe(true);
   });
 });
 
@@ -459,7 +457,10 @@ describe('git status gone — CA-tracking-13 : upstream supprimé (gone)', () =>
     //
     // On se contente donc de vérifier que le champ "gone" n'est pas faussement
     // activé quand la ref existe.
-    expect(snapWithDevelop.tracking?.['main']?.upstream).toEqual({ remote: 'origin', branch: 'develop' });
+    expect(snapWithDevelop.tracking?.['main']?.upstream).toEqual({
+      remote: 'origin',
+      branch: 'develop',
+    });
   });
 
   it('CA-tracking-13 : snapshot.tracking[branch].gone === true si ref distante absente', () => {
@@ -506,7 +507,7 @@ describe('git status up-to-date — CA-tracking-14 : status upstream à jour', (
 // CA-tracking-15 : git rev-parse @{u} sans upstream → erreur
 // ---------------------------------------------------------------------------
 
-describe('git rev-parse @{u} erreur — CA-tracking-15 : pas d\'upstream', () => {
+describe("git rev-parse @{u} erreur — CA-tracking-15 : pas d'upstream", () => {
   it('CA-tracking-15 : exitCode 128 si branche sans upstream', () => {
     const engine = replay([
       'git init',
@@ -634,7 +635,7 @@ describe('tracking — cas limites', () => {
     expect(output).not.toMatch(/\[origin\//);
   });
 
-  it('git status sans upstream n\'affiche pas de ligne de tracking', () => {
+  it("git status sans upstream n'affiche pas de ligne de tracking", () => {
     const engine = replay([
       'git init',
       'write f.txt "hello"',

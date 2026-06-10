@@ -36,14 +36,14 @@ describe('GitEngine — dispatch général', () => {
     expect(result.exitCode).toBe(127);
   });
 
-  it('git sans sous-commande → code 0 et message d\'usage', () => {
+  it("git sans sous-commande → code 0 et message d'usage", () => {
     const engine = newEngine();
     const result = engine.execute('git');
     expect(result.exitCode).toBe(0);
     expect(result.output.join(' ')).toMatch(/usage/i);
   });
 
-  it('sous-commande git inconnue → message d\'erreur git', () => {
+  it("sous-commande git inconnue → message d'erreur git", () => {
     const engine = newEngine();
     engine.execute('git init');
     const result = engine.execute('git unknownsub');

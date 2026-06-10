@@ -2,9 +2,10 @@
 import { computed, ref } from 'vue';
 import { useRepoStore } from '@/stores/repo';
 import { getAllScenarios } from '@/constants/scenarios';
-import { getAllTutorials } from '@/constants/tutorials';
 import { useI18n } from '@/i18n';
 import type { MessageKey } from '@/i18n/messages';
+import { localize } from '@/core/tutorial-helpers';
+import { useTutorialLauncher } from '@/composables/useTutorialLauncher';
 import {
   serializeExportedSession,
   exportFilename,
@@ -12,7 +13,8 @@ import {
 } from '@/utils/export-import';
 
 const repo = useRepoStore();
-const { t } = useI18n();
+const { t, locale } = useI18n();
+const { openTutorialLauncher } = useTutorialLauncher();
 
 // ---------------------------------------------------------------------------
 // Branches
@@ -303,15 +305,11 @@ function difficultyLabel(d: 1 | 2 | 3): string {
 }
 
 // ---------------------------------------------------------------------------
-// Tutoriels guidés (spec 51)
+// Tutoriels guidés (spec 51 / 62) — ouverture du lanceur
 // ---------------------------------------------------------------------------
 
-const tutorials = computed(() => getAllTutorials());
-
-function onStartTutorial(id: string): void {
-  if (confirm(t('sidebar.confirmTutorial'))) {
-    repo.startTutorial(id);
-  }
+function onOpenTutorialLauncher(): void {
+  openTutorialLauncher();
 }
 </script>
 
@@ -544,29 +542,19 @@ function onStartTutorial(id: string): void {
     </section>
 
     <!-- ================================================================
-         Tutoriels guidés
+         Tutoriels guidés (spec 62) — lanceur + tutoriel en cours
     ================================================================ -->
     <section>
       <h2>{{ t('sidebar.tutorials') }}</h2>
-      <ul class="item-list scenario-list">
-        <li v-for="tuto in tutorials" :key="tuto.id" class="scenario-item">
-          <div class="scenario-header">
-            <span class="scenario-title">{{ tuto.title }}</span>
-            <span class="scenario-difficulty" :class="`diff-${tuto.difficulty}`">
-              {{ difficultyLabel(tuto.difficulty) }}
-            </span>
-          </div>
-          <p class="scenario-desc">{{ tuto.description }}</p>
-          <p class="tuto-meta">
-            {{
-              t('sidebar.stepsAndDuration', { steps: tuto.steps.length, duration: tuto.duration })
-            }}
-          </p>
-          <button class="btn btn-tutorial" @click="onStartTutorial(tuto.id)">
-            {{ t('sidebar.start') }}
-          </button>
-        </li>
-      </ul>
+      <!-- Tutoriel en cours : affiche le titre et donne accès -->
+      <div v-if="repo.currentTutorial" class="current-tuto-box">
+        <span class="current-tuto-label">
+          {{ localize(repo.currentTutorial.title, locale) }}
+        </span>
+      </div>
+      <button class="btn btn-tutorial" @click="onOpenTutorialLauncher">
+        {{ t('sidebar.openTutorials') }}
+      </button>
     </section>
   </aside>
 </template>
@@ -881,6 +869,24 @@ h2 {
   font-size: 0.68rem;
   color: #6b7280;
   margin: 2px 0;
+}
+
+.current-tuto-box {
+  background: #eef2ff;
+  border-left: 3px solid #6366f1;
+  border-radius: 3px;
+  padding: 4px 8px;
+  margin-bottom: 6px;
+}
+
+.current-tuto-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #3730a3;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .btn-tutorial {

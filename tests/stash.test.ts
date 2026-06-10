@@ -35,12 +35,7 @@ function repoWithChanges() {
  * Dépôt propre (aucune modification non commitée).
  */
 function repoClean() {
-  return replay([
-    'git init',
-    'write a.txt "v1"',
-    'git add a.txt',
-    'git commit -m "C1"',
-  ]);
+  return replay(['git init', 'write a.txt "v1"', 'git add a.txt', 'git commit -m "C1"']);
 }
 
 // ---------------------------------------------------------------------------
@@ -330,12 +325,7 @@ describe('CA-stash-10 : Pop avec conflit', () => {
 
 describe('CA-stash-11 : Stash sur HEAD détaché', () => {
   it('CA-stash-11 : git stash en HEAD détaché → exitCode 0, output contient "WIP on HEAD" ou hash', () => {
-    const engine = replay([
-      'git init',
-      'write a.txt "v1"',
-      'git add a.txt',
-      'git commit -m "C1"',
-    ]);
+    const engine = replay(['git init', 'write a.txt "v1"', 'git add a.txt', 'git commit -m "C1"']);
 
     // Détacher HEAD
     const snap0 = engine.snapshot();
@@ -362,7 +352,7 @@ describe('CA-stash-11 : Stash sur HEAD détaché', () => {
 // CA-stash-12 : Pop stash d'une autre branche
 // ---------------------------------------------------------------------------
 
-describe('CA-stash-12 : Pop stash d\'une autre branche', () => {
+describe("CA-stash-12 : Pop stash d'une autre branche", () => {
   it('CA-stash-12 : stash créé sur main, pop sur feature → appliqué sans erreur de branche', () => {
     const engine = replay([
       'git init',

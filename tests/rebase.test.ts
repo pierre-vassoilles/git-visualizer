@@ -134,7 +134,7 @@ describe('CA-rebase-02 : rebase déjà à jour', () => {
 
     const snap = engine.snapshot();
     // Aucun commit créé
-    expect((snap.allCommits?.length ?? 0)).toBe(countBefore);
+    expect(snap.allCommits?.length ?? 0).toBe(countBefore);
     // feature inchangé
     expect(snap.branches['feature']).toBe(featureHash);
   });
@@ -485,7 +485,9 @@ describe('CA-rebase-10 : rebase avec un merge commit dans la branche', () => {
       const snap = engine.snapshot();
       const d1PrimeHash = snap.branches['feature']!;
       expect(d1PrimeHash).not.toBe(d1Hash);
-      expect(result.output.some((l) => l.includes('Successfully rebased') || l.includes('up to date'))).toBe(true);
+      expect(
+        result.output.some((l) => l.includes('Successfully rebased') || l.includes('up to date')),
+      ).toBe(true);
     } else {
       // Erreur : message explicite
       const allMessages = [...result.output, ...result.errors].join(' ');
@@ -522,9 +524,7 @@ describe('Rebase en cours → second rebase refusé', () => {
     // Essayer un autre rebase
     const result = engine.execute('git rebase main');
     expect(result.exitCode).toBe(1);
-    expect(
-      result.errors.some((e) => e.includes('already a rebase in progress')),
-    ).toBe(true);
+    expect(result.errors.some((e) => e.includes('already a rebase in progress'))).toBe(true);
   });
 });
 

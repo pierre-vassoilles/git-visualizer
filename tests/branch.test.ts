@@ -78,7 +78,7 @@ describe('git branch — CA-branch-02 : lister plusieurs branches', () => {
     expect(output.some((l) => /^\s{2}main/.test(l))).toBe(true);
     expect(output.some((l) => /^\s{2}develop/.test(l))).toBe(true);
     // feature n'est pas dans les branches non marquées
-    expect(output.every((l) => !(/^\s{2}feature/.test(l)))).toBe(true);
+    expect(output.every((l) => !/^\s{2}feature/.test(l))).toBe(true);
     // Trois branches au total
     expect(output).toHaveLength(3);
   });
@@ -92,9 +92,7 @@ describe('git branch — CA-branch-03 : créer une branche depuis HEAD', () => {
   it('CA-branch-03 : succès muet, nouvelle branche pointe sur HEAD', () => {
     const engine = engineWithCommit();
     const snapshotBefore = engine.snapshot();
-    const headHash = snapshotBefore.head.type === 'branch'
-      ? snapshotBefore.branches['main']
-      : '';
+    const headHash = snapshotBefore.head.type === 'branch' ? snapshotBefore.branches['main'] : '';
 
     const result = engine.execute('git branch feature');
 
@@ -167,7 +165,9 @@ describe('git branch — CA-branch-06 : erreur branche déjà existante', () => 
     const result = engine.execute('git branch main');
 
     expect(result.exitCode).toBe(1);
-    expect(result.errors.some((e) => e.includes("A branch named 'main' already exists."))).toBe(true);
+    expect(result.errors.some((e) => e.includes("A branch named 'main' already exists."))).toBe(
+      true,
+    );
 
     // refs inchangé : main toujours là, pas de doublon
     const snap = engine.snapshot();
@@ -278,7 +278,8 @@ describe('git branch — CA-branch-12 : nom de branche invalide', () => {
     expect(result.exitCode).toBe(1);
     expect(
       result.errors.some(
-        (e) => e.toLowerCase().includes('invalid branch name') || e.includes('requires a branch name'),
+        (e) =>
+          e.toLowerCase().includes('invalid branch name') || e.includes('requires a branch name'),
       ),
     ).toBe(true);
   });

@@ -64,7 +64,7 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'merge-no-ff',
     title: 'Merge --no-ff',
-    description: 'Forcer la création d\'un commit de merge même en fast-forward.',
+    description: "Forcer la création d'un commit de merge même en fast-forward.",
     category: 'Fusion',
     difficulty: 1,
     commands: [
@@ -231,7 +231,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'multi-branch',
     title: 'Branches divergentes multiples',
     description:
-      'Quatre branches issues d\'un même commit, à des états différents (1 à 3 commits chacune), sans fusion : illustre les lanes et couleurs du graphe.',
+      "Quatre branches issues d'un même commit, à des états différents (1 à 3 commits chacune), sans fusion : illustre les lanes et couleurs du graphe.",
     category: 'Branches',
     difficulty: 2,
     commands: [
@@ -299,7 +299,7 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'pull-merge',
     title: 'Pull divergent (merge)',
-    description: 'Le local recule pendant qu\'origin avance : recuperer par une fusion.',
+    description: "Le local recule pendant qu'origin avance : recuperer par une fusion.",
     category: 'Distant',
     difficulty: 2,
     commands: [
@@ -377,7 +377,7 @@ export const SCENARIOS: Scenario[] = [
   // -------------------------------------------------------------------
   {
     id: 'feature-rebase',
-    title: 'Rebase d\'une feature sur dev',
+    title: "Rebase d'une feature sur dev",
     description:
       'Une feature est rebasée sur dev qui a avancé entre-temps (réécriture des hashes), puis fusionnée en fast-forward et taguée.',
     category: 'Réécriture',
@@ -423,7 +423,7 @@ export const SCENARIOS: Scenario[] = [
  * Retourne un scénario par son identifiant, ou null s'il est introuvable.
  */
 export function getScenarioById(id: string): Scenario | null {
-  return SCENARIOS.find(s => s.id === id) ?? null;
+  return SCENARIOS.find((s) => s.id === id) ?? null;
 }
 
 /**
@@ -437,5 +437,5 @@ export function getAllScenarios(): Scenario[] {
  * Retourne les scénarios filtrés par catégorie.
  */
 export function getScenariosByCategory(category: string): Scenario[] {
-  return SCENARIOS.filter(s => s.category === category);
+  return SCENARIOS.filter((s) => s.category === category);
 }

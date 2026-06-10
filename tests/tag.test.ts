@@ -256,9 +256,7 @@ describe('git tag — CA-tag-09 : erreur commit inexistant', () => {
 
     expect(result.exitCode).toBe(1);
     expect(
-      result.errors.some(
-        (e) => e.includes('is not a commit') || e.includes('cannot find object'),
-      ),
+      result.errors.some((e) => e.includes('is not a commit') || e.includes('cannot find object')),
     ).toBe(true);
 
     const snap = engine.snapshot();

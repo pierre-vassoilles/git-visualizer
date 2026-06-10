@@ -83,7 +83,7 @@ function buildDetailedHelp(name: string): string[] {
   } else {
     for (const flag of meta.flags) {
       const hasArg = flag.hasArgument ? ' <valeur>' : '';
-      const namePadded = (`  ${flag.name}${hasArg}`).padEnd(26);
+      const namePadded = `  ${flag.name}${hasArg}`.padEnd(26);
       lines.push(`${namePadded}${flag.description}`);
     }
   }

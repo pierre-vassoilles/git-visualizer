@@ -22,7 +22,7 @@ describe('splitCommandChain', () => {
     expect(segs[1]!.operator).toBe('&&');
   });
 
-  it('mélange `;` et `&&` en gardant l\'opérateur précédent', () => {
+  it("mélange `;` et `&&` en gardant l'opérateur précédent", () => {
     const segs = splitCommandChain('a && b ; c');
     expect(segs.map((s) => s.operator)).toEqual([null, '&&', ';']);
     expect(segs.map((s) => s.command.trim())).toEqual(['a', 'b', 'c']);
@@ -39,7 +39,7 @@ describe('splitCommandChain', () => {
     expect(segs).toHaveLength(1);
   });
 
-  it('un `&` isolé n\'est pas un séparateur', () => {
+  it("un `&` isolé n'est pas un séparateur", () => {
     const segs = splitCommandChain('write f.txt "a & b"');
     expect(segs).toHaveLength(1);
   });

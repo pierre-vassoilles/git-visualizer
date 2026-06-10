@@ -25,9 +25,9 @@ export function cmdPull(repo: Repository, args: string[]): CommandResult {
   // --no-rebase force le merge (annule un éventuel flag --rebase, mais on ne gère pas la config)
 
   // Filtrer les flags connus
-  const posArgs = args.filter(
-    (a) => a !== '--rebase' && a !== '--no-rebase',
-  ).filter((a) => !a.startsWith('-'));
+  const posArgs = args
+    .filter((a) => a !== '--rebase' && a !== '--no-rebase')
+    .filter((a) => !a.startsWith('-'));
 
   let remoteName: string;
   let remoteBranch: string;
@@ -48,13 +48,16 @@ export function cmdPull(repo: Repository, args: string[]): CommandResult {
     const cur = currentBranch(repo);
     const upstream = cur ? repo.branchUpstream[cur] : null;
     if (!upstream) {
-      return fail([
-        'fatal: There is no tracking information for the current branch.',
-        'Please specify which branch you want to merge with.',
-        'See git-pull(1) for details.',
-        '',
-        '    git pull <remote> <branch>',
-      ], 1);
+      return fail(
+        [
+          'fatal: There is no tracking information for the current branch.',
+          'Please specify which branch you want to merge with.',
+          'See git-pull(1) for details.',
+          '',
+          '    git pull <remote> <branch>',
+        ],
+        1,
+      );
     }
     remoteName = upstream.remote;
     remoteBranch = upstream.branch;

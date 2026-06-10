@@ -47,9 +47,7 @@ export function cmdReset(repo: Repository, args: string[]): CommandResult {
   const targetHash = resolveCommitish(repo, commitRef);
   if (!targetHash) {
     return fail(
-      [
-        `fatal: ambiguous argument '${commitRef}': unknown revision or path not in working tree`,
-      ],
+      [`fatal: ambiguous argument '${commitRef}': unknown revision or path not in working tree`],
       128,
     );
   }
@@ -57,9 +55,7 @@ export function cmdReset(repo: Repository, args: string[]): CommandResult {
   const targetCommit = getCommit(repo, targetHash);
   if (!targetCommit) {
     return fail(
-      [
-        `fatal: ambiguous argument '${commitRef}': unknown revision or path not in working tree`,
-      ],
+      [`fatal: ambiguous argument '${commitRef}': unknown revision or path not in working tree`],
       128,
     );
   }

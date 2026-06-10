@@ -154,9 +154,7 @@ describe('CA-revisions-05 : isAncestor false → merge crée un commit à 2 pare
 
     const snap = engine.snapshot();
     // Le commit de tête doit avoir 2 parents (merge commit)
-    const mergeCommit = snap.allCommits?.find(
-      (c) => c.parents.length === 2,
-    );
+    const mergeCommit = snap.allCommits?.find((c) => c.parents.length === 2);
     expect(mergeCommit).toBeDefined();
   });
 });
@@ -260,8 +258,8 @@ describe('CA-branch-d-01 : branch -d accepte une branche mergée', () => {
 
     const result = engine.execute('git branch -d feature');
     expect(result.exitCode).toBe(0);
-    expect(result.output.some((l) => l.includes("Deleted branch"))).toBe(true);
-    expect(result.output.some((l) => l.includes("feature"))).toBe(true);
+    expect(result.output.some((l) => l.includes('Deleted branch'))).toBe(true);
+    expect(result.output.some((l) => l.includes('feature'))).toBe(true);
 
     const snapAfter = engine.snapshot();
     expect('feature' in snapAfter.branches).toBe(false);
@@ -323,7 +321,7 @@ describe('CA-branch-d-02 : branch -d refuse une branche non mergée', () => {
 
     const result = engine.execute('git branch -D feature');
     expect(result.exitCode).toBe(0);
-    expect(result.output.some((l) => l.includes("Deleted branch"))).toBe(true);
+    expect(result.output.some((l) => l.includes('Deleted branch'))).toBe(true);
 
     const snap = engine.snapshot();
     expect('feature' in snap.branches).toBe(false);

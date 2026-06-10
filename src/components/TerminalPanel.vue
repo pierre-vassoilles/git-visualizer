@@ -187,7 +187,9 @@ onMounted(() => {
   fit.fit();
 
   write('Git Visualizer — terminal virtuel\r\n');
-  write("Tapez une commande git (ex. \x1b[36mgit init\x1b[0m). \x1b[2mTab\x1b[0m = autocomplétion, \x1b[2mgit help\x1b[0m = aide.\r\n");
+  write(
+    'Tapez une commande git (ex. \x1b[36mgit init\x1b[0m). \x1b[2mTab\x1b[0m = autocomplétion, \x1b[2mgit help\x1b[0m = aide.\r\n',
+  );
   write(PROMPT);
 
   term.onData(onData);

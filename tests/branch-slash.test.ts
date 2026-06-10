@@ -46,7 +46,7 @@ describe('noms de branches avec /', () => {
     expect(engine.snapshot().head.type).toBe('detached');
   });
 
-  it('fusion d\'une branche avec slash fonctionne', () => {
+  it("fusion d'une branche avec slash fonctionne", () => {
     const engine = replay([
       'git init',
       'write a.txt "base"',

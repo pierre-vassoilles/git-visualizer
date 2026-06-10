@@ -72,7 +72,7 @@ describe('storage — CA-persist-03 : JSON corrompu', () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it('CA-persist-03 : clé absente → loadHistory retourne null (pas d\'erreur)', () => {
+  it("CA-persist-03 : clé absente → loadHistory retourne null (pas d'erreur)", () => {
     // localStorage est vierge
     const result = loadHistory();
     expect(result).toBeNull();
@@ -85,31 +85,40 @@ describe('storage — CA-persist-03 : JSON corrompu', () => {
 
 describe('storage — CA-persist-04 : version incompatible', () => {
   it('CA-persist-04 : version "99.0" → loadHistory retourne null', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version: '99.0',
-      commands: ['git init'],
-      lastSaved: Date.now(),
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: '99.0',
+        commands: ['git init'],
+        lastSaved: Date.now(),
+      }),
+    );
     const result = loadHistory();
     expect(result).toBeNull();
   });
 
   it('CA-persist-04 : version "99.0" → clé purgée de localStorage', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version: '99.0',
-      commands: ['git init'],
-      lastSaved: Date.now(),
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: '99.0',
+        commands: ['git init'],
+        lastSaved: Date.now(),
+      }),
+    );
     loadHistory();
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
   it('CA-persist-04 : version "2.0" → loadHistory retourne null (major incompatible)', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version: '2.0',
-      commands: ['git init'],
-      lastSaved: Date.now(),
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: '2.0',
+        commands: ['git init'],
+        lastSaved: Date.now(),
+      }),
+    );
     const result = loadHistory();
     expect(result).toBeNull();
   });
@@ -121,22 +130,28 @@ describe('storage — CA-persist-04 : version incompatible', () => {
 
 describe('storage — CA-persist-10 : format JSON valide avec/sans checksum', () => {
   it('CA-persist-10 : loadHistory charge normalement sans checksum', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version: '1.0',
-      commands: ['git init', 'git commit -m "x"'],
-      lastSaved: Date.now(),
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: '1.0',
+        commands: ['git init', 'git commit -m "x"'],
+        lastSaved: Date.now(),
+      }),
+    );
     const result = loadHistory();
     expect(result).toEqual(['git init', 'git commit -m "x"']);
   });
 
-  it('CA-persist-10 : présence d\'un checksum ne bloque pas le parsing', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version: '1.0',
-      commands: ['git init'],
-      lastSaved: Date.now(),
-      checksum: 'abc123',
-    }));
+  it("CA-persist-10 : présence d'un checksum ne bloque pas le parsing", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: '1.0',
+        commands: ['git init'],
+        lastSaved: Date.now(),
+        checksum: 'abc123',
+      }),
+    );
     const result = loadHistory();
     expect(result).toEqual(['git init']);
   });
@@ -189,11 +204,14 @@ describe('storage — cycle save/load', () => {
   });
 
   it('format sans champ commands → loadHistory retourne null + purge', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version: '1.0',
-      lastSaved: Date.now(),
-      // pas de commands
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: '1.0',
+        lastSaved: Date.now(),
+        // pas de commands
+      }),
+    );
     const result = loadHistory();
     expect(result).toBeNull();
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();

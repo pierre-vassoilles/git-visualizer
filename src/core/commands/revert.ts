@@ -69,9 +69,7 @@ export function cmdRevert(repo: Repository, args: string[]): CommandResult {
   const targetHash = resolveCommitish(repo, commitRef);
   if (!targetHash) {
     return fail(
-      [
-        `fatal: ambiguous argument '${commitRef}': unknown revision or path not in working tree`,
-      ],
+      [`fatal: ambiguous argument '${commitRef}': unknown revision or path not in working tree`],
       128,
     );
   }
@@ -79,18 +77,14 @@ export function cmdRevert(repo: Repository, args: string[]): CommandResult {
   const targetCommit = getCommit(repo, targetHash);
   if (!targetCommit) {
     return fail(
-      [
-        `fatal: ambiguous argument '${commitRef}': unknown revision or path not in working tree`,
-      ],
+      [`fatal: ambiguous argument '${commitRef}': unknown revision or path not in working tree`],
       128,
     );
   }
 
   // Vérifier les merge commits
   if (targetCommit.parents.length >= 2 && parentNumber === null) {
-    return fail([
-      `error: commit ${shortHash(targetHash)} is a merge but no -m option was given.`,
-    ]);
+    return fail([`error: commit ${shortHash(targetHash)} is a merge but no -m option was given.`]);
   }
 
   const headHash = headCommitHash(repo);
@@ -107,9 +101,7 @@ export function cmdRevert(repo: Repository, args: string[]): CommandResult {
     // Merge commit avec -m : utiliser le parent spécifié (1-indexed)
     compareParentHash = targetCommit.parents[parentNumber - 1] ?? null;
     if (!compareParentHash) {
-      return fail([
-        `error: commit ${shortHash(targetHash)} does not have parent ${parentNumber}`,
-      ]);
+      return fail([`error: commit ${shortHash(targetHash)} does not have parent ${parentNumber}`]);
     }
   } else {
     compareParentHash = targetCommit.parents[0] ?? null;
@@ -119,9 +111,7 @@ export function cmdRevert(repo: Repository, args: string[]): CommandResult {
   // Pour revenir, on applique le diff INVERSÉ : commitTree → parentTree
   const diff = computeTreeDiff(
     repo,
-    compareParentHash
-      ? getCommit(repo, compareParentHash)?.tree ?? null
-      : null,
+    compareParentHash ? (getCommit(repo, compareParentHash)?.tree ?? null) : null,
     targetCommit.tree,
   );
 

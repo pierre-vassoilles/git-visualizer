@@ -85,9 +85,7 @@ export function cmdBranch(repo: Repository, args: string[]): CommandResult {
     // Vérifier que ce n'est pas la branche courante
     const current = currentBranch(repo);
     if (current === branchName) {
-      return fail([
-        `fatal: Cannot delete the branch '${branchName}' which you are currently on.`,
-      ]);
+      return fail([`fatal: Cannot delete the branch '${branchName}' which you are currently on.`]);
     }
 
     // Pour -d (soft delete), vérifier que la branche est mergée

@@ -47,7 +47,7 @@ describe('CA-cherry-pick-01 : cherry-pick simple', () => {
 
     const snapAfter = engine.snapshot();
     // Nouveau commit P créé
-    expect((snapAfter.allCommits?.length ?? 0)).toBe(countBefore + 1);
+    expect(snapAfter.allCommits?.length ?? 0).toBe(countBefore + 1);
 
     const pHash = snapAfter.branches['main']!;
     expect(pHash).not.toBe(c1Hash); // hash différent de C1
@@ -104,7 +104,7 @@ describe('CA-cherry-pick-02 : cherry-pick avec conflit', () => {
     expect(snapAfter.operationState?.type).toBe('cherryPicking');
 
     // Aucun commit créé
-    expect((snapAfter.allCommits?.length ?? 0)).toBe(snap.allCommits?.length ?? 0);
+    expect(snapAfter.allCommits?.length ?? 0).toBe(snap.allCommits?.length ?? 0);
   });
 });
 
@@ -147,7 +147,7 @@ describe('CA-cherry-pick-03 : résolution de conflit et commit', () => {
 
     const snapAfter = engine.snapshot();
     expect(snapAfter.operationState).toBeUndefined();
-    expect((snapAfter.allCommits?.length ?? 0)).toBeGreaterThan(countBefore);
+    expect(snapAfter.allCommits?.length ?? 0).toBeGreaterThan(countBefore);
   });
 });
 
@@ -248,7 +248,7 @@ describe('CA-cherry-pick-06 : cherry-pick sur HEAD détaché', () => {
     const snapAfter = engine.snapshot();
     expect(snapAfter.head.type).toBe('detached');
     // Nouveau commit créé
-    expect((snapAfter.allCommits?.length ?? 0)).toBe(countBefore + 1);
+    expect(snapAfter.allCommits?.length ?? 0).toBe(countBefore + 1);
     if (snapAfter.head.type === 'detached') {
       // HEAD pointe le nouveau commit (hoist hors de la closure pour le narrowing)
       const headHash = snapAfter.head.hash;
@@ -295,7 +295,7 @@ describe('CA-cherry-pick-07 : git cherry-pick --abort', () => {
     const snapAfter = engine.snapshot();
     expect(snapAfter.operationState).toBeUndefined();
     expect(snapAfter.branches['main']).toBe(mainHashBefore);
-    expect((snapAfter.allCommits?.length ?? 0)).toBe(countBefore);
+    expect(snapAfter.allCommits?.length ?? 0).toBe(countBefore);
   });
 });
 
@@ -356,7 +356,7 @@ describe('CA-cherry-pick-08 : cherry-pick via HEAD~n', () => {
     expect(result.exitCode).toBe(0);
 
     const snapAfter = engine.snapshot();
-    expect((snapAfter.allCommits?.length ?? 0)).toBe(countBefore + 1);
+    expect(snapAfter.allCommits?.length ?? 0).toBe(countBefore + 1);
   });
 });
 
@@ -436,12 +436,7 @@ describe('CA-cherry-pick-10 : cherry-pick ajoute un fichier', () => {
   it('CA-cherry-pick-10 : b.txt présent dans WT après cherry-pick de C1 qui ajoutait b.txt', () => {
     // C0 (a.txt), C1 (a.txt, b.txt) → C1 ajoute b.txt
     // HEAD = C0 (via checkout), cherry-pick de C1
-    const engine = replay([
-      'git init',
-      'write a.txt "a"',
-      'git add a.txt',
-      'git commit -m "C0"',
-    ]);
+    const engine = replay(['git init', 'write a.txt "a"', 'git add a.txt', 'git commit -m "C0"']);
 
     // Créer C1 sur une branche à part
     engine.execute('git branch add-branch');
@@ -514,9 +509,7 @@ describe('Cherry-pick en cours → second cherry-pick refusé', () => {
     // Essayer un deuxième cherry-pick
     const result = engine.execute(`git cherry-pick ${c2Hash}`);
     expect(result.exitCode).toBe(1);
-    expect(
-      result.errors.some((e) => e.includes('CHERRY_PICK_HEAD')),
-    ).toBe(true);
+    expect(result.errors.some((e) => e.includes('CHERRY_PICK_HEAD'))).toBe(true);
   });
 });
 

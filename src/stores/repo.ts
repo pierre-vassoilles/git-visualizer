@@ -5,13 +5,22 @@ import type { CommandCatalog } from '@/core/catalog';
 import type { CommandResult } from '@/core/types';
 import type { RepoSnapshot } from '@/core/engine';
 import type { TodoItem } from '@/core/model';
-import { loadHistory, loadCurrentIndex, saveHistory, clearHistory } from '@/utils/storage';
+import {
+  loadHistory,
+  loadCurrentIndex,
+  saveHistory,
+  clearHistory,
+  saveTutorialProgress,
+  loadTutorialProgress,
+  clearTutorialProgress,
+} from '@/utils/storage';
+import { splitCommandChain } from '@/utils/shell';
 import { buildExportedSession, type ExportedSession } from '@/utils/export-import';
 import { encodeSession, checkSessionSize, type SessionSize } from '@/utils/share';
 import { getScenarioById } from '@/constants/scenarios';
 import { parseConflictContent, buildResolvedContent } from '@/core/repository';
 import { getTutorialById } from '@/constants/tutorials';
-import type { Tutorial, TutorialStep } from '@/core/tutorial-helpers';
+import type { Tutorial, TutorialStep, LocalizedText } from '@/core/tutorial-helpers';
 
 /** Une entrée du journal du terminal (commande tapée + résultat). */
 export interface LogEntry {
@@ -90,6 +99,27 @@ export const useRepoStore = defineStore('repo', () => {
     // Recalculer le snapshot après chaque commande
     snapshot.value = snap;
     return result;
+  }
+
+  /**
+   * PHASE B2 (spec 62, A1) : exécute une LIGNE pouvant chaîner plusieurs commandes
+   * (`;` inconditionnel, `&&` conditionnel). Découpe via `splitCommandChain`, applique
+   * le court-circuit du `&&`, et délègue chaque segment à `execute()` (donc journal,
+   * snapshot, persistance et timeline undo/redo restent cohérents). Utilisé par le
+   * bouton « Exécuter » des tutoriels. Renvoie le résultat de chaque segment exécuté.
+   */
+  function executeChain(line: string): CommandResult[] {
+    const results: CommandResult[] = [];
+    let lastOk = true;
+    for (const segment of splitCommandChain(line)) {
+      const command = segment.command.trim();
+      if (command === '') continue;
+      if (segment.operator === '&&' && !lastOk) continue;
+      const result = execute(command);
+      results.push(result);
+      lastOk = result.exitCode === 0;
+    }
+    return results;
   }
 
   /**
@@ -362,10 +392,11 @@ export const useRepoStore = defineStore('repo', () => {
       tutorialProgress.value.currentStepIndex >= currentTutorial.value.steps.length,
   );
 
-  /** Objectifs de l'étape courante évalués contre le snapshot (passed booléen). */
+  /** Objectifs de l'étape courante évalués contre le snapshot (passed booléen).
+   *  `description` est un `LocalizedText` (résolu côté UI via `localize`). */
   const tutorialObjectives = computed(() => {
     const step = currentStep.value;
-    if (!step) return [] as Array<{ description: string; passed: boolean }>;
+    if (!step) return [] as Array<{ description: LocalizedText; passed: boolean }>;
     return step.objectives.map((o) => {
       let passed = false;
       try {
@@ -382,6 +413,18 @@ export const useRepoStore = defineStore('repo', () => {
     () => tutorialObjectives.value.length > 0 && tutorialObjectives.value.every((o) => o.passed),
   );
 
+  /**
+   * PHASE B2 (spec 62, C4) : persiste la position du tutoriel en cours
+   * (`{tutorialId, currentStepIndex}`) — clé localStorage dédiée, distincte de la
+   * session. Appelé après chaque mouvement de progression.
+   */
+  function persistTutorialProgress(): void {
+    const p = tutorialProgress.value;
+    if (p) {
+      saveTutorialProgress({ tutorialId: p.tutorialId, currentStepIndex: p.currentStepIndex });
+    }
+  }
+
   function startTutorial(id: string): void {
     const t = getTutorialById(id);
     if (!t) return;
@@ -396,6 +439,7 @@ export const useRepoStore = defineStore('repo', () => {
       hintUsed: false,
       hintsUsedCount: 0,
     };
+    persistTutorialProgress();
   }
 
   function nextStep(): void {
@@ -409,6 +453,7 @@ export const useRepoStore = defineStore('repo', () => {
     }
     p.currentStepIndex++;
     p.hintUsed = false;
+    persistTutorialProgress();
   }
 
   function previousStep(): void {
@@ -416,6 +461,7 @@ export const useRepoStore = defineStore('repo', () => {
     if (!p || p.currentStepIndex <= 0) return;
     p.currentStepIndex--;
     p.hintUsed = false;
+    persistTutorialProgress();
   }
 
   function skipStep(): void {
@@ -425,6 +471,7 @@ export const useRepoStore = defineStore('repo', () => {
     if (!p.skippedSteps.includes(step.id)) p.skippedSteps.push(step.id);
     p.currentStepIndex++;
     p.hintUsed = false;
+    persistTutorialProgress();
   }
 
   function useHint(): void {
@@ -436,6 +483,31 @@ export const useRepoStore = defineStore('repo', () => {
 
   function quitTutorial(): void {
     tutorialProgress.value = null;
+    clearTutorialProgress();
+  }
+
+  /**
+   * PHASE B2 (spec 62, C4) : restaure une progression de tutoriel persistée (au boot,
+   * après loadFromStorage). L'état du dépôt est reconstruit par le rejeu de session ;
+   * ici on ne restaure que la position dans le tutoriel.
+   */
+  function restoreTutorialProgress(): void {
+    const stored = loadTutorialProgress();
+    if (!stored) return;
+    const t = getTutorialById(stored.tutorialId);
+    if (!t) {
+      clearTutorialProgress();
+      return;
+    }
+    const idx = Math.max(0, Math.min(stored.currentStepIndex, t.steps.length));
+    tutorialProgress.value = {
+      tutorialId: stored.tutorialId,
+      currentStepIndex: idx,
+      completedSteps: [],
+      skippedSteps: [],
+      hintUsed: false,
+      hintsUsedCount: 0,
+    };
   }
 
   /**
@@ -500,6 +572,7 @@ export const useRepoStore = defineStore('repo', () => {
     snapshot,
     savedCommands,
     execute,
+    executeChain,
     executeRebaseTodo,
     reset,
     loadFromStorage,
@@ -532,5 +605,6 @@ export const useRepoStore = defineStore('repo', () => {
     skipStep,
     useHint,
     quitTutorial,
+    restoreTutorialProgress,
   };
 });

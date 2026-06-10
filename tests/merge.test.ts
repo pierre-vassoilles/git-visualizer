@@ -520,9 +520,7 @@ describe('Merge en cours → nouveau merge refusé', () => {
     // Essayer un autre merge
     const result = engine.execute('git merge feature');
     expect(result.exitCode).toBe(1);
-    expect(
-      result.errors.some((e) => e.includes('You have not concluded your merge')),
-    ).toBe(true);
+    expect(result.errors.some((e) => e.includes('You have not concluded your merge'))).toBe(true);
   });
 });
 

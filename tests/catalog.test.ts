@@ -15,11 +15,25 @@ import { COMMAND_CATALOG, getCommandNames, getCommandFlags } from '@/core/catalo
 
 describe('catalog — CA-catalog-01 : couverture complète des commandes', () => {
   const REQUIRED_COMMANDS = [
-    'init', 'add', 'status', 'restore', 'write', 'read',
-    'commit', 'log',
-    'branch', 'checkout', 'switch', 'tag',
-    'merge', 'reset', 'revert', 'cherry-pick', 'rebase',
-    'stash', 'reflog',
+    'init',
+    'add',
+    'status',
+    'restore',
+    'write',
+    'read',
+    'commit',
+    'log',
+    'branch',
+    'checkout',
+    'switch',
+    'tag',
+    'merge',
+    'reset',
+    'revert',
+    'cherry-pick',
+    'rebase',
+    'stash',
+    'reflog',
     'help',
   ];
 
@@ -87,25 +101,25 @@ describe('catalog — CA-catalog-02 : métadonnées pour commit', () => {
 describe('catalog — CA-catalog-03 : flag -m de commit', () => {
   it('CA-catalog-03 : getCommandFlags("commit") retourne au minimum le flag -m', () => {
     const flags = getCommandFlags('commit');
-    const mFlag = flags.find(f => f.name === '-m');
+    const mFlag = flags.find((f) => f.name === '-m');
     expect(mFlag).toBeDefined();
   });
 
   it('CA-catalog-03 : flag -m est isCommon === true', () => {
     const flags = getCommandFlags('commit');
-    const mFlag = flags.find(f => f.name === '-m');
+    const mFlag = flags.find((f) => f.name === '-m');
     expect(mFlag?.isCommon).toBe(true);
   });
 
   it('CA-catalog-03 : flag -m a hasArgument === true', () => {
     const flags = getCommandFlags('commit');
-    const mFlag = flags.find(f => f.name === '-m');
+    const mFlag = flags.find((f) => f.name === '-m');
     expect(mFlag?.hasArgument).toBe(true);
   });
 
   it('CA-catalog-03 : description de -m contient "message"', () => {
     const flags = getCommandFlags('commit');
-    const mFlag = flags.find(f => f.name === '-m');
+    const mFlag = flags.find((f) => f.name === '-m');
     expect(mFlag?.description.toLowerCase()).toContain('message');
   });
 });
@@ -136,7 +150,7 @@ describe('catalog — CA-catalog-05 : groupement par catégorie Commits', () => 
   it('CA-catalog-05 : commands["Commits"] contient commit et log', () => {
     const commits = COMMAND_CATALOG.commands['Commits'];
     expect(commits).toBeDefined();
-    const names = commits.map(c => c.name);
+    const names = commits.map((c) => c.name);
     expect(names).toContain('commit');
     expect(names).toContain('log');
   });
@@ -144,7 +158,7 @@ describe('catalog — CA-catalog-05 : groupement par catégorie Commits', () => 
   it('CA-catalog-05 : la catégorie Commits contient commit, log, diff, show', () => {
     const commits = COMMAND_CATALOG.commands['Commits'];
     // Étendue en B1 (spec 42) : ajout de diff et show à la catégorie Commits.
-    const names = commits.map(c => c.name).sort();
+    const names = commits.map((c) => c.name).sort();
     expect(names).toEqual(['commit', 'diff', 'log', 'show']);
   });
 });
@@ -205,13 +219,17 @@ describe('catalog — CA-catalog-08 : descriptions en français non vides', () =
   it('CA-catalog-08 : les descriptions contiennent des caractères français (accents ou au moins ASCII)', () => {
     // Vérification minimale : au moins quelques descriptions ont des accents ou mots français typiques
     const allDescriptions = getCommandNames()
-      .map(n => COMMAND_CATALOG.lookup[n]?.description ?? '')
+      .map((n) => COMMAND_CATALOG.lookup[n]?.description ?? '')
       .join(' ');
     // On s'assure qu'aucune description n'est en anglais pur sans fr
     // Test permissif : au moins 3 descriptions contiennent des accents ou mots français
     const frenchIndicators = getCommandNames()
-      .map(n => COMMAND_CATALOG.lookup[n]?.description ?? '')
-      .filter(d => /[éèêëàâùûîïôçœæ]|Créer|Afficher|Ajouter|Lister|Supprimer|Fusionner|Réinitialiser|Basculer/i.test(d));
+      .map((n) => COMMAND_CATALOG.lookup[n]?.description ?? '')
+      .filter((d) =>
+        /[éèêëàâùûîïôçœæ]|Créer|Afficher|Ajouter|Lister|Supprimer|Fusionner|Réinitialiser|Basculer/i.test(
+          d,
+        ),
+      );
     expect(frenchIndicators.length).toBeGreaterThanOrEqual(3);
     expect(allDescriptions.length).toBeGreaterThan(0);
   });
@@ -224,21 +242,21 @@ describe('catalog — CA-catalog-08 : descriptions en français non vides', () =
 describe('catalog — CA-catalog-09 : flags hasArgument cohérent', () => {
   it('CA-catalog-09 : add — flag -A a hasArgument === false', () => {
     const flags = getCommandFlags('add');
-    const flagA = flags.find(f => f.name === '-A' || f.name === '--all');
+    const flagA = flags.find((f) => f.name === '-A' || f.name === '--all');
     expect(flagA).toBeDefined();
     expect(flagA?.hasArgument).toBe(false);
   });
 
   it('CA-catalog-09 : reset — flags --soft, --mixed, --hard ont hasArgument === false', () => {
     const flags = getCommandFlags('reset');
-    const names = flags.map(f => f.name);
+    const names = flags.map((f) => f.name);
     expect(names).toContain('--soft');
     expect(names).toContain('--mixed');
     expect(names).toContain('--hard');
 
-    const softFlag = flags.find(f => f.name === '--soft');
-    const mixedFlag = flags.find(f => f.name === '--mixed');
-    const hardFlag = flags.find(f => f.name === '--hard');
+    const softFlag = flags.find((f) => f.name === '--soft');
+    const mixedFlag = flags.find((f) => f.name === '--mixed');
+    const hardFlag = flags.find((f) => f.name === '--hard');
     expect(softFlag?.hasArgument).toBe(false);
     expect(mixedFlag?.hasArgument).toBe(false);
     expect(hardFlag?.hasArgument).toBe(false);
@@ -255,7 +273,10 @@ describe('catalog — CA-catalog-10 : cohérence catalogue / implémentation', (
     const engineNames = new Set(engine.getCommandNames());
     const catalogNames = getCommandNames();
     for (const name of catalogNames) {
-      expect(engineNames.has(name), `Commande "${name}" dans le catalogue mais absente du moteur`).toBe(true);
+      expect(
+        engineNames.has(name),
+        `Commande "${name}" dans le catalogue mais absente du moteur`,
+      ).toBe(true);
     }
   });
 

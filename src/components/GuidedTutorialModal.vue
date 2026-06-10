@@ -1,15 +1,25 @@
 <script setup lang="ts">
 /**
- * Modale de tutoriel guidé (spec 51).
+ * Modale de tutoriel guidé (spec 51, 62).
  *
  * Aucune logique Git : lit l'état du tutoriel via le store (currentStep,
  * tutorialObjectives auto-validés, etc.) et appelle les actions du store.
  * La validation des objectifs se fait dans le store (prédicats purs du core).
+ * Champs textuels LocalizedText résolus par `localize()` + locale réactive.
  */
 import { computed, ref, watch } from 'vue';
 import { useRepoStore } from '@/stores/repo';
+import { localize } from '@/core/tutorial-helpers';
+import type { LocalizedText } from '@/core/tutorial-helpers';
+import { useI18n } from '@/i18n';
 
 const repo = useRepoStore();
+const { t, locale } = useI18n();
+
+/** Résout un LocalizedText dans la locale courante. */
+function lz(txt: LocalizedText): string {
+  return localize(txt, locale.value);
+}
 
 const isVisible = computed(() => repo.tutorialProgress !== null);
 const tutorial = computed(() => repo.currentTutorial);
@@ -20,8 +30,15 @@ const completed = computed(() => repo.tutorialCompleted);
 
 // Affichage local de l'indice.
 const showHint = ref(false);
+// Section « Pourquoi & comment » — toujours présente, réduite par défaut.
+const showWhy = ref(false);
+// Section « Effet sur le graphe » — ouverte par défaut.
+const showGraphEffect = ref(true);
+
 watch(step, () => {
   showHint.value = false;
+  showWhy.value = false;
+  showGraphEffect.value = true;
 });
 
 const stepNumber = computed(() => (repo.tutorialProgress?.currentStepIndex ?? 0) + 1);
@@ -31,6 +48,10 @@ const isLastStep = computed(() => stepNumber.value >= totalSteps.value);
 function onHint(): void {
   showHint.value = true;
   repo.useHint();
+}
+function onExecute(): void {
+  const cmd = step.value?.command;
+  if (cmd) repo.executeChain(cmd);
 }
 function onNext(): void {
   repo.nextStep();
@@ -55,15 +76,15 @@ function onRestart(): void {
       <!-- Écran de récapitulatif (tutoriel terminé) -->
       <template v-if="completed">
         <header class="tuto-header">
-          <h2>🎉 Tutoriel complété !</h2>
+          <h2>Tutoriel complété !</h2>
         </header>
-        <p class="tuto-recap-title">{{ tutorial?.title }}</p>
+        <p class="tuto-recap-title">{{ tutorial ? lz(tutorial.title) : '' }}</p>
         <ul class="recap-list">
-          <li v-for="s in tutorial?.steps ?? []" :key="s.id">
+          <li v-for="(s, idx) in tutorial?.steps ?? []" :key="idx">
             <span :class="repo.tutorialProgress?.skippedSteps.includes(s.id) ? 'skipped' : 'done'">
               {{ repo.tutorialProgress?.skippedSteps.includes(s.id) ? '⤼' : '✓' }}
             </span>
-            {{ s.title }}
+            {{ lz(s.title) }}
           </li>
         </ul>
         <p class="recap-stats">
@@ -79,30 +100,58 @@ function onRestart(): void {
       <!-- Étape courante -->
       <template v-else-if="step">
         <header class="tuto-header">
-          <h2>{{ tutorial?.title }}</h2>
+          <h2>{{ tutorial ? lz(tutorial.title) : '' }}</h2>
           <span class="step-counter">Étape {{ stepNumber }} / {{ totalSteps }}</span>
         </header>
 
-        <h3 class="step-title">{{ step.title }}</h3>
-        <p class="step-desc">{{ step.description }}</p>
+        <h3 class="step-title">{{ lz(step.title) }}</h3>
+        <p class="step-desc">{{ lz(step.description) }}</p>
+
+        <!-- Bouton Exécuter (si la commande est définie sur l'étape) -->
+        <div v-if="step.command" class="execute-row">
+          <button class="btn btn-execute" @click="onExecute">
+            ▶ {{ t('tutorial.executeButton') }}
+          </button>
+          <code class="execute-cmd">{{ step.command }}</code>
+        </div>
 
         <!-- Indice -->
         <div class="hint-row">
           <button v-if="step.hint && !showHint" class="btn btn-hint" @click="onHint">
             💡 Indice
           </button>
-          <p v-if="showHint && step.hint" class="hint-text">{{ step.hint }}</p>
+          <p v-if="showHint && step.hint" class="hint-text">{{ lz(step.hint) }}</p>
         </div>
 
         <!-- Checklist des objectifs (auto-validés) -->
         <ul class="objectives">
-          <li v-for="o in objectives" :key="o.description" :class="{ ok: o.passed }">
+          <li v-for="(o, idx) in objectives" :key="idx" :class="{ ok: o.passed }">
             <span class="check">{{ o.passed ? '✓' : '○' }}</span>
-            {{ o.description }}
+            {{ lz(o.description) }}
           </li>
         </ul>
 
-        <p v-if="stepComplete" class="success-msg">{{ step.successMessage }}</p>
+        <p v-if="stepComplete" class="success-msg">{{ lz(step.successMessage) }}</p>
+
+        <!-- Section Pourquoi & comment (dépliable, réduite par défaut) -->
+        <details
+          class="collapsible-section"
+          :open="showWhy"
+          @toggle="showWhy = ($event.target as HTMLDetailsElement).open"
+        >
+          <summary class="section-summary">{{ t('tutorial.why') }}</summary>
+          <p class="section-body">{{ lz(step.explanation) }}</p>
+        </details>
+
+        <!-- Section Effet sur le graphe (dépliable, ouverte par défaut) -->
+        <details
+          class="collapsible-section"
+          :open="showGraphEffect"
+          @toggle="showGraphEffect = ($event.target as HTMLDetailsElement).open"
+        >
+          <summary class="section-summary">{{ t('tutorial.graphEffect') }}</summary>
+          <p class="section-body">{{ lz(step.graphEffect) }}</p>
+        </details>
 
         <footer class="tuto-footer">
           <button class="btn" @click="onQuit">Quitter</button>
@@ -132,7 +181,7 @@ function onRestart(): void {
   background: var(--surface-bg, #fff);
   color: var(--surface-fg, #24292e);
   border-radius: 8px;
-  width: min(380px, 92vw);
+  width: min(400px, 92vw);
   max-height: 90vh;
   overflow: auto;
   padding: 16px 18px;
@@ -143,7 +192,7 @@ function onRestart(): void {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--surface-muted-bg, #eee);
   padding-bottom: 8px;
   margin-bottom: 8px;
 }
@@ -163,6 +212,26 @@ function onRestart(): void {
   font-size: 0.82rem;
   line-height: 1.5;
   color: #374151;
+}
+.execute-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+.execute-cmd {
+  font-size: 0.72rem;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 3px;
+  padding: 2px 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .hint-row {
   margin: 8px 0;
@@ -201,6 +270,42 @@ function onRestart(): void {
   border-radius: 4px;
   padding: 6px 8px;
 }
+/* Sections dépliables (Pourquoi & Effet) */
+.collapsible-section {
+  margin: 8px 0;
+  border: 1px solid var(--surface-muted-bg, #e5e7eb);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.section-summary {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 5px 8px;
+  background: var(--surface-muted-bg, #f9fafb);
+  user-select: none;
+  list-style: none;
+}
+.section-summary::-webkit-details-marker {
+  display: none;
+}
+.section-summary::before {
+  content: '▶ ';
+  font-size: 0.6rem;
+}
+details[open] .section-summary::before {
+  content: '▼ ';
+}
+.section-body {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #374151;
+  padding: 6px 8px;
+  margin: 0;
+}
 .tuto-recap-title {
   font-weight: 600;
   font-size: 0.9rem;
@@ -224,7 +329,7 @@ function onRestart(): void {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--surface-muted-bg, #eee);
   padding-top: 10px;
   margin-top: 10px;
 }
@@ -253,5 +358,15 @@ function onRestart(): void {
   background: #fffbeb;
   border-color: #fde68a;
   color: #92400e;
+}
+.btn-execute {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.btn-execute:hover {
+  background: #dcfce7;
 }
 </style>

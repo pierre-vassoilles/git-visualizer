@@ -315,7 +315,7 @@ describe('git pull — CA-pull-06 : pull avec arguments explicites', () => {
     expect(snap.remoteTrackingRefs!['origin']!['main']).toBe(originMainHash);
   });
 
-  it('CA-pull-06 : git pull origin main ne pose pas d\'upstream implicite', () => {
+  it("CA-pull-06 : git pull origin main ne pose pas d'upstream implicite", () => {
     const engine = newEngine();
     engine.execute('git init');
     engine.execute('write f.txt "hello"');
@@ -347,7 +347,7 @@ describe('git pull — CA-pull-06 : pull avec arguments explicites', () => {
 // ---------------------------------------------------------------------------
 
 describe('git pull — CA-pull-07 : pull sans upstream', () => {
-  it('CA-pull-07 : exitCode 1 si pas d\'upstream', () => {
+  it("CA-pull-07 : exitCode 1 si pas d'upstream", () => {
     const engine = newEngine();
     engine.execute('git init');
     engine.execute('write f.txt "hello"');
@@ -477,7 +477,7 @@ describe('git pull — CA-pull-12 : branche distante inexistante', () => {
     expect(result.exitCode).not.toBe(0);
   });
 
-  it('CA-pull-12 : message contient indication d\'erreur', () => {
+  it("CA-pull-12 : message contient indication d'erreur", () => {
     const engine = newEngine();
     engine.execute('git clone public-repo');
     const result = engine.execute('git pull origin nosuchbranch');
@@ -485,9 +485,9 @@ describe('git pull — CA-pull-12 : branche distante inexistante', () => {
     // Selon l'implémentation : fetch fail ou merge fail
     expect(
       allMessages.includes('not something we can') ||
-      allMessages.includes("Couldn't find") ||
-      allMessages.includes('No remote tracking') ||
-      allMessages.includes('nosuchbranch'),
+        allMessages.includes("Couldn't find") ||
+        allMessages.includes('No remote tracking') ||
+        allMessages.includes('nosuchbranch'),
     ).toBe(true);
   });
 
@@ -520,7 +520,7 @@ describe('git pull — cas limites', () => {
     const allMessages = [...result.errors, ...result.output].join('\n');
     expect(
       allMessages.includes('does not appear to be a git repository') ||
-      allMessages.includes('No remote named'),
+        allMessages.includes('No remote named'),
     ).toBe(true);
   });
 

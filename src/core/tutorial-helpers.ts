@@ -16,32 +16,65 @@ import type { RepoSnapshot } from './engine';
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Texte localisé (FR + EN). Spec 62 : le contenu pédagogique des tutoriels est
+ * bilingue inline (et non via `messages.ts`) pour ne pas gonfler l'union MessageKey.
+ * Résolu à l'affichage via `localize(text, locale)`.
+ */
+export interface LocalizedText {
+  en: string;
+  fr: string;
+}
+
+/** Niveau d'un tutoriel — SOURCE DE VÉRITÉ du regroupement et de la difficulté (spec 62, C1). */
+export type TutorialLevel = 'basic' | 'medium' | 'advanced';
+
 export interface StepObjective {
-  /** Description courte du critère (ex. "1 commit créé"). */
-  description: string;
+  /** Description courte du critère (ex. "1 commit créé"), bilingue. */
+  description: LocalizedText;
   /** Prédicat pur sur le snapshot. */
   validate: (snapshot: RepoSnapshot) => boolean;
 }
 
 export interface TutorialStep {
   id: string;
-  title: string;
-  description: string;
-  hint?: string;
+  title: LocalizedText;
+  description: LocalizedText;
+  hint?: LocalizedText;
+  /** POURQUOI/COMMENT (pédagogique, bilingue). Requis — cf. spec 62 (C2). */
+  explanation: LocalizedText;
+  /** Effet sur le graphe (bilingue). Requis — cf. spec 62 (C2). */
+  graphEffect: LocalizedText;
+  /**
+   * Commande lancée par le bouton « Exécuter ». Peut être chaînée (`;`/`&&`) :
+   * exécutée via `store.executeChain` (cf. spec 62, A1). Révisions relatives
+   * préférées aux hashes littéraux (A2).
+   */
+  command?: string;
   objectives: StepObjective[];
-  successMessage: string;
+  successMessage: LocalizedText;
 }
 
 export interface Tutorial {
   id: string;
-  title: string;
-  description: string;
+  title: LocalizedText;
+  description: LocalizedText;
+  /** Niveau (source de vérité ; la difficulté numérique en dérive). */
+  level: TutorialLevel;
   /** Durée estimée (minutes). */
   duration: number;
-  /** Difficulté : 1 (facile) à 3 (difficile). */
-  difficulty: 1 | 2 | 3;
   steps: TutorialStep[];
   suggestedCommands?: string[];
+}
+
+/** Résout un `LocalizedText` selon la locale (fallback en → fr → ''). */
+export function localize(text: LocalizedText, locale: 'en' | 'fr'): string {
+  return text[locale] || text.en || text.fr || '';
+}
+
+/** Étiquette de difficulté numérique DÉRIVÉE du niveau (basic→1, medium→2, advanced→3). */
+export function levelToDifficulty(level: TutorialLevel): 1 | 2 | 3 {
+  return level === 'basic' ? 1 : level === 'medium' ? 2 : 3;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +139,21 @@ export function noOperationInProgress(): (snap: RepoSnapshot) => boolean {
 /** Nombre de branches >= n. */
 export function hasBranchCount(n: number): (snap: RepoSnapshot) => boolean {
   return (snap) => Object.keys(snap.branches).length >= n;
+}
+
+/** Au moins `n` entrées dans le stash (spec 62/63). */
+export function hasStashCount(n: number): (snap: RepoSnapshot) => boolean {
+  return (snap) => (snap.stashCount ?? 0) >= n;
+}
+
+/** La branche `name` a un upstream configuré (spec 62/63). */
+export function branchHasUpstream(name: string): (snap: RepoSnapshot) => boolean {
+  return (snap) => name in (snap.branchUpstream ?? {});
+}
+
+/** Le dépôt distant `name` existe (spec 62/63). */
+export function hasRemote(name: string): (snap: RepoSnapshot) => boolean {
+  return (snap) => name in (snap.remotes ?? {});
 }
 
 /** Combine plusieurs prédicats (ET logique). */

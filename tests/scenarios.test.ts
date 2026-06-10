@@ -8,7 +8,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { newEngine } from './helpers';
-import { SCENARIOS, getScenarioById, getAllScenarios, getScenariosByCategory } from '@/constants/scenarios';
+import {
+  SCENARIOS,
+  getScenarioById,
+  getAllScenarios,
+  getScenariosByCategory,
+} from '@/constants/scenarios';
 
 // ---------------------------------------------------------------------------
 // Helpers locaux
@@ -31,7 +36,7 @@ function replayScenario(commands: string[]) {
 // ---------------------------------------------------------------------------
 
 describe('scenarios — CA-scenarios-01 : catalogue accessible et structuré', () => {
-  it('CA-scenarios-01 : SCENARIOS n\'est pas vide', () => {
+  it("CA-scenarios-01 : SCENARIOS n'est pas vide", () => {
     expect(SCENARIOS.length).toBeGreaterThan(0);
   });
 
@@ -41,7 +46,9 @@ describe('scenarios — CA-scenarios-01 : catalogue accessible et structuré', (
       expect(scenario.title, `title manquant pour ${scenario.id}`).toBeTruthy();
       expect(scenario.description, `description manquante pour ${scenario.id}`).toBeTruthy();
       expect(scenario.category, `category manquante pour ${scenario.id}`).toBeTruthy();
-      expect(Array.isArray(scenario.commands), `commands non-tableau pour ${scenario.id}`).toBe(true);
+      expect(Array.isArray(scenario.commands), `commands non-tableau pour ${scenario.id}`).toBe(
+        true,
+      );
       expect(scenario.commands.length, `commands vide pour ${scenario.id}`).toBeGreaterThan(0);
     }
   });
@@ -94,7 +101,7 @@ describe('scenarios — CA-scenarios-03 : branch-merge — état final', () => {
     expect(allCommits.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('CA-scenarios-03 : après rejeu — pas d\'opération en cours', () => {
+  it("CA-scenarios-03 : après rejeu — pas d'opération en cours", () => {
     const scenario = getScenarioById('branch-merge')!;
     const engine = replayScenario(scenario.commands);
     const snap = engine.snapshot();
@@ -127,7 +134,7 @@ describe('scenarios — CA-scenarios-04 : merge-conflict — conflit visible au 
     // Rejouer jusqu'à la commande de merge (incluse) mais avant la résolution
     // Le merge est la commande qui échoue avec un conflit
     // On cherche l'index du merge dans la séquence
-    const mergeIdx = scenario.commands.findIndex(cmd => cmd.startsWith('git merge'));
+    const mergeIdx = scenario.commands.findIndex((cmd) => cmd.startsWith('git merge'));
     expect(mergeIdx).toBeGreaterThanOrEqual(0);
 
     const engine = newEngine();
@@ -138,7 +145,7 @@ describe('scenarios — CA-scenarios-04 : merge-conflict — conflit visible au 
     expect(snap.operationState?.type).toBe('merging');
   });
 
-  it('CA-scenarios-04 : après rejeu complet — conflit résolu (pas d\'operationState)', () => {
+  it("CA-scenarios-04 : après rejeu complet — conflit résolu (pas d'operationState)", () => {
     const scenario = getScenarioById('merge-conflict')!;
     const engine = replayScenario(scenario.commands);
     const snap = engine.snapshot();
@@ -159,8 +166,8 @@ describe('scenarios — CA-scenarios-06 : déterminisme cherry-pick-tag', () => 
     const snap2 = e2.snapshot();
 
     // Mêmes commits
-    const commits1 = (snap1.allCommits ?? snap1.commits).map(c => c.hash).sort();
-    const commits2 = (snap2.allCommits ?? snap2.commits).map(c => c.hash).sort();
+    const commits1 = (snap1.allCommits ?? snap1.commits).map((c) => c.hash).sort();
+    const commits2 = (snap2.allCommits ?? snap2.commits).map((c) => c.hash).sort();
     expect(commits1).toEqual(commits2);
 
     // Mêmes branches
@@ -183,16 +190,18 @@ describe('scenarios — CA-scenarios-08 : catégories présentes', () => {
 
   it('CA-scenarios-08 : au moins 3 catégories différentes', () => {
     const all = getAllScenarios();
-    const categories = new Set(all.map(s => s.category));
+    const categories = new Set(all.map((s) => s.category));
     expect(categories.size).toBeGreaterThanOrEqual(3);
   });
 
   it('CA-scenarios-08 : catégories incluent au moins "Branches", "Fusion", "Réécriture"', () => {
     const all = getAllScenarios();
-    const categories = new Set(all.map(s => s.category));
+    const categories = new Set(all.map((s) => s.category));
     expect(categories.has('Branches')).toBe(true);
     expect(categories.has('Fusion')).toBe(true);
-    expect(categories.has('Réécriture') || categories.has('Réparation') || categories.has('Réécriture')).toBe(true);
+    expect(
+      categories.has('Réécriture') || categories.has('Réparation') || categories.has('Réécriture'),
+    ).toBe(true);
   });
 });
 
@@ -246,9 +255,7 @@ describe('scenarios — CA-scenarios-11 : cherry-pick-tag — tags présents', (
     const scenario = getScenarioById('cherry-pick-tag')!;
     const engine = replayScenario(scenario.commands);
     const snap = engine.snapshot();
-    const allHashes = new Set(
-      (snap.allCommits ?? snap.commits).map(c => c.hash)
-    );
+    const allHashes = new Set((snap.allCommits ?? snap.commits).map((c) => c.hash));
     for (const [tagName, tagHash] of Object.entries(snap.tags)) {
       expect(allHashes.has(tagHash), `tag "${tagName}" pointe sur un hash inconnu`).toBe(true);
     }

@@ -7,11 +7,7 @@ import type { Repository } from '../model';
  * Utilitaire virtuel : crée ou écrase un fichier dans le working tree.
  * Sans contenu → fichier vide.
  */
-export function cmdWrite(
-  repo: Repository,
-  filepath: string,
-  content: string,
-): CommandResult {
+export function cmdWrite(repo: Repository, filepath: string, content: string): CommandResult {
   if (!isValidPath(filepath)) {
     return fail([`error: invalid path '${filepath}'`]);
   }

@@ -246,7 +246,7 @@ describe('CA-reflog-07 : Reflog après rebase', () => {
 // CA-reflog-08 : Reflog d'une branche
 // ---------------------------------------------------------------------------
 
-describe('CA-reflog-08 : Reflog d\'une branche', () => {
+describe("CA-reflog-08 : Reflog d'une branche", () => {
   it('CA-reflog-08 : git reflog show main → affiche le reflog de la branche main', () => {
     const engine = replay([
       'git init',
@@ -493,7 +493,7 @@ describe('Reflog après rebase interactif', () => {
 // ---------------------------------------------------------------------------
 
 describe('Déterminisme : reflog', () => {
-  it('Deux moteurs rejouant la même séquence → même nombre d\'entrées reflog', () => {
+  it("Deux moteurs rejouant la même séquence → même nombre d'entrées reflog", () => {
     const commands = [
       'git init',
       'write a.txt "v1"',
@@ -528,12 +528,7 @@ describe('Déterminisme : reflog', () => {
 
 describe('Item B4-5 : reflog création/suppression branches & tags', () => {
   function baseEngine() {
-    return replay([
-      'git init',
-      'write a.txt "v1"',
-      'git add a.txt',
-      'git commit -m "C1"',
-    ]);
+    return replay(['git init', 'write a.txt "v1"', 'git add a.txt', 'git commit -m "C1"']);
   }
 
   it('CA-reflog-01 : git branch foo écrit une entrée reflog "Created from"', () => {

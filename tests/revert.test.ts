@@ -36,7 +36,7 @@ describe('CA-revert-01 : revert simple', () => {
 
     const snap = engine.snapshot();
     // Un nouveau commit R créé
-    expect((snap.allCommits?.length ?? 0)).toBe(countBefore + 1);
+    expect(snap.allCommits?.length ?? 0).toBe(countBefore + 1);
 
     // Le commit de tête est le revert
     const rHash = snap.branches['main']!;
@@ -132,7 +132,7 @@ describe('CA-revert-03 : revert du commit racine', () => {
 
     const snapAfter = engine.snapshot();
     // Nouveau commit créé
-    expect((snapAfter.allCommits?.length ?? 0)).toBe(countBefore + 1);
+    expect(snapAfter.allCommits?.length ?? 0).toBe(countBefore + 1);
     // a.txt (ajouté dans C0) doit avoir été supprimé
     expect(snapAfter.indexPaths).not.toContain('a.txt');
   });
@@ -172,7 +172,7 @@ describe('CA-revert-04 : revert avec conflit', () => {
     expect(snapAfter.operationState?.type).toBe('reverting');
 
     // Pas de commit créé
-    expect((snapAfter.allCommits?.length ?? 0)).toBe(snap.allCommits?.length ?? 0);
+    expect(snapAfter.allCommits?.length ?? 0).toBe(snap.allCommits?.length ?? 0);
   });
 });
 
@@ -213,7 +213,7 @@ describe('CA-revert-05 : résolution de conflit et commit', () => {
     const snapAfter = engine.snapshot();
     expect(snapAfter.operationState).toBeUndefined();
     // Un commit créé
-    expect((snapAfter.allCommits?.length ?? 0)).toBeGreaterThan(countBefore);
+    expect(snapAfter.allCommits?.length ?? 0).toBeGreaterThan(countBefore);
   });
 });
 
@@ -289,7 +289,7 @@ describe('CA-revert-07 : revert merge commit avec -m 1', () => {
 
     const snapAfter = engine.snapshot();
     // Nouveau commit R créé
-    expect((snapAfter.allCommits?.length ?? 0)).toBe(countBefore + 1);
+    expect(snapAfter.allCommits?.length ?? 0).toBe(countBefore + 1);
 
     const rHash = snapAfter.branches['main']!;
     const rCommit = snapAfter.commits.find((c) => c.hash === rHash);
@@ -330,7 +330,7 @@ describe('CA-revert-08 : revert sur HEAD détaché', () => {
     // HEAD reste détaché
     expect(snap.head.type).toBe('detached');
     // Nouveau commit créé
-    expect((snap.allCommits?.length ?? 0)).toBe(countBefore + 1);
+    expect(snap.allCommits?.length ?? 0).toBe(countBefore + 1);
     if (snap.head.type === 'detached') {
       // HEAD détaché pointe le nouveau commit (hoist hors de la closure)
       const headHash = snap.head.hash;
@@ -378,7 +378,7 @@ describe('CA-revert-09 : git revert --abort', () => {
     // main inchangé
     expect(snapAfter.branches['main']).toBe(mainHashBefore);
     // Pas de commit créé
-    expect((snapAfter.allCommits?.length ?? 0)).toBe(countBefore);
+    expect(snapAfter.allCommits?.length ?? 0).toBe(countBefore);
   });
 });
 
@@ -467,7 +467,7 @@ describe('CA-revert-11 : revert via HEAD~n', () => {
 
     const snapAfter = engine.snapshot();
     // Nouveau commit de revert créé
-    expect((snapAfter.allCommits?.length ?? 0)).toBe(countBefore + 1);
+    expect(snapAfter.allCommits?.length ?? 0).toBe(countBefore + 1);
 
     const rHash = snapAfter.branches['main']!;
     const rCommit = snapAfter.commits.find((c) => c.hash === rHash);
@@ -498,7 +498,7 @@ describe("Revert préserve l'historique", () => {
     engine.execute(`git revert ${c1Hash}`);
 
     const snapAfter = engine.snapshot();
-    expect((snapAfter.allCommits?.length ?? 0)).toBe(countBefore + 1);
+    expect(snapAfter.allCommits?.length ?? 0).toBe(countBefore + 1);
     // Le commit original C1 est toujours là (historique préservé)
     const c1Still = snapAfter.allCommits?.find((c) => c.hash === c1Hash);
     expect(c1Still).toBeDefined();

@@ -14,13 +14,7 @@
  */
 
 import type { SnapshotCommit } from '@/core/engine';
-import type {
-  GraphEdge,
-  GraphLayout,
-  GraphNode,
-  LayoutInput,
-  LayoutOptions,
-} from './types';
+import type { GraphEdge, GraphLayout, GraphNode, LayoutInput, LayoutOptions } from './types';
 
 // Re-export public types so consumers can import from a single path.
 export type { GraphEdge, GraphLayout, GraphNode, LayoutInput, LayoutOptions };
@@ -125,7 +119,7 @@ function topologicalSort(commits: readonly SnapshotCommit[]): SnapshotCommit[] {
   if (visited.size !== commits.length) {
     // Visiter les commits manquants (graphes non-connectés)
     const unvisited = [...commits]
-      .filter(c => !visited.has(c.hash))
+      .filter((c) => !visited.has(c.hash))
       .sort((a, b) => a.hash.localeCompare(b.hash));
     for (const c of unvisited) {
       dfs(c.hash);
@@ -239,10 +233,7 @@ interface LaneAssignmentContext {
  * @param depths - Map hash → profondeur (nécessaire pour la résolution de collisions).
  * @returns Map hash → indice de lane.
  */
-function assignLanes(
-  ctx: LaneAssignmentContext,
-  depths: Map<string, number>,
-): Map<string, number> {
+function assignLanes(ctx: LaneAssignmentContext, depths: Map<string, number>): Map<string, number> {
   const laneAssignments = new Map<string, number>();
   let nextLane = 0;
 

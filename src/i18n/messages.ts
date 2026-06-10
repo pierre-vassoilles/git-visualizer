@@ -106,6 +106,15 @@ export type MessageKey =
   | 'difficulty.easy'
   | 'difficulty.medium'
   | 'difficulty.hard'
+  // Niveaux de tutoriels (launcher)
+  | 'sidebar.tutorialLevel.basic'
+  | 'sidebar.tutorialLevel.medium'
+  | 'sidebar.tutorialLevel.advanced'
+  | 'sidebar.openTutorials'
+  // Sections pédagogiques dans GuidedTutorialModal
+  | 'tutorial.why'
+  | 'tutorial.graphEffect'
+  | 'tutorial.executeButton'
   // Opérations en cours
   | 'op.merging'
   | 'op.rebasing'
@@ -202,6 +211,13 @@ export const MESSAGE_KEYS: readonly MessageKey[] = [
   'difficulty.easy',
   'difficulty.medium',
   'difficulty.hard',
+  'sidebar.tutorialLevel.basic',
+  'sidebar.tutorialLevel.medium',
+  'sidebar.tutorialLevel.advanced',
+  'sidebar.openTutorials',
+  'tutorial.why',
+  'tutorial.graphEffect',
+  'tutorial.executeButton',
   'op.merging',
   'op.rebasing',
   'op.cherryPicking',

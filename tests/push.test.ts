@@ -385,8 +385,7 @@ describe('git push — CA-push-08 : branche locale inexistante', () => {
     const result = engine.execute('git push origin nosuchbranch');
     const allMessages = [...result.errors, ...result.output].join('\n');
     expect(
-      allMessages.includes('not something we can push') ||
-      allMessages.includes('does not match'),
+      allMessages.includes('not something we can push') || allMessages.includes('does not match'),
     ).toBe(true);
   });
 
@@ -484,12 +483,8 @@ describe('git push — CA-push-11 : push -f (alias --force)', () => {
     const localHashF = engineF.snapshot().branches['main'];
     const localHashForce = engineForce.snapshot().branches['main'];
     // Les deux engines ont les mêmes commits donc même hash
-    expect(
-      engineF.snapshot().remotes!['origin']!.heads['main'],
-    ).toBe(localHashF);
-    expect(
-      engineForce.snapshot().remotes!['origin']!.heads['main'],
-    ).toBe(localHashForce);
+    expect(engineF.snapshot().remotes!['origin']!.heads['main']).toBe(localHashF);
+    expect(engineForce.snapshot().remotes!['origin']!.heads['main']).toBe(localHashForce);
   });
 });
 

@@ -79,7 +79,7 @@ describe('git init', () => {
       expect(result.errors).toEqual([]);
     });
 
-    it('CA-init-02 : l\'état du dépôt reste inchangé (branche main conservée)', () => {
+    it("CA-init-02 : l'état du dépôt reste inchangé (branche main conservée)", () => {
       const engine = replay([
         'git init',
         'write file.txt "hello"',
@@ -104,7 +104,7 @@ describe('git init', () => {
       expect(result.output.join('\n')).toContain('On branch main');
     });
 
-    it('CA-init-03 : git status n\'affiche aucun fichier', () => {
+    it("CA-init-03 : git status n'affiche aucun fichier", () => {
       const engine = replay(['git init']);
       const result = engine.execute('git status');
       // Aucune section "Untracked files:" car working tree vide

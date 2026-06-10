@@ -11,10 +11,13 @@ import { useRepoStore } from '@/stores/repo';
 import { useTheme } from '@/composables/useTheme';
 import { getAllScenarios } from '@/constants/scenarios';
 import { getAllTutorials } from '@/constants/tutorials';
+import { localize } from '@/core/tutorial-helpers';
 import { searchPaletteItems, type PaletteItem } from '@/utils/commandPalette';
+import { useI18n } from '@/i18n';
 
 const repo = useRepoStore();
 const { effectiveTheme, setTheme } = useTheme();
+const { locale } = useI18n();
 
 const open = ref(false);
 const query = ref('');
@@ -31,10 +34,10 @@ const items = computed<PaletteItem[]>(() =>
       title: s.title,
       description: s.description,
     })),
-    tutorials: getAllTutorials().map((t) => ({
-      id: t.id,
-      title: t.title,
-      description: t.description,
+    tutorials: getAllTutorials().map((tuto) => ({
+      id: tuto.id,
+      title: localize(tuto.title, locale.value),
+      description: localize(tuto.description, locale.value),
     })),
   }),
 );

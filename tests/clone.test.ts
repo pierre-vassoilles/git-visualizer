@@ -270,10 +270,9 @@ describe('git clone — CA-clone-12 : index et WT synchronisés', () => {
     expect(result.exitCode).toBe(0);
     const output = result.output.join('\n');
     // "nothing to commit" ou "working tree clean"
-    expect(
-      output.includes('nothing to commit') ||
-      output.includes('working tree clean'),
-    ).toBe(true);
+    expect(output.includes('nothing to commit') || output.includes('working tree clean')).toBe(
+      true,
+    );
   });
 
   it('CA-clone-12 : les fichiers du WT correspondent au commit de HEAD', () => {

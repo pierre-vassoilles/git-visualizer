@@ -407,11 +407,7 @@ describe('git status', () => {
 
     it('CA-status-07 : output contient "A  staged.txt" (new staged file)', () => {
       // Cas : nouveau fichier stagé (pas de commit précédent pour ce fichier)
-      const engine = replay([
-        'git init',
-        'write staged.txt "s"',
-        'git add staged.txt',
-      ]);
+      const engine = replay(['git init', 'write staged.txt "s"', 'git add staged.txt']);
       const result = engine.execute('git status -s');
       expect(out(result.output)).toContain('A  staged.txt');
     });

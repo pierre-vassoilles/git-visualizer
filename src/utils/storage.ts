@@ -146,3 +146,49 @@ export function loadCurrentIndex(): number | null {
 export function clearHistory(): void {
   localStorage.removeItem(STORAGE_KEY);
 }
+
+// ---------------------------------------------------------------------------
+// PHASE B2 (spec 62, C4) : persistance de la progression d'un tutoriel
+// ---------------------------------------------------------------------------
+
+const TUTORIAL_KEY = 'git-visualizer:tutorial';
+
+export interface StoredTutorialProgress {
+  tutorialId: string;
+  currentStepIndex: number;
+}
+
+/** Persiste la progression du tutoriel en cours. */
+export function saveTutorialProgress(progress: StoredTutorialProgress): void {
+  try {
+    localStorage.setItem(TUTORIAL_KEY, JSON.stringify(progress));
+  } catch {
+    // Quota / accès refusé → ignore
+  }
+}
+
+/** Charge la progression persistée (ou null si absente/invalide). */
+export function loadTutorialProgress(): StoredTutorialProgress | null {
+  const raw = localStorage.getItem(TUTORIAL_KEY);
+  if (raw === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      typeof (parsed as Record<string, unknown>).tutorialId === 'string' &&
+      typeof (parsed as Record<string, unknown>).currentStepIndex === 'number'
+    ) {
+      return parsed as StoredTutorialProgress;
+    }
+  } catch {
+    // JSON invalide → null
+  }
+  localStorage.removeItem(TUTORIAL_KEY);
+  return null;
+}
+
+/** Purge la progression de tutoriel. */
+export function clearTutorialProgress(): void {
+  localStorage.removeItem(TUTORIAL_KEY);
+}

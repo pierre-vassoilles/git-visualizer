@@ -31,9 +31,9 @@ export function cmdPush(repo: Repository, args: string[]): CommandResult {
   const setUpstream = args.includes('-u') || args.includes('--set-upstream');
 
   // Filtrer les args non-flags (remote et branch positionnels)
-  const posArgs = args.filter(
-    (a) => !a.startsWith('-') || (!['--force', '-f', '-u', '--set-upstream'].includes(a)),
-  ).filter((a) => !a.startsWith('-'));
+  const posArgs = args
+    .filter((a) => !a.startsWith('-') || !['--force', '-f', '-u', '--set-upstream'].includes(a))
+    .filter((a) => !a.startsWith('-'));
 
   let remoteName: string;
   let localBranch: string;
@@ -47,12 +47,15 @@ export function cmdPush(repo: Repository, args: string[]): CommandResult {
     }
     const upstream = repo.branchUpstream[cur];
     if (!upstream) {
-      return fail([
-        `fatal: The current branch ${cur} has no upstream branch.`,
-        'To push the current branch and set the remote as upstream, use',
-        '',
-        `    git push --set-upstream origin ${cur}`,
-      ], 128);
+      return fail(
+        [
+          `fatal: The current branch ${cur} has no upstream branch.`,
+          'To push the current branch and set the remote as upstream, use',
+          '',
+          `    git push --set-upstream origin ${cur}`,
+        ],
+        128,
+      );
     }
     remoteName = upstream.remote;
     localBranch = cur;
@@ -100,16 +103,19 @@ export function cmdPush(repo: Repository, args: string[]): CommandResult {
   // Vérification fast-forward
   if (!force && trackingHash) {
     if (!isAncestor(repo, trackingHash, localHash)) {
-      return fail([
-        `To ${remote.url}`,
-        ` ! [rejected]       ${localBranch} -> ${remoteBranch} (non-fast-forward)`,
-        `error: failed to push some refs to '${remote.url}'`,
-        `hint: Updates were rejected because the remote contains work that you do`,
-        `hint: not have locally. This is usually caused by another repository pushing`,
-        `hint: to the same ref. You may want to first integrate the remote changes`,
-        `hint: (e.g., 'git pull ...') before pushing again.`,
-        `hint: See the 'Notes on fast-forwards' in 'git push --help' for details.`,
-      ], 1);
+      return fail(
+        [
+          `To ${remote.url}`,
+          ` ! [rejected]       ${localBranch} -> ${remoteBranch} (non-fast-forward)`,
+          `error: failed to push some refs to '${remote.url}'`,
+          `hint: Updates were rejected because the remote contains work that you do`,
+          `hint: not have locally. This is usually caused by another repository pushing`,
+          `hint: to the same ref. You may want to first integrate the remote changes`,
+          `hint: (e.g., 'git pull ...') before pushing again.`,
+          `hint: See the 'Notes on fast-forwards' in 'git push --help' for details.`,
+        ],
+        1,
+      );
     }
   }
 

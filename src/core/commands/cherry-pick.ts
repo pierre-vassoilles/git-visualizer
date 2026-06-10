@@ -54,9 +54,7 @@ export function cmdCherryPick(repo: Repository, args: string[]): CommandResult {
   const targetHash = resolveCommitish(repo, commitRef);
   if (!targetHash) {
     return fail(
-      [
-        `fatal: ambiguous argument '${commitRef}': unknown revision or path not in working tree`,
-      ],
+      [`fatal: ambiguous argument '${commitRef}': unknown revision or path not in working tree`],
       128,
     );
   }
@@ -64,9 +62,7 @@ export function cmdCherryPick(repo: Repository, args: string[]): CommandResult {
   const targetCommit = getCommit(repo, targetHash);
   if (!targetCommit) {
     return fail(
-      [
-        `fatal: ambiguous argument '${commitRef}': unknown revision or path not in working tree`,
-      ],
+      [`fatal: ambiguous argument '${commitRef}': unknown revision or path not in working tree`],
       128,
     );
   }
@@ -85,9 +81,7 @@ export function cmdCherryPick(repo: Repository, args: string[]): CommandResult {
 
   // Refuser si le commit est déjà un ancêtre de HEAD (déjà appliqué)
   if (isAncestor(repo, targetHash, headHash)) {
-    return fail([
-      `error: commit ${shortHash(targetHash)} is already included in HEAD.`,
-    ]);
+    return fail([`error: commit ${shortHash(targetHash)} is already included in HEAD.`]);
   }
 
   // Sauvegarder l'état avant cherry-pick pour --abort

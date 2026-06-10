@@ -12,21 +12,13 @@ describe('git commit', () => {
   // -------------------------------------------------------------------------
   describe('CA-commit-01 : premier commit', () => {
     it('CA-commit-01 : exitCode === 0', () => {
-      const engine = replay([
-        'git init',
-        'write hello.txt "hello"',
-        'git add hello.txt',
-      ]);
+      const engine = replay(['git init', 'write hello.txt "hello"', 'git add hello.txt']);
       const result = engine.execute('git commit -m "First commit"');
       expect(result.exitCode).toBe(0);
     });
 
     it('CA-commit-01 : output[0] contient "First commit"', () => {
-      const engine = replay([
-        'git init',
-        'write hello.txt "hello"',
-        'git add hello.txt',
-      ]);
+      const engine = replay(['git init', 'write hello.txt "hello"', 'git add hello.txt']);
       const result = engine.execute('git commit -m "First commit"');
       expect(result.output[0]).toContain('First commit');
     });
@@ -54,7 +46,7 @@ describe('git commit', () => {
       expect(snap.commits[0]?.hash).toMatch(/^[0-9a-f]{40}$/);
     });
 
-    it('CA-commit-01 : le commit n\'a pas de parents (commit racine)', () => {
+    it("CA-commit-01 : le commit n'a pas de parents (commit racine)", () => {
       const engine = replay([
         'git init',
         'write hello.txt "hello"',
@@ -89,7 +81,7 @@ describe('git commit', () => {
       expect(snap.branches['main']).toBe(commitHash);
     });
 
-    it('CA-commit-01 : l\'index reste aligné sur le commit (non vidé)', () => {
+    it("CA-commit-01 : l'index reste aligné sur le commit (non vidé)", () => {
       const engine = replay([
         'git init',
         'write hello.txt "hello"',
@@ -101,11 +93,7 @@ describe('git commit', () => {
     });
 
     it('CA-commit-01 : output[0] contient "(root-commit)" pour le premier commit', () => {
-      const engine = replay([
-        'git init',
-        'write hello.txt "hello"',
-        'git add hello.txt',
-      ]);
+      const engine = replay(['git init', 'write hello.txt "hello"', 'git add hello.txt']);
       const result = engine.execute('git commit -m "First commit"');
       expect(result.output[0]).toContain('root-commit');
     });
@@ -141,7 +129,7 @@ describe('git commit', () => {
       expect(result.output[0]).toContain('Add world file');
     });
 
-    it('CA-commit-02 : deux commits dans l\'historique', () => {
+    it("CA-commit-02 : deux commits dans l'historique", () => {
       const engine = replay([
         'git init',
         'write hello.txt "hello"',
@@ -218,7 +206,7 @@ describe('git commit', () => {
   // -------------------------------------------------------------------------
   // CA-commit-03 : Modification d'un fichier existant
   // -------------------------------------------------------------------------
-  describe('CA-commit-03 : modification d\'un fichier existant', () => {
+  describe("CA-commit-03 : modification d'un fichier existant", () => {
     it('CA-commit-03 : exitCode === 0', () => {
       const engine = replay([
         'git init',
@@ -232,7 +220,7 @@ describe('git commit', () => {
       expect(result.exitCode).toBe(0);
     });
 
-    it('CA-commit-03 : deux commits dans l\'historique', () => {
+    it("CA-commit-03 : deux commits dans l'historique", () => {
       const engine = replay([
         'git init',
         'write file.txt "original"',
@@ -277,7 +265,7 @@ describe('git commit', () => {
       expect(result.errors[0]).toContain('no changes added to commit');
     });
 
-    it('CA-commit-04 : aucun commit n\'est créé', () => {
+    it("CA-commit-04 : aucun commit n'est créé", () => {
       const engine = replay(['git init']);
       engine.execute('git commit -m "Rien"');
       const snap = engine.snapshot();
@@ -303,26 +291,18 @@ describe('git commit', () => {
   // -------------------------------------------------------------------------
   describe('CA-commit-05 : message vide', () => {
     it('CA-commit-05 : exitCode === 1', () => {
-      const engine = replay([
-        'git init',
-        'write file.txt "content"',
-        'git add file.txt',
-      ]);
+      const engine = replay(['git init', 'write file.txt "content"', 'git add file.txt']);
       const result = engine.execute('git commit -m ""');
       expect(result.exitCode).toBe(1);
     });
 
     it('CA-commit-05 : errors[0] contient "message cannot be empty"', () => {
-      const engine = replay([
-        'git init',
-        'write file.txt "content"',
-        'git add file.txt',
-      ]);
+      const engine = replay(['git init', 'write file.txt "content"', 'git add file.txt']);
       const result = engine.execute('git commit -m ""');
       expect(result.errors[0]).toContain('message cannot be empty');
     });
 
-    it('CA-commit-05 : aucun commit n\'est créé', () => {
+    it("CA-commit-05 : aucun commit n'est créé", () => {
       const engine = replay([
         'git init',
         'write file.txt "content"',
@@ -339,26 +319,18 @@ describe('git commit', () => {
   // -------------------------------------------------------------------------
   describe('CA-commit-06 : option -m manquante', () => {
     it('CA-commit-06 : exitCode === 1', () => {
-      const engine = replay([
-        'git init',
-        'write file.txt "content"',
-        'git add file.txt',
-      ]);
+      const engine = replay(['git init', 'write file.txt "content"', 'git add file.txt']);
       const result = engine.execute('git commit');
       expect(result.exitCode).toBe(1);
     });
 
     it('CA-commit-06 : errors[0] contient "option \'-m\' is required"', () => {
-      const engine = replay([
-        'git init',
-        'write file.txt "content"',
-        'git add file.txt',
-      ]);
+      const engine = replay(['git init', 'write file.txt "content"', 'git add file.txt']);
       const result = engine.execute('git commit');
       expect(result.errors[0]).toContain("-m' is required");
     });
 
-    it('CA-commit-06 : aucun commit n\'est créé', () => {
+    it("CA-commit-06 : aucun commit n'est créé", () => {
       const engine = replay([
         'git init',
         'write file.txt "content"',
@@ -399,7 +371,7 @@ describe('git commit', () => {
       expect(snap.commits).toHaveLength(1);
     });
 
-    it('CA-commit-07 : l\'index reste aligné sur les fichiers committés (non vidé)', () => {
+    it("CA-commit-07 : l'index reste aligné sur les fichiers committés (non vidé)", () => {
       const engine = replay([
         'git init',
         'write a.txt "A"',
@@ -426,9 +398,7 @@ describe('git commit', () => {
       ];
       const engine1 = replay(commands);
       const engine2 = replay(commands);
-      expect(engine1.snapshot().commits[0]?.hash).toBe(
-        engine2.snapshot().commits[0]?.hash,
-      );
+      expect(engine1.snapshot().commits[0]?.hash).toBe(engine2.snapshot().commits[0]?.hash);
     });
 
     it('CA-commit-08 : même contenu, même message → hash identique', () => {

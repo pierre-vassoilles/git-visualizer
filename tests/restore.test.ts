@@ -252,12 +252,7 @@ describe('git restore — CA-restore-06 : fichier absent du commit source → su
 
 describe('git restore — CA-restore-07 : erreur pathspec inexistant', () => {
   it("CA-restore-07 : exitCode 1, message 'did not match any files'", () => {
-    const engine = replay([
-      'git init',
-      'write f.txt "x"',
-      'git add f.txt',
-      'git commit -m "c"',
-    ]);
+    const engine = replay(['git init', 'write f.txt "x"', 'git add f.txt', 'git commit -m "c"']);
 
     const result = engine.execute('git restore nosuchfile.txt');
 
@@ -272,20 +267,13 @@ describe('git restore — CA-restore-07 : erreur pathspec inexistant', () => {
 
 describe('git restore — CA-restore-08 : erreur commit inexistant', () => {
   it("CA-restore-08 : exitCode 1, message 'is not a tree'", () => {
-    const engine = replay([
-      'git init',
-      'write f.txt "x"',
-      'git add f.txt',
-      'git commit -m "c"',
-    ]);
+    const engine = replay(['git init', 'write f.txt "x"', 'git add f.txt', 'git commit -m "c"']);
 
     const result = engine.execute('git restore --source=nosuchcommit f.txt');
 
     expect(result.exitCode).toBe(1);
     expect(
-      result.errors.some(
-        (e) => e.includes('is not a tree') || e.includes('nosuchcommit'),
-      ),
+      result.errors.some((e) => e.includes('is not a tree') || e.includes('nosuchcommit')),
     ).toBe(true);
   });
 });
@@ -296,19 +284,14 @@ describe('git restore — CA-restore-08 : erreur commit inexistant', () => {
 
 describe('git restore — CA-restore-09 : erreur pathspec vide (aucun argument)', () => {
   it("CA-restore-09 : exitCode 1, message 'pathspec cannot be empty'", () => {
-    const engine = replay([
-      'git init',
-      'write f.txt "x"',
-      'git add f.txt',
-      'git commit -m "c"',
-    ]);
+    const engine = replay(['git init', 'write f.txt "x"', 'git add f.txt', 'git commit -m "c"']);
 
     const result = engine.execute('git restore');
 
     expect(result.exitCode).toBe(1);
-    expect(
-      result.errors.some((e) => e.toLowerCase().includes('pathspec cannot be empty')),
-    ).toBe(true);
+    expect(result.errors.some((e) => e.toLowerCase().includes('pathspec cannot be empty'))).toBe(
+      true,
+    );
   });
 });
 

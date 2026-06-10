@@ -31,8 +31,8 @@ describe('persistence — CA-persist-05 : déterminisme du rejeu', () => {
     const snap2 = e2.snapshot();
 
     // Mêmes hashes de commits
-    const hashes1 = snap1.commits.map(c => c.hash).sort();
-    const hashes2 = snap2.commits.map(c => c.hash).sort();
+    const hashes1 = snap1.commits.map((c) => c.hash).sort();
+    const hashes2 = snap2.commits.map((c) => c.hash).sort();
     expect(hashes1).toEqual(hashes2);
   });
 
@@ -62,8 +62,12 @@ describe('persistence — CA-persist-05 : déterminisme du rejeu', () => {
     expect(snap1.tags).toEqual(snap2.tags);
 
     // Les commits sont identiques (même hash, même message, mêmes parents)
-    const cs1 = snap1.commits.map(c => ({ hash: c.hash, msg: c.message })).sort((a, b) => a.hash.localeCompare(b.hash));
-    const cs2 = snap2.commits.map(c => ({ hash: c.hash, msg: c.message })).sort((a, b) => a.hash.localeCompare(b.hash));
+    const cs1 = snap1.commits
+      .map((c) => ({ hash: c.hash, msg: c.message }))
+      .sort((a, b) => a.hash.localeCompare(b.hash));
+    const cs2 = snap2.commits
+      .map((c) => ({ hash: c.hash, msg: c.message }))
+      .sort((a, b) => a.hash.localeCompare(b.hash));
     expect(cs1).toEqual(cs2);
   });
 
@@ -85,8 +89,12 @@ describe('persistence — CA-persist-05 : déterminisme du rejeu', () => {
     const e1 = replay(cmds);
     const e2 = replay(cmds);
 
-    const allHashes1 = (e1.snapshot().allCommits ?? e1.snapshot().commits).map(c => c.hash).sort();
-    const allHashes2 = (e2.snapshot().allCommits ?? e2.snapshot().commits).map(c => c.hash).sort();
+    const allHashes1 = (e1.snapshot().allCommits ?? e1.snapshot().commits)
+      .map((c) => c.hash)
+      .sort();
+    const allHashes2 = (e2.snapshot().allCommits ?? e2.snapshot().commits)
+      .map((c) => c.hash)
+      .sort();
     expect(allHashes1).toEqual(allHashes2);
   });
 });
@@ -114,9 +122,9 @@ describe('persistence — CA-persist-06 : erreur durant le rejeu', () => {
     // s'arrêter à la première commande qui échoue
     const storedCommands = [
       'git init',
-      'invalid_cmd_xyz',  // échoue → arrêt
-      'write f1.txt "v1"',  // ne doit pas être exécutée
-      'git add f1.txt',     // ne doit pas être exécutée
+      'invalid_cmd_xyz', // échoue → arrêt
+      'write f1.txt "v1"', // ne doit pas être exécutée
+      'git add f1.txt', // ne doit pas être exécutée
     ];
 
     const engine = newEngine();
@@ -143,8 +151,8 @@ describe('persistence — CA-persist-06 : erreur durant le rejeu', () => {
       'write f1.txt "hello"',
       'git add f1.txt',
       'git commit -m "C1"',
-      'invalid_cmd',  // erreur → stop
-      'git branch newbranch',  // ne doit pas s\'exécuter
+      'invalid_cmd', // erreur → stop
+      'git branch newbranch', // ne doit pas s\'exécuter
     ];
 
     for (const cmd of commands) {
@@ -182,8 +190,8 @@ describe('persistence — déterminisme avec rebase', () => {
     const e1 = replay(cmds);
     const e2 = replay(cmds);
 
-    const h1 = (e1.snapshot().allCommits ?? e1.snapshot().commits).map(c => c.hash).sort();
-    const h2 = (e2.snapshot().allCommits ?? e2.snapshot().commits).map(c => c.hash).sort();
+    const h1 = (e1.snapshot().allCommits ?? e1.snapshot().commits).map((c) => c.hash).sort();
+    const h2 = (e2.snapshot().allCommits ?? e2.snapshot().commits).map((c) => c.hash).sort();
     expect(h1).toEqual(h2);
   });
 });

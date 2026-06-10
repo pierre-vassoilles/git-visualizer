@@ -217,7 +217,7 @@ describe('allCommits — CA-model-03 : décorations branches et tags', () => {
     expect(sharedCommit!.branches).toContain('aliased');
   });
 
-  it('CA-model-03 : les commits non-tip n\'ont pas de décoration de branche', () => {
+  it("CA-model-03 : les commits non-tip n'ont pas de décoration de branche", () => {
     const engine = replay([
       'git init',
       'write file.txt "v1"',

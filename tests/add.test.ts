@@ -35,7 +35,7 @@ describe('git add', () => {
       engine.execute('git add hello.txt');
       // Vérification via snapshot : le fichier est stagé
       const snap = engine.snapshot();
-      const file = snap.files.find(f => f.path === 'hello.txt');
+      const file = snap.files.find((f) => f.path === 'hello.txt');
       expect(file).toBeDefined();
       expect(file?.status).toBe('staged');
     });
@@ -59,23 +59,13 @@ describe('git add', () => {
   // -------------------------------------------------------------------------
   describe('CA-add-02 : ajouter plusieurs fichiers', () => {
     it('CA-add-02 : exitCode === 0', () => {
-      const engine = replay([
-        'git init',
-        'write a.txt "A"',
-        'write b.txt "B"',
-        'write c.txt "C"',
-      ]);
+      const engine = replay(['git init', 'write a.txt "A"', 'write b.txt "B"', 'write c.txt "C"']);
       const result = engine.execute('git add a.txt b.txt c.txt');
       expect(result.exitCode).toBe(0);
     });
 
-    it('CA-add-02 : les trois fichiers sont dans l\'index', () => {
-      const engine = replay([
-        'git init',
-        'write a.txt "A"',
-        'write b.txt "B"',
-        'write c.txt "C"',
-      ]);
+    it("CA-add-02 : les trois fichiers sont dans l'index", () => {
+      const engine = replay(['git init', 'write a.txt "A"', 'write b.txt "B"', 'write c.txt "C"']);
       engine.execute('git add a.txt b.txt c.txt');
       const snap = engine.snapshot();
       expect(snap.indexPaths).toContain('a.txt');
@@ -84,15 +74,10 @@ describe('git add', () => {
     });
 
     it('CA-add-02 : trois fichiers stagés dans le snapshot', () => {
-      const engine = replay([
-        'git init',
-        'write a.txt "A"',
-        'write b.txt "B"',
-        'write c.txt "C"',
-      ]);
+      const engine = replay(['git init', 'write a.txt "A"', 'write b.txt "B"', 'write c.txt "C"']);
       engine.execute('git add a.txt b.txt c.txt');
       const snap = engine.snapshot();
-      const staged = snap.files.filter(f => f.status === 'staged');
+      const staged = snap.files.filter((f) => f.status === 'staged');
       expect(staged).toHaveLength(3);
     });
   });
@@ -113,7 +98,7 @@ describe('git add', () => {
       expect(result.exitCode).toBe(0);
     });
 
-    it('CA-add-03 : les quatre fichiers sont dans l\'index', () => {
+    it("CA-add-03 : les quatre fichiers sont dans l'index", () => {
       const engine = replay([
         'git init',
         'write file1.txt "content1"',
@@ -146,7 +131,7 @@ describe('git add', () => {
   // -------------------------------------------------------------------------
   // CA-add-04 : Mettre à jour un fichier déjà stagé
   // -------------------------------------------------------------------------
-  describe('CA-add-04 : mise à jour d\'un fichier déjà stagé', () => {
+  describe("CA-add-04 : mise à jour d'un fichier déjà stagé", () => {
     it('CA-add-04 : exitCode === 0 après re-add', () => {
       const engine = replay([
         'git init',
@@ -158,7 +143,7 @@ describe('git add', () => {
       expect(result.exitCode).toBe(0);
     });
 
-    it('CA-add-04 : le fichier est toujours dans l\'index', () => {
+    it("CA-add-04 : le fichier est toujours dans l'index", () => {
       const engine = replay([
         'git init',
         'write doc.md "v1"',
@@ -223,7 +208,7 @@ describe('git add', () => {
       expect(result.errors[0]).toContain('did not match any files');
     });
 
-    it('CA-add-05 : l\'index reste inchangé', () => {
+    it("CA-add-05 : l'index reste inchangé", () => {
       const engine = replay(['git init']);
       engine.execute('git add nonexistent.txt');
       const snap = engine.snapshot();
@@ -298,7 +283,7 @@ describe('git add', () => {
       expect(result.exitCode).toBe(0);
     });
 
-    it('CA-add-09 : le fichier est dans l\'index après le second ajout', () => {
+    it("CA-add-09 : le fichier est dans l'index après le second ajout", () => {
       const engine = replay([
         'git init',
         'write log.txt "first"',
@@ -344,7 +329,7 @@ describe('git add', () => {
       ]);
       const snap = engine.snapshot();
       // Le fichier doit être à la fois staged (car dans l'index) et modifié dans WT
-      const file = snap.files.find(f => f.path === 'file.txt');
+      const file = snap.files.find((f) => f.path === 'file.txt');
       expect(file).toBeDefined();
       // Le statut exact dépend de l'implémentation du snapshot ; la spec dit
       // que git status doit afficher "modified" dans les deux sections.

@@ -16,7 +16,7 @@ import { replay } from './helpers';
 // ---------------------------------------------------------------------------
 
 describe('CA-replay-01 : replay sans conflit (via git rebase)', () => {
-  it('CA-replay-01 : rebase replay D1 sur C1 → D1\' a les changements de D1 + b.txt de C1', () => {
+  it("CA-replay-01 : rebase replay D1 sur C1 → D1' a les changements de D1 + b.txt de C1", () => {
     // C0: a.txt="base"
     // C1 (main): b.txt="main"
     // D1 (feature): a.txt="feature"

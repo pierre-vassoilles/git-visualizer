@@ -98,7 +98,9 @@ describe('git checkout — CA-checkout-02 : créer et basculer avec -b', () => {
     const result = engine.execute('git checkout -b newbranch');
 
     expect(result.exitCode).toBe(0);
-    expect(result.output.some((l) => l.includes("Switched to a new branch 'newbranch'"))).toBe(true);
+    expect(result.output.some((l) => l.includes("Switched to a new branch 'newbranch'"))).toBe(
+      true,
+    );
 
     const snap = engine.snapshot();
     expect('newbranch' in snap.branches).toBe(true);
@@ -191,12 +193,7 @@ describe('git checkout — CA-checkout-04 : revenir à la branche précédente',
 
 describe('git checkout — CA-checkout-05 : erreur branche inexistante', () => {
   it('CA-checkout-05 : exitCode 1, message "did not match" ou "is not a tree"', () => {
-    const engine = replay([
-      'git init',
-      'write f.txt "x"',
-      'git add f.txt',
-      'git commit -m "c"',
-    ]);
+    const engine = replay(['git init', 'write f.txt "x"', 'git add f.txt', 'git commit -m "c"']);
     const snapBefore = engine.snapshot();
 
     const result = engine.execute('git checkout nosuchbranch');
@@ -204,7 +201,10 @@ describe('git checkout — CA-checkout-05 : erreur branche inexistante', () => {
     expect(result.exitCode).toBe(1);
     expect(
       result.errors.some(
-        (e) => e.includes('did not match any file') || e.includes('is not a tree') || e.includes('reference'),
+        (e) =>
+          e.includes('did not match any file') ||
+          e.includes('is not a tree') ||
+          e.includes('reference'),
       ),
     ).toBe(true);
 
@@ -243,16 +243,13 @@ describe('git checkout — CA-checkout-06 : erreur changements locaux écrasés'
 
 describe('git checkout — CA-checkout-07 : erreur -b avec branche existante', () => {
   it("CA-checkout-07 : exitCode 1, message 'already exists'", () => {
-    const engine = replay([
-      'git init',
-      'write f.txt "x"',
-      'git add f.txt',
-      'git commit -m "c"',
-    ]);
+    const engine = replay(['git init', 'write f.txt "x"', 'git add f.txt', 'git commit -m "c"']);
     const result = engine.execute('git checkout -b main');
 
     expect(result.exitCode).toBe(1);
-    expect(result.errors.some((e) => e.includes("A branch named 'main' already exists."))).toBe(true);
+    expect(result.errors.some((e) => e.includes("A branch named 'main' already exists."))).toBe(
+      true,
+    );
   });
 });
 
@@ -262,12 +259,7 @@ describe('git checkout — CA-checkout-07 : erreur -b avec branche existante', (
 
 describe('git checkout — CA-checkout-08 : erreur pas de branche précédente', () => {
   it('CA-checkout-08 : exitCode 1, message "no previous branch"', () => {
-    const engine = replay([
-      'git init',
-      'write f.txt "x"',
-      'git add f.txt',
-      'git commit -m "c"',
-    ]);
+    const engine = replay(['git init', 'write f.txt "x"', 'git add f.txt', 'git commit -m "c"']);
     // Aucun changement de branche → prevBranch = null
     const result = engine.execute('git checkout -');
 
@@ -288,12 +280,7 @@ describe('git checkout — CA-checkout-08 : erreur pas de branche précédente',
 
 describe('git checkout — CA-checkout-09 : basculer vers la même branche (idempotent)', () => {
   it('CA-checkout-09 : exitCode 0, HEAD inchangé', () => {
-    const engine = replay([
-      'git init',
-      'write f.txt "x"',
-      'git add f.txt',
-      'git commit -m "c"',
-    ]);
+    const engine = replay(['git init', 'write f.txt "x"', 'git add f.txt', 'git commit -m "c"']);
     const snapBefore = engine.snapshot();
 
     const result = engine.execute('git checkout main');
@@ -378,12 +365,7 @@ describe('git checkout — cas limites', () => {
   });
 
   it('checkout d un commit inexistant retourne exitCode 1', () => {
-    const engine = replay([
-      'git init',
-      'write f.txt "x"',
-      'git add f.txt',
-      'git commit -m "c"',
-    ]);
+    const engine = replay(['git init', 'write f.txt "x"', 'git add f.txt', 'git commit -m "c"']);
     const result = engine.execute('git checkout abcdef1234567890abcdef1234567890abcdef12');
     expect(result.exitCode).toBe(1);
   });

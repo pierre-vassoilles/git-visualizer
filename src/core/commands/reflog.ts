@@ -1,10 +1,6 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
-import {
-  branchExists,
-  getReflog,
-  isInitialized,
-} from '../repository';
+import { branchExists, getReflog, isInitialized } from '../repository';
 import { shortHash } from '../sha1';
 import { notARepo } from './init';
 
@@ -24,7 +20,7 @@ export function cmdReflog(repo: Repository, args: string[]): CommandResult {
   }
 
   // git reflog [show] [<ref>]
-  const ref = (sub === 'show') ? (args[1] ?? 'HEAD') : (sub ?? 'HEAD');
+  const ref = sub === 'show' ? (args[1] ?? 'HEAD') : (sub ?? 'HEAD');
   return reflogShow(repo, ref);
 }
 
@@ -84,4 +80,3 @@ function reflogList(repo: Repository): CommandResult {
 
   return ok(lines);
 }
-

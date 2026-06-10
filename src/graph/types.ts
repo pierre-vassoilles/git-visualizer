@@ -67,10 +67,7 @@ export interface LayoutInput {
   branches: Readonly<Record<string, string>>;
 
   /** HEAD courant (pour surbrillance optionnelle). */
-  head: Readonly<
-    | { type: 'branch'; name: string }
-    | { type: 'detached'; hash: string }
-  >;
+  head: Readonly<{ type: 'branch'; name: string } | { type: 'detached'; hash: string }>;
 
   /** Tags courants (tagName → commitHash). */
   tags: Readonly<Record<string, string>>;

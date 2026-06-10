@@ -136,7 +136,7 @@ describe('CA-rebasei-02 : État snapshot pour la modale UI', () => {
 // CA-rebasei-03 : Simple pick (tous pick = rebase normal)
 // ---------------------------------------------------------------------------
 
-describe('CA-rebasei-03 : Simple pick (pas d\'édition)', () => {
+describe("CA-rebasei-03 : Simple pick (pas d'édition)", () => {
   it('CA-rebasei-03 : tous pick → deux nouveaux commits, branch pointe le dernier, rebasing désactivé', () => {
     const engine = featureRepo();
     const snapBefore = engine.snapshot();
@@ -178,7 +178,7 @@ describe('CA-rebasei-03 : Simple pick (pas d\'édition)', () => {
 // ---------------------------------------------------------------------------
 
 describe('CA-rebasei-04 : Reword (édition de message)', () => {
-  it('CA-rebasei-04 : reword D1 → "Modified D1", D1\' a le nouveau message, D2\' a D1\' comme parent', () => {
+  it("CA-rebasei-04 : reword D1 → \"Modified D1\", D1' a le nouveau message, D2' a D1' comme parent", () => {
     const engine = featureRepo();
     const snapBefore = engine.snapshot();
 
@@ -191,7 +191,7 @@ describe('CA-rebasei-04 : Reword (édition de message)', () => {
 
     const todoList: TodoItem[] = [
       { action: 'reword', commitHash: todoRaw[0]!.commitHash, message: 'Modified D1' },
-      { action: 'pick',   commitHash: todoRaw[1]!.commitHash, message: todoRaw[1]!.message },
+      { action: 'pick', commitHash: todoRaw[1]!.commitHash, message: todoRaw[1]!.message },
     ];
 
     const result = engine.executeRebaseInteractive(todoList);
@@ -226,9 +226,9 @@ describe('CA-rebasei-05 : Squash', () => {
 
     // D1 pick, D2 squash, D3 pick
     const todoList: TodoItem[] = [
-      { action: 'pick',   commitHash: todoRaw[0]!.commitHash, message: todoRaw[0]!.message },
+      { action: 'pick', commitHash: todoRaw[0]!.commitHash, message: todoRaw[0]!.message },
       { action: 'squash', commitHash: todoRaw[1]!.commitHash, message: todoRaw[1]!.message },
-      { action: 'pick',   commitHash: todoRaw[2]!.commitHash, message: todoRaw[2]!.message },
+      { action: 'pick', commitHash: todoRaw[2]!.commitHash, message: todoRaw[2]!.message },
     ];
 
     const result = engine.executeRebaseInteractive(todoList);
@@ -264,7 +264,7 @@ describe('CA-rebasei-06 : Fixup (squash + message jeté)', () => {
     const todoRaw = snapPending.rebasingInteractive!.todoList;
 
     const todoList: TodoItem[] = [
-      { action: 'pick',  commitHash: todoRaw[0]!.commitHash, message: 'D1' },
+      { action: 'pick', commitHash: todoRaw[0]!.commitHash, message: 'D1' },
       { action: 'fixup', commitHash: todoRaw[1]!.commitHash, message: 'D2' },
     ];
 
@@ -331,7 +331,7 @@ describe('CA-rebasei-07 : Drop (suppression)', () => {
 // ---------------------------------------------------------------------------
 
 describe('CA-rebasei-08 : Réordonnancement', () => {
-  it('CA-rebasei-08 : todoList [D2, D1, D3] → ordre D2\' → D1\' → D3\' dans l\'historique', () => {
+  it("CA-rebasei-08 : todoList [D2, D1, D3] → ordre D2' → D1' → D3' dans l'historique", () => {
     const engine = featureRepo3();
     engine.execute('git rebase -i main');
     const snapPending = engine.snapshot();
@@ -373,7 +373,7 @@ describe('CA-rebasei-08 : Réordonnancement', () => {
 // CA-rebasei-09 : Conflit en cours de squash
 // ---------------------------------------------------------------------------
 
-describe('CA-rebasei-09 : Conflit lors d\'un squash', () => {
+describe("CA-rebasei-09 : Conflit lors d'un squash", () => {
   it('CA-rebasei-09 : conflit pick D1 (conflict avec main), squash D2 → exitCode 1, rebasing actif', () => {
     // Scénario :
     // C0: a.txt="base"
@@ -407,7 +407,7 @@ describe('CA-rebasei-09 : Conflit lors d\'un squash', () => {
 
     // pick D1, squash D2
     const todoList: TodoItem[] = [
-      { action: 'pick',   commitHash: todoRaw[0]!.commitHash, message: 'D1' },
+      { action: 'pick', commitHash: todoRaw[0]!.commitHash, message: 'D1' },
       { action: 'squash', commitHash: todoRaw[1]!.commitHash, message: 'D2' },
     ];
 
@@ -486,7 +486,7 @@ describe('CA-rebasei-11 : Premier commit squashé (erreur)', () => {
 
     const todoList: TodoItem[] = [
       { action: 'squash', commitHash: todoRaw[0]!.commitHash, message: 'D1' },
-      { action: 'pick',   commitHash: todoRaw[1]!.commitHash, message: 'D2' },
+      { action: 'pick', commitHash: todoRaw[1]!.commitHash, message: 'D2' },
     ];
 
     const result = engine.executeRebaseInteractive(todoList);
@@ -505,7 +505,7 @@ describe('CA-rebasei-11 : Premier commit squashé (erreur)', () => {
 
     const todoList: TodoItem[] = [
       { action: 'fixup', commitHash: todoRaw[0]!.commitHash, message: 'D1' },
-      { action: 'pick',  commitHash: todoRaw[1]!.commitHash, message: 'D2' },
+      { action: 'pick', commitHash: todoRaw[1]!.commitHash, message: 'D2' },
     ];
 
     const result = engine.executeRebaseInteractive(todoList);
@@ -616,7 +616,11 @@ describe('Erreur commit introuvable dans todo list', () => {
     engine.execute('git rebase -i main');
 
     const todoList: TodoItem[] = [
-      { action: 'pick', commitHash: 'aabbccddee1122334455667788990011aabbccdd', message: 'Phantom' },
+      {
+        action: 'pick',
+        commitHash: 'aabbccddee1122334455667788990011aabbccdd',
+        message: 'Phantom',
+      },
     ];
 
     const result = engine.executeRebaseInteractive(todoList);
@@ -681,7 +685,7 @@ describe('B1 : squash avec conflit sur la marche squash + --continue', () => {
     const d2CommitHash = todoRaw[1]!.commitHash;
 
     const todoList: TodoItem[] = [
-      { action: 'pick',   commitHash: d1CommitHash, message: 'D1' },
+      { action: 'pick', commitHash: d1CommitHash, message: 'D1' },
       { action: 'squash', commitHash: d2CommitHash, message: 'D2' },
     ];
 
