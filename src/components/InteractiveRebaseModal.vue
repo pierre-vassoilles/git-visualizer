@@ -18,28 +18,32 @@ const errorLines = ref<string[]>([]);
 const submitted = ref(false);
 
 // Quand la modale s'ouvre, initialise la copie locale depuis le snapshot
-watch(isVisible, (visible) => {
-  if (visible) {
-    const raw = repo.snapshot.rebasingInteractive?.todoList ?? [];
-    localTodo.value = raw.map((item) => ({
-      action: item.action as TodoItem['action'],
-      commitHash: item.commitHash,
-      message: item.message,
-    }));
-    errorLines.value = [];
-    submitted.value = false;
-  }
-}, { immediate: true });
+watch(
+  isVisible,
+  (visible) => {
+    if (visible) {
+      const raw = repo.snapshot.rebasingInteractive?.todoList ?? [];
+      localTodo.value = raw.map((item) => ({
+        action: item.action as TodoItem['action'],
+        commitHash: item.commitHash,
+        message: item.message,
+      }));
+      errorLines.value = [];
+      submitted.value = false;
+    }
+  },
+  { immediate: true },
+);
 
 const ACTIONS: TodoItem['action'][] = ['pick', 'reword', 'squash', 'fixup', 'drop', 'edit'];
 
 const ACTION_LABELS: Record<TodoItem['action'], string> = {
-  pick:   'pick   – rejouer le commit',
+  pick: 'pick   – rejouer le commit',
   reword: 'reword – rejouer + éditer le message',
   squash: 'squash – fusionner dans le précédent (combine les messages)',
-  fixup:  'fixup  – fusionner dans le précédent (jette ce message)',
-  drop:   'drop   – supprimer le commit',
-  edit:   'edit   – s\'arrêter pour amender (Phase 6)',
+  fixup: 'fixup  – fusionner dans le précédent (jette ce message)',
+  drop: 'drop   – supprimer le commit',
+  edit: "edit   – s'arrêter pour amender (Phase 6)",
 };
 
 function moveUp(index: number): void {
@@ -91,7 +95,13 @@ function abortRebase(): void {
 
 <template>
   <Teleport to="body">
-    <div v-if="isVisible" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Rebase interactif">
+    <div
+      v-if="isVisible"
+      class="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Rebase interactif"
+    >
       <div class="modal-panel">
         <header class="modal-header">
           <h2 class="modal-title">Rebase interactif — édition de la todo list</h2>
@@ -102,7 +112,8 @@ function abortRebase(): void {
           <summary>Aide — signification des actions</summary>
           <ul class="help-list">
             <li v-for="action in ACTIONS" :key="action">
-              <code class="action-code">{{ action }}</code> — {{ ACTION_LABELS[action].split(' – ')[1] }}
+              <code class="action-code">{{ action }}</code> —
+              {{ ACTION_LABELS[action].split(' – ')[1] }}
             </li>
           </ul>
           <p class="help-note">
@@ -149,19 +160,21 @@ function abortRebase(): void {
                 :disabled="idx === 0"
                 :aria-label="`Monter le commit ${shortHash(item.commitHash)}`"
                 @click="moveUp(idx)"
-              >↑</button>
+              >
+                ↑
+              </button>
               <button
                 class="btn-icon"
                 :disabled="idx === localTodo.length - 1"
                 :aria-label="`Descendre le commit ${shortHash(item.commitHash)}`"
                 @click="moveDown(idx)"
-              >↓</button>
+              >
+                ↓
+              </button>
             </div>
           </div>
 
-          <p v-if="localTodo.length === 0" class="empty-list">
-            Aucun commit dans la todo list.
-          </p>
+          <p v-if="localTodo.length === 0" class="empty-list">Aucun commit dans la todo list.</p>
         </div>
 
         <!-- Affichage des erreurs moteur -->
@@ -172,11 +185,7 @@ function abortRebase(): void {
 
         <!-- Actions principales -->
         <footer class="modal-footer">
-          <button
-            class="btn btn-primary"
-            :disabled="submitted"
-            @click="submitTodo"
-          >
+          <button class="btn btn-primary" :disabled="submitted" @click="submitTodo">
             Démarrer le rebase
           </button>
           <button class="btn btn-secondary" @click="abortRebase">
@@ -194,7 +203,7 @@ function abortRebase(): void {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--overlay-bg, rgba(0, 0, 0, 0.55));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -203,7 +212,8 @@ function abortRebase(): void {
 
 /* Panneau principal */
 .modal-panel {
-  background: #fff;
+  background: var(--surface-bg, #fff);
+  color: var(--surface-fg, #24292e);
   border-radius: 6px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
   width: 100%;

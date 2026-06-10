@@ -445,6 +445,20 @@ function onNodeContextMenu(hash: string, e: MouseEvent): void {
   e.preventDefault();
   emit('nodeContextMenu', hash, e.clientX, e.clientY);
 }
+
+/** Navigation clavier (a11y) : Entrée/Espace sélectionne le commit focalisé. */
+function onNodeKeydown(hash: string, e: KeyboardEvent): void {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    selectNode(hash);
+  } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+    // Touche menu contextuel : ouvrir le menu au niveau du nœud focalisé.
+    e.preventDefault();
+    const target = e.target as SVGCircleElement;
+    const rect = target.getBoundingClientRect();
+    emit('nodeContextMenu', hash, rect.left, rect.bottom);
+  }
+}
 </script>
 
 <template>
@@ -579,6 +593,9 @@ function onNodeContextMenu(hash: string, e: MouseEvent): void {
           :r="nodeRadius"
           :fill="node.color"
           class="node"
+          tabindex="0"
+          role="button"
+          :aria-label="`Commit ${node.snapshot.shortHash} : ${node.snapshot.message}`"
           :style="{ opacity: nodeOpacity(node) }"
           :class="{
             'node-hovered': hoveredHash === node.hash,
@@ -589,7 +606,10 @@ function onNodeContextMenu(hash: string, e: MouseEvent): void {
           }"
           @mouseenter="(e) => handleNodeMouseEnter(node.hash, e)"
           @mouseleave="handleNodeMouseLeave"
+          @focus="emit('hover', node.hash)"
+          @blur="emit('hover', null)"
           @click.stop="selectNode(node.hash)"
+          @keydown="(e) => onNodeKeydown(node.hash, e)"
           @contextmenu="(e) => onNodeContextMenu(node.hash, e)"
         />
       </g>
@@ -726,6 +746,14 @@ function onNodeContextMenu(hash: string, e: MouseEvent): void {
   opacity: 1;
   stroke-width: 3;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.22));
+}
+
+/* Focus clavier (a11y) : anneau bleu visible autour du commit focalisé. */
+.node:focus-visible {
+  outline: none;
+  stroke: #2563eb;
+  stroke-width: 3.5;
+  filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.6));
 }
 
 .node-selected {

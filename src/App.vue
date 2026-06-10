@@ -109,4 +109,34 @@ onMounted(() => {
 .sidebar-pane {
   grid-area: sidebar;
 }
+
+/* Responsive : sous 820px, on empile graphe / terminal / sidebar verticalement
+   et on laisse la page défiler (a11y + confort mobile). */
+@media (max-width: 820px) {
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      'topbar'
+      'main'
+      'sidebar';
+    height: auto;
+    min-height: 100vh;
+  }
+  .topbar {
+    flex-wrap: wrap;
+  }
+  .subtitle {
+    flex-basis: 100%;
+    order: 3;
+  }
+  .main {
+    grid-template-rows: minmax(280px, 60vh) minmax(160px, 30vh);
+  }
+  .sidebar-pane {
+    border-left: none;
+    border-top: 1px solid var(--border-color);
+    max-height: none;
+  }
+}
 </style>

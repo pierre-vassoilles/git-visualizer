@@ -26,6 +26,11 @@ body,
   --topbar-fg: #ffffff;
   --graph-canvas-bg: #fafafa;
   --accent-blue: #0066cc;
+  /* Modales & overlays */
+  --overlay-bg: rgba(0, 0, 0, 0.5);
+  --surface-bg: #ffffff;
+  --surface-muted-bg: #f7f7f8;
+  --surface-fg: #24292e;
 }
 
 [data-theme='dark'] {
@@ -41,6 +46,10 @@ body,
   --topbar-fg: #f0f0f0;
   --graph-canvas-bg: #1b1b1b;
   --accent-blue: #66b3ff;
+  --overlay-bg: rgba(0, 0, 0, 0.65);
+  --surface-bg: #252526;
+  --surface-muted-bg: #2d2d30;
+  --surface-fg: #e4e4e4;
 }
 
 body {

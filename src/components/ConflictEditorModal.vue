@@ -215,14 +215,15 @@ function selectFile(i: number): void {
 .conflict-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-bg, rgba(0, 0, 0, 0.5));
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2000;
 }
 .conflict-modal {
-  background: #fff;
+  background: var(--surface-bg, #fff);
+  color: var(--surface-fg, #24292e);
   border-radius: 8px;
   width: min(900px, 92vw);
   max-height: 88vh;

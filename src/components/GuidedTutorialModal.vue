@@ -121,7 +121,7 @@ function onRestart(): void {
 .tuto-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--overlay-bg, rgba(0, 0, 0, 0.45));
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
@@ -129,7 +129,8 @@ function onRestart(): void {
   padding: 16px;
 }
 .tuto-modal {
-  background: #fff;
+  background: var(--surface-bg, #fff);
+  color: var(--surface-fg, #24292e);
   border-radius: 8px;
   width: min(380px, 92vw);
   max-height: 90vh;
