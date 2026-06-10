@@ -53,11 +53,21 @@ export interface TutorialStep {
   description: LocalizedText;
   /** Optionnel : indice textuel (bilingue). */
   hint?: LocalizedText;
-  /** Optionnel : explication du POURQUOI/COMMENT (pédagogique, bilingue). */
-  explanation?: LocalizedText;
-  /** Optionnel : description de l'effet sur le graphe (bilingue). */
-  graphEffect?: LocalizedText;
-  /** Optionnel : commande(s) lancée(s) par le bouton « Exécuter ». */
+  /**
+   * Explication du POURQUOI/COMMENT (pédagogique, bilingue). **REQUIS** : c'est le
+   * cœur de la valeur d'apprentissage. Une étape « Setup » purement technique peut
+   * fournir une valeur brève, mais JAMAIS vide (le test de parité l'exige en+fr).
+   */
+  explanation: LocalizedText;
+  /** Description de l'effet sur le graphe (bilingue). **REQUIS** (même règle). */
+  graphEffect: LocalizedText;
+  /**
+   * Commande lancée par le bouton « Exécuter ». Peut être une ligne **chaînée**
+   * (`;` / `&&`) : elle est exécutée via `store.executeChain(command)` (même chemin
+   * que le terminal — cf. A1), pas via `store.execute` brut qui ne découpe pas les
+   * chaînes. Préférer les **révisions relatives** (`HEAD~1`, `main~1`, `HEAD@{1}`)
+   * aux hashes littéraux (déterminisme — cf. A2).
+   */
   command?: string;
   /** Objectifs : prédicats purs sur le snapshot (inchangés). */
   objectives: StepObjective[];
@@ -74,10 +84,13 @@ export interface Tutorial {
   title: LocalizedText;
   /** Description courte (bilingue). */
   description: LocalizedText;
-  /** Niveau (détermine la section du catalogue de l'UI). */
+  /**
+   * Niveau — **SOURCE DE VÉRITÉ** du regroupement ET de l'étiquette de difficulté.
+   * Pas de champ `difficulty` séparé à maintenir : la valeur numérique éventuelle
+   * (1/2/3) est DÉRIVÉE par `levelToDifficulty(level)` (basic→1, medium→2,
+   * advanced→3). Évite l'incohérence level↔difficulty.
+   */
   level: TutorialLevel;
-  /** Difficulté : 1 (facile) à 3 (difficile). Conservé pour rétro-compat. */
-  difficulty: 1 | 2 | 3;
   /** Durée estimée en minutes. */
   duration: number;
   /** Étapes ordonnées. */
@@ -100,6 +113,11 @@ export interface StepObjective {
 export function localize(text: LocalizedText, locale: 'en' | 'fr'): string {
   return text[locale] || text.en || text.fr || '';
 }
+
+/** Étiquette de difficulté numérique DÉRIVÉE du niveau (basic→1, medium→2, advanced→3). */
+export function levelToDifficulty(level: TutorialLevel): 1 | 2 | 3 {
+  return level === 'basic' ? 1 : level === 'medium' ? 2 : 3;
+}
 ```
 
 **Décision de modèle** :
@@ -108,6 +126,8 @@ export function localize(text: LocalizedText, locale: 'en' | 'fr'): string {
 - Le **chrome UI** (labels « Basique », « Moyen », « Avancé », libellés « Exécuter », etc.) reste dans `messages.ts` (pour éviter de dupliquer/tester des clés figées)
 - Raison : `messages.ts` est un `MessageKey` union + `MESSAGE_KEYS` array figé ; les ajouter à 15 tutos × 4 sections = ~60 clés perds la maintenabilité ; `LocalizedText` inline dans les données évite ce cycle
 - **Test de parité** : chaque `LocalizedText` doit avoir `en` ET `fr` non-vides (test lors du build)
+- **`level` source de vérité (C1)** : un seul champ de niveau ; la difficulté numérique est dérivée par `levelToDifficulty()` — pas de doublon `level`/`difficulty` à synchroniser.
+- **`explanation` + `graphEffect` requis (C2)** : ils portent le « pourquoi/comment » et la « répercussion sur le graphe » demandés ; non optionnels (le test de parité les vérifie aussi). Une étape Setup fournit une valeur brève mais non vide.
 
 ### Catalogue de tutoriels (données)
 
@@ -197,9 +217,20 @@ export type MessageKey =
 
 ## UI : Modale et catalogue
 
-### Catalogue groupé par niveau
+### Catalogue groupé par niveau (lanceur dédié — C3)
 
-**Dans RefsSidebar** : Nouvelle section « Tutoriels » (remplace l'énumération plate de spec 51) :
+**Décision (C3)** : avec 15 tutoriels, l'énumération dans `RefsSidebar` serait à
+l'étroit. Le catalogue vit dans une **modale lanceur dédiée** `TutorialLauncherModal.vue`
+(overlay racine, comme `CommandPalette`/`GuidedTutorialModal`), ouverte depuis :
+
+- un **bouton « Tutoriels »** dans `RefsSidebar` (la sidebar ne garde qu'un accès +
+  l'indicateur du tuto en cours, pas la liste complète) ;
+- la **palette de commandes** `Ctrl/Cmd+K` (les tutoriels y sont déjà indexés, spec 57).
+
+La modale présente **3 sections de niveau** (Basique / Moyen / Avancé, labels via
+`t('sidebar.tutorialLevel.*')`), chacune listant ses 5 tutoriels (titre localisé +
+durée + difficulté dérivée). Clic → `store.startTutorial(id)` (confirmation si une
+session est en cours, comme aujourd'hui).
 
 ```
 ╔═══════════════════════════════════════╗
@@ -261,18 +292,23 @@ Ajoute deux panneaux à l'étape courante :
 └────────────────────────────────────────────┘
 ```
 
-**Bouton « Exécuter »** :
+**Bouton « Exécuter »** (A1) :
 
-- Visible si `step.command` défini
-- Clique → `store.execute(step.command)` (même que taper dans le terminal)
-- Permet une mode d'apprentissage plus passif (découverte sans saisie)
+- Visible si `step.command` est défini
+- Clique → `store.executeChain(step.command)` — **même chemin que le terminal**
+  (découpe `;`/`&&` via `splitCommandChain`), pas `store.execute` brut. Permet aux
+  étapes « Setup » multi-commandes de s'exécuter d'un clic.
+- Permet un mode d'apprentissage plus passif (découverte sans saisie)
 - Objectifs auto-validés après exécution (comportement inchangé)
 
-**Sections dépliantes** (« Pourquoi & Comment » / « Effet sur le graphe ») :
+**Sections « Pourquoi & Comment » / « Effet sur le graphe »** (C2) :
 
-- Optionnelles : affichées seulement si `explanation` / `graphEffect` définis
-- Collapsed par défaut (l'utilisateur scroll/clique pour lire)
-- Encouragent la curiosité pédagogique
+- **Toujours présentes** (`explanation`/`graphEffect` sont requis sur chaque étape)
+- Dépliables ; « Effet sur le graphe » peut être déplié par défaut pour attirer
+  l'œil sur le graphe pendant que l'animation (spec 52) joue la transition
+- Le graphe **n'est pas surligné nœud par nœud** en v1 (C5) : la « répercussion »
+  est portée par le texte `graphEffect` **+** l'animation de transition existante
+  (spec 52). Le surlignage ciblé des nœuds de l'étape est reporté (cf. Dette).
 
 ## Flux d'utilisation
 
@@ -373,16 +409,17 @@ Ajoute deux panneaux à l'étape courante :
 
 **Given**
 
-- Étape avec `command: "git init"` défini
+- Étape avec `command: 'git init ; write f.txt "x" ; git add f.txt ; git commit -m "C1"'` (ligne chaînée)
 
 **When**
 
-- Modale affichée
+- Modale affichée, clic « Exécuter »
 
 **Then**
 
 - Bouton « Exécuter » visible
-- Clique → appelle `store.execute('git init')`
+- Clique → appelle `store.executeChain(command)` qui exécute **chaque segment**
+  (`;`/`&&`) dans l'ordre (≠ `store.execute` brut qui échouerait sur la chaîne)
 - Les objectifs se re-valident après exécution (automatique, inchangé)
 
 ### CA-tut62-06 : Pas de commande = pas de bouton
@@ -427,11 +464,12 @@ Ajoute deux panneaux à l'étape courante :
 
 **Then**
 
-- `first-commit` → `id`, `title`, `description`, `level: 'basic'`, `difficulty: 1`, `duration: 10`, `steps[]` inchangés (données convertis en `LocalizedText`)
-- `branching` → `level: 'medium'`, `difficulty: 2`, `duration: 20`
-- `undo-reset` → `level: 'medium'`, `difficulty: 2`, `duration: 15`
-- Tous ont `explanation` et `graphEffect` dans chaque étape
-- Tests existants reste verts (prédicats inchangés)
+- `first-commit` → `id`, `title`, `description`, `level: 'basic'`, `duration: 10`, `steps[]` inchangés (textes convertis en `LocalizedText`)
+- `branching` → `level: 'medium'`, `duration: 20`
+- `undo-reset` → `level: 'advanced'`, `duration: 15` (réaffecté `reset-reflog`)
+- Plus aucun champ `difficulty` : `levelToDifficulty(level)` fournit l'étiquette
+- Tous ont `explanation` et `graphEffect` (requis) dans chaque étape
+- Tests existants restent verts (prédicats inchangés)
 
 ### CA-tut62-09 : Nouveau catalogue (12 tutoriels ajoutés)
 
@@ -446,7 +484,7 @@ Ajoute deux panneaux à l'étape courante :
 **Then**
 
 - Retourne respectivement 5, 5, 5 tutoriels
-- Chacun a `id`, `title`, `description`, `level`, `difficulty`, `steps[]`, `duration`
+- Chacun a `id`, `title`, `description`, `level`, `steps[]`, `duration` (pas de `difficulty`)
 - Les 15 ids sont uniques
 
 ### CA-tut62-10 : Messages i18n du chrome
@@ -479,11 +517,11 @@ Ajoute deux panneaux à l'étape courante :
 - Reste en anglais (ex: "fatal: not a git repository")
 - Indépendant de la locale
 
-### CA-tut62-12 : Persistance / undo-redo
+### CA-tut62-12 : Persistance de la progression (C4 — lève la dette spec 51)
 
 **Given**
 
-- Utilisateur démarre tutoriel, fait étape 1, recharge la page
+- Utilisateur démarre un tutoriel, complète l'étape 1, recharge la page
 
 **When**
 
@@ -491,9 +529,11 @@ Ajoute deux panneaux à l'étape courante :
 
 **Then**
 
-- Tutoriel est **perdu** (progression non persistée — spec 51 / B2-tutorials / non bloquante)
-- Dépôt rejoint depuis l'historique de commandes (pas du tutoriel)
-- Utilisateur doit redémarrer le tutoriel
+- `{ tutorialId, currentStepIndex }` est persisté (clé localStorage dédiée, ex.
+  `git-visualizer:tutorial`) et **restauré** au boot → le tutoriel reprend à l'étape 1
+- L'état du dépôt est reconstruit par le rejeu de l'historique de commandes (spec 31),
+  cohérent avec la progression restaurée
+- Quitter le tutoriel (`quitTutorial`) purge cette clé
 
 ### CA-tut62-13 : Déterminisme
 
@@ -554,16 +594,41 @@ Ajoute deux panneaux à l'étape courante :
 
 ### Composant GuidedTutorialModal
 
-1. Ajouter deux sections dépliantes optionnelles (collapsible)
+1. Ajouter deux sections dépliantes (toujours présentes, C2)
    - Section 1 : `t('tutorial.why')` + contenu via `localize(step.explanation, locale)`
    - Section 2 : `t('tutorial.graphEffect')` + contenu via `localize(step.graphEffect, locale)`
 
-2. Ajouter bouton « Exécuter »
+2. Ajouter bouton « Exécuter » (A1)
    - Condition : `step.command` défini
-   - Clique : `store.execute(step.command)`
+   - Clique : `store.executeChain(step.command)` (découpe `;`/`&&`, cf. ci-dessous)
    - Étiquette : `t('tutorial.executeButton')`
 
 3. Réactivité bilingue : usez `useI18n().locale` (computed) pour forcer re-render à changement de langue
+
+### Store : `executeChain` (A1) + persistance progression (C4)
+
+1. **`executeChain(line: string)`** : nouvelle action store partagée par le terminal
+   ET le bouton « Exécuter ». Découpe via `splitCommandChain` (`utils/shell.ts`),
+   exécute chaque segment par `execute()` en respectant le court-circuit `&&`.
+   `TerminalPanel` est refactoré pour l'utiliser (supprime une duplication).
+2. **Persistance progression** : `startTutorial`/`nextStep`/… écrivent
+   `{ tutorialId, currentStepIndex }` dans `localStorage` (clé `git-visualizer:tutorial`) ;
+   au boot, App.vue restaure la progression après `loadFromStorage` ; `quitTutorial` purge.
+3. **`level` source de vérité (C1)** : le store/UI dérivent l'étiquette via
+   `levelToDifficulty(level)` ; aucun champ `difficulty` dans les données.
+
+### Hashes & révisions (A2)
+
+Aucune commande de tutoriel n'utilise de hash littéral : utiliser les révisions
+relatives (`HEAD~1`, `main~1`, `HEAD@{1}`) — déterministe ET plus pédagogique. Voir
+spec 63 (les étapes `tags-detached`, `reset-reflog` les emploient).
+
+### Livraison incrémentale (B1)
+
+Le contenu bilingue (~800-1000 chaînes) est volumineux. Ordre recommandé : (1)
+modèle + `executeChain` + persistance + lanceur + migration des 3 existants ; (2)
+2 tutoriels « vitrine » par niveau (validation UX) ; (3) reste du curriculum par
+lots, le test de parité (CA-tut62-14) garantissant qu'aucun tuto n'arrive à moitié traduit.
 
 ### Test de parité
 
@@ -627,12 +692,12 @@ Ajouter tests pour :
 
 ## Dette acceptée (non bloquante)
 
-1. **Progression non persistée** : À rechargement, le tutoriel est perdu (comportement spec 51 non changé). Persistance optionnelle pour Phase B3+.
+1. **Surlignage visuel du graphe par étape reporté (C5)** : la « répercussion sur le graphe » est portée par le texte `graphEffect` + l'animation de transition existante (spec 52). Le surlignage ciblé des nœuds concernés par l'étape (lien étape→nœuds) est reporté à une itération ultérieure (coûteux).
 
-2. **Pas de tests composants** : Les interactions UI du modal (collapse, bouton Exécuter) ne sont pas couvertes par Vitest (pas `@vue/test-utils` dédié à ce layer). Relus en revue.
+2. **Tests composants du lanceur/modale** : disponibles via `@vue/test-utils` (déjà au projet) — à écrire (rendu par niveau, bouton Exécuter, sections Pourquoi/Effet, reprise de progression). Sinon relus en revue.
 
-3. **Contenu pédagogique non optimisé** : Les textes d'explanation et graphEffect sont écrits à titre d'exemple ; une vrai appli pédagogique affinerait la prose selon le feedback utilisateur.
+3. **Contenu pédagogique à affiner** : `explanation`/`graphEffect` rédigés par un `technical-writer` puis affinés selon le feedback ; livraison incrémentale (B1).
 
-4. **Reflog tutoriel** : Le tutoriel undo-reset (spec 51) a une étape « check-reflog » informative (l'objectif ne change pas de l'avant vers l'après) — non bloquant pour spec 62.
+4. **Tutoriels distants (9, 10, 15)** : reposent sur la technique de divergence des scénarios Phase 9 (`clone` + `reset --hard HEAD~1` pour que `origin` soit en avance). Aucune nouvelle commande ; voir spec 63 (A3).
 
-5. **Ordre de niveau** : Les tutoriels d'un même niveau ne sont pas triés pédagogiquement (apprentissage des concepts de base avant les applications) — le tri est laissé à la phase 63.
+> **Dette levée vs spec 51** : la progression du tutoriel est désormais **persistée** (C4) ; le doublon `level`/`difficulty` est **supprimé** (C1, `level` unique).

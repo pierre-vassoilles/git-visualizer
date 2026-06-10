@@ -10,6 +10,19 @@ Cette spec **définit le contenu concret des 15 tutoriels** spécifiés en Phase
 
 **Scope** : Spec 62 définit la **structure et l'architecture** ; spec 63 remplit les **contenus pédagogiques complets**. Cette spec ne rédige pas la prose bilingue finale (trop volumineux), mais fournit une **spec détaillée** permettant aux développeurs (ou à un agent writer) de remplir les 15 tutoriels.
 
+### Conventions de commandes (décisions A1/A2/A3)
+
+- **Chaînage (A1)** : une `command` peut chaîner plusieurs commandes par `;` (ou `&&`).
+  Le bouton « Exécuter » les exécute via `store.executeChain` (même découpage que le
+  terminal). Les étapes « Setup » s'en servent pour amorcer l'état en un clic.
+- **Révisions relatives, pas de hash littéral (A2)** : toujours désigner un commit par
+  `HEAD~n` / `<branche>~n` / `HEAD@{n}` (déterministe + pédagogique). Aucune substitution
+  de hash dans l'UI/les tests.
+- **Divergence du distant (A3)** : les tutoriels distants qui exigent un distant « en
+  avance » (push rejeté, fetch divergent) **réutilisent la technique des scénarios
+  Phase 9** : `git clone public-repo` puis `git reset --hard HEAD~1` (le local recule →
+  `origin/main` est en avance). Aucune nouvelle commande, aucun « second utilisateur ».
+
 ## Niveau BASIQUE (5 tutoriels, 10-20 min chacun)
 
 ### Tutoriel 1 : Premier commit
@@ -186,23 +199,23 @@ Cette spec **définit le contenu concret des 15 tutoriels** spécifiés en Phase
 
 #### Étape 4.3 : Checkout sur un commit (HEAD détaché)
 
-- **Commande attendue** : `git checkout <hash-C1>`
+- **Commande attendue** : `git checkout main~1` (révision relative — A2, pas de hash littéral)
 - **Objectifs** : `isHeadDetached()`, `commitCountEquals(2)`
-- **Pourquoi** : Normalement HEAD pointe une branche (mode symbolique). `git checkout <commit>` détache HEAD : il pointe directement le commit. État temporaire, utile pour explorer l'historique.
+- **Pourquoi** : Normalement HEAD pointe une branche (mode symbolique). `git checkout <commit>` détache HEAD : il pointe directement le commit. On désigne C1 par `main~1` (le parent du tip de main) — pratique et déterministe, sans copier de hash.
 - **Effet graphe** : Badge HEAD sur C1 sans nom de branche.
-- **Bouton Exécuter** : Oui (nécessite dynamic hash substitution dans l'UI/tests)
+- **Bouton Exécuter** : Oui
 
 #### Étape 4.4 : Retourner sur une branche
 
 - **Commande attendue** : `git checkout main`
 - **Objectifs** : `headPointsTo('main')`, `not isHeadDetached()`
-- **Pourquoi** : Quitter le mode détaché en revenantà une branche.
+- **Pourquoi** : Quitter le mode détaché en revenant à une branche.
 - **Effet graphe** : HEAD revient sur main (C2).
 - **Bouton Exécuter** : Oui
 
 **Prédicats** : Tous existants + `isHeadDetached()` (déjà dans spec 51).
 
-**Note** : Étape 4.3 demande la substitution du hash de C1. Le test doit construire le hash ou le récupérer du snapshot avant l'étape.
+**Note (A2)** : on utilise `main~1` plutôt qu'un hash littéral → déterministe ET plus pédagogique (l'utilisateur apprend la notation `~n`). Aucune substitution de hash nécessaire.
 
 ---
 
@@ -482,47 +495,47 @@ Cette spec **définit le contenu concret des 15 tutoriels** spécifiés en Phase
 
 **Étapes** (5 au total)
 
-#### Étape 10.1 : Cloner et configurer upstream
+#### Étape 10.1 : Cloner et faire reculer le local (origin en avance — A3)
 
-- **Commande attendue** : `git clone collab-repo ; git branch -u origin/main`
+- **Commande attendue** : `git clone collab-repo ; git reset --hard HEAD~1`
 - **Objectifs** : `isInitialized()`, `branchHasUpstream('main')`
-- **Pourquoi** : Préparation.
-- **Effet graphe** : Graphe affiche l'historique du dépôt cloné.
+- **Pourquoi** : Préparation. `clone` copie l'historique distant et configure l'upstream. `reset --hard HEAD~1` recule le local d'un commit → `origin/main` est désormais **en avance** sur le local (on simule un coéquipier qui a poussé). C'est la technique des scénarios Phase 9 (aucune nouvelle commande).
+- **Effet graphe** : Le graphe local recule d'un cran ; `origin/main` reste en tête (visible en split-screen).
 - **Bouton Exécuter** : Oui
 
-#### Étape 10.2 : Créer un commit local
+#### Étape 10.2 : Constater le retard
+
+- **Commande attendue** : `git status`
+- **Objectifs** : `branchHasUpstream('main')`
+- **Pourquoi** : `git status` indique « Your branch is behind 'origin/main' by 1 commit » : la vue de suivi sait déjà qu'il manque un commit.
+- **Effet graphe** : Pas de changement.
+- **Bouton Exécuter** : Oui
+
+#### Étape 10.3 : Diverger avec un commit local
 
 - **Commande attendue** : `write local.txt "my change" ; git add local.txt ; git commit -m "Local"`
-- **Objectifs** : Plus de commits que le distant (ahead state).
-- **Pourquoi** : Travailler localement.
-- **Effet graphe** : Commit local en avant.
-- **Bouton Exécuter** : Oui
-
-#### Étape 10.3 : Simuler des changements distants
-
-- **Commande attendue** : (via tests : distant dépôt prédéfini diverge) — utilisateur tape `git fetch`
-- **Objectifs** : Le snapshot montre des commits en provenance du distant (ajoutés aux refs.remotes).
-- **Pourquoi** : Fetch copie les objets distants et met à jour origin/\* refs.
-- **Effet graphe** : Le graphe reçoit des nœuds depuis le distant (si split-screen activé).
+- **Objectifs** : `fileExists('local.txt')`, `branchHasUpstream('main')`
+- **Pourquoi** : En committant localement, on diverge : la branche est maintenant **à la fois en avance ET en retard** (ahead 1, behind 1) par rapport à origin/main.
+- **Effet graphe** : Le local et `origin/main` partent dans deux directions depuis la base commune.
 - **Bouton Exécuter** : Oui
 
 #### Étape 10.4 : Examiner l'état de suivi
 
-- **Commande attendue** : `git status` OU `git branch -vv`
-- **Objectifs** : Affiche « ahead » ou « behind » par rapport à origin/main.
-- **Pourquoi** : Vérifier la divergence avant pull.
+- **Commande attendue** : `git branch -vv`
+- **Objectifs** : `branchHasUpstream('main')`
+- **Pourquoi** : `git branch -vv` affiche `[origin/main: ahead 1, behind 1]` — diagnostic de divergence avant d'intégrer.
 - **Effet graphe** : Pas de changement.
 - **Bouton Exécuter** : Oui
 
 #### Étape 10.5 : Pull (fetch + merge)
 
 - **Commande attendue** : `git pull`
-- **Objectifs** : Pas d'opération en cours (si pas de conflit), commits fusionnés.
-- **Pourquoi** : `git pull` fetch puis merge les changements distants.
-- **Effet graphe** : Graphe affiche un commit merge si le pull fusionnait deux historiques.
+- **Objectifs** : `noOperationInProgress()` (pas de conflit ici — fichiers distincts)
+- **Pourquoi** : `git pull` = `fetch` + `merge` : il rapatrie le commit distant et le fusionne avec le commit local. Historiques divergents → **commit de fusion** à 2 parents.
+- **Effet graphe** : Un commit de merge réunit le commit local et `origin/main`.
 - **Bouton Exécuter** : Oui
 
-**Prédicats** : Existants + éventuels `branchHasUpstream(name)`.
+**Prédicats** : Existants + `branchHasUpstream(name)` (nouveau, cf. spec 62).
 
 ---
 
@@ -736,44 +749,45 @@ Cette spec **définit le contenu concret des 15 tutoriels** spécifiés en Phase
 
 **Étapes** (5 au total)
 
-#### Étape 15.1 : Cloner et créer un commit
+#### Étape 15.1 : Cloner, faire reculer le local, committer (A3)
 
-- **Commande attendue** : `git clone feature-repo ; write local.txt "my work" ; git add local.txt ; git commit -m "Local"`
-- **Objectifs** : `commitCountEquals(2)`, `branchHasUpstream('main')`
-- **Pourquoi** : Préparation.
-- **Effet graphe** : Graphe du dépôt cloné + nouveau commit local.
+- **Commande attendue** : `git clone feature-repo ; git reset --hard HEAD~1 ; write local.txt "my work" ; git add local.txt ; git commit -m "Local"`
+- **Objectifs** : `fileExists('local.txt')`, `branchHasUpstream('main')`
+- **Pourquoi** : Préparation. Après `clone`, `reset --hard HEAD~1` recule le local → `origin/main` est en avance ; le commit local fait **diverger** l'historique (technique Phase 9, aucun « second utilisateur »).
+- **Effet graphe** : Local et `origin/main` divergent depuis la base commune.
 - **Bouton Exécuter** : Oui
 
-#### Étape 15.2 : Simuler un push rejeté (distant diverge)
-
-- **Commande attendue** : (Via tests : distant reçoit des commits) `git push` (échoue, non-FF)
-- **Objectifs** : exitCode != 0 (push échoue)
-- **Pourquoi** : Le distant a de nouveaux commits que local ne connaît pas.
-- **Effet graphe** : Pas de changement (push rejected).
-- **Bouton Exécuter** : Oui
-
-#### Étape 15.3 : Fetch les changements
-
-- **Commande attendue** : `git fetch`
-- **Objectifs** : Commit distant mis à jour dans refs.remotes
-- **Pourquoi** : Mettre à jour la vue du distant.
-- **Effet graphe** : Si split-screen, graphe distant se met à jour.
-- **Bouton Exécuter** : Oui
-
-#### Étape 15.4 : Pull --rebase
-
-- **Commande attendue** : `git pull --rebase`
-- **Objectifs** : `noOperationInProgress()` (si pas de conflit), commits linéarisés
-- **Pourquoi** : `git pull --rebase` au lieu du merge par défaut, pour garder l'historique linéaire.
-- **Effet graphe** : Historique linéaire (rebase replay).
-- **Bouton Exécuter** : Oui
-
-#### Étape 15.5 : Push maintenant réussi
+#### Étape 15.2 : Tenter de pousser → rejet non-fast-forward
 
 - **Commande attendue** : `git push`
-- **Objectifs** : exitCode === 0, pas d'opération en cours
-- **Pourquoi** : Après rebase, le push est maintenant fast-forward et accepté.
-- **Effet graphe** : Si split-screen, distant se met à jour.
+- **Objectifs** : aucun objectif d'état (le push **échoue**, exitCode != 0) — l'étape se valide par l'observation, pas par un prédicat de snapshot
+- **Pourquoi** : `git push` est **rejeté** : le distant a un commit que le local n'a pas (« Updates were rejected because the remote contains work that you do not have locally »). On ne peut pas écraser le travail d'autrui.
+- **Effet graphe** : Aucun changement (push refusé).
+- **Bouton Exécuter** : Oui
+- **Note** : étape « informative » — la modale explique l'échec ; l'objectif réel est atteint à l'étape 15.4 (cf. spec 62 §objectifs informatifs).
+
+#### Étape 15.3 : Récupérer la vue du distant
+
+- **Commande attendue** : `git fetch`
+- **Objectifs** : `branchHasUpstream('main')`
+- **Pourquoi** : `git fetch` met à jour `origin/main` localement (les objets distants) sans toucher à la branche locale — étape préalable à l'intégration.
+- **Effet graphe** : En split-screen, le graphe distant est à jour.
+- **Bouton Exécuter** : Oui
+
+#### Étape 15.4 : Pull --rebase (linéariser)
+
+- **Commande attendue** : `git pull --rebase`
+- **Objectifs** : `noOperationInProgress()` (pas de conflit ici — fichiers distincts)
+- **Pourquoi** : `git pull --rebase` rejoue le commit local **au-dessus** de `origin/main` au lieu de créer un merge → historique **linéaire** (nouveaux hashes pour les commits rejoués).
+- **Effet graphe** : Le commit local se déplace au-dessus du commit distant (replay), pas de commit de fusion.
+- **Bouton Exécuter** : Oui
+
+#### Étape 15.5 : Push maintenant accepté
+
+- **Commande attendue** : `git push`
+- **Objectifs** : `noOperationInProgress()`, `branchHasUpstream('main')` (push réussi, exitCode 0)
+- **Pourquoi** : Après le rebase, le local est en **fast-forward** de `origin/main` → le push est accepté.
+- **Effet graphe** : En split-screen, `origin/main` rejoint le tip local.
 - **Bouton Exécuter** : Oui
 
 **Prédicats** : Existants + `branchHasUpstream(name)`.
