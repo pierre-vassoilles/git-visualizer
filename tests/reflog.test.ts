@@ -520,3 +520,89 @@ describe('Déterminisme : reflog', () => {
     expect(r1.output).toEqual(r2.output);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Item B4-5 : Reflog des créations/suppressions de branches et tags
+// Spec : docs/specs/61-technical-improvements.md (CA-reflog-01..06)
+// ---------------------------------------------------------------------------
+
+describe('Item B4-5 : reflog création/suppression branches & tags', () => {
+  function baseEngine() {
+    return replay([
+      'git init',
+      'write a.txt "v1"',
+      'git add a.txt',
+      'git commit -m "C1"',
+    ]);
+  }
+
+  it('CA-reflog-01 : git branch foo écrit une entrée reflog "Created from"', () => {
+    const engine = baseEngine();
+    engine.execute('git branch foo');
+    const result = engine.execute('git reflog foo');
+    expect(result.exitCode).toBe(0);
+    expect(result.output.length).toBeGreaterThan(0);
+    expect(result.output[0]).toContain('branch: Created from');
+  });
+
+  it('CA-reflog-06 : git branch foo <start-point> pointe sur le commit ciblé', () => {
+    const engine = baseEngine();
+    engine.execute('write b.txt "v2"');
+    engine.execute('git add b.txt');
+    engine.execute('git commit -m "C2"');
+    // Hash attendu = HEAD~1 (premier commit).
+    const expected = engine.execute('git rev-parse HEAD~1').output[0]!.slice(0, 7);
+    // créer une branche sur ce point de départ
+    engine.execute('git branch oldtip HEAD~1');
+    // La branche pointe bien sur le commit ciblé (et non sur HEAD).
+    expect(engine.snapshot().branches['oldtip']!.slice(0, 7)).toBe(expected);
+    // Et le reflog reflète ce hash.
+    const result = engine.execute('git reflog oldtip');
+    expect(result.exitCode).toBe(0);
+    expect(result.output[0]).toContain(`Created from ${expected}`);
+  });
+
+  it('git branch foo <start-point> invalide → erreur', () => {
+    const engine = baseEngine();
+    const r = engine.execute('git branch foo nope-not-a-ref');
+    expect(r.exitCode).not.toBe(0);
+    expect(r.errors.join(' ')).toContain('Not a valid object name');
+  });
+
+  it('CA-reflog-02 : git tag v1 écrit une entrée reflog', () => {
+    const engine = baseEngine();
+    engine.execute('git tag v1');
+    const result = engine.execute('git reflog v1');
+    expect(result.exitCode).toBe(0);
+    expect(result.output[0]).toContain('tag: Created from');
+  });
+
+  it('CA-reflog-03 : git tag -d v1 écrit une entrée de suppression (reflog survit)', () => {
+    const engine = baseEngine();
+    engine.execute('git tag v1');
+    engine.execute('git tag -d v1');
+    const result = engine.execute('git reflog v1');
+    expect(result.exitCode).toBe(0);
+    // L'entrée la plus récente est la suppression.
+    expect(result.output[0]).toContain('tag: Deleted v1');
+  });
+
+  it('m1 : git reflog list affiche un hash non vide même après suppression de tag', () => {
+    const engine = baseEngine();
+    engine.execute('git tag v1');
+    engine.execute('git tag -d v1');
+    const result = engine.execute('git reflog list');
+    expect(result.exitCode).toBe(0);
+    const line = result.output.find((l) => l.includes('refs/tags/v1'));
+    expect(line).toBeDefined();
+    // Le short-hash en tête de ligne ne doit pas être vide.
+    expect(line!.split(' ')[0]!.length).toBeGreaterThan(0);
+  });
+
+  it('CA-reflog-05 : aucune régression — git branch crée toujours la branche', () => {
+    const engine = baseEngine();
+    const r = engine.execute('git branch foo');
+    expect(r.exitCode).toBe(0);
+    expect(Object.keys(engine.snapshot().branches)).toContain('foo');
+  });
+});

@@ -12,6 +12,26 @@
 import type { SnapshotCommit } from '@/core/engine';
 
 // ---------------------------------------------------------------------------
+// Décorations (badges de refs sur les nœuds)
+// ---------------------------------------------------------------------------
+
+/**
+ * Badge de ref décorant un nœud du graphe. Le champ `kind` est un discriminant
+ * stable (pas de détection par comparaison de couleur hex) :
+ *   - 'head'   : badge HEAD (vert si symbolique, rouge si détaché)
+ *   - 'branch' : branche locale
+ *   - 'tag'    : tag
+ *   - 'remote' : ref de suivi distante (origin/main…)
+ */
+export interface Badge {
+  kind: 'head' | 'branch' | 'remote' | 'tag';
+  label: string;
+  bgColor: string;
+  textColor: string;
+  borderColor: string;
+}
+
+// ---------------------------------------------------------------------------
 // Entrée du layout
 // ---------------------------------------------------------------------------
 

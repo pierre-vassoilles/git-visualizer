@@ -1,0 +1,154 @@
+/**
+ * Tests composant : RefsSidebar.vue (item B4-1, spec 61 §1).
+ *
+ * Principe (CA-tests-07) : on ne teste PAS la logique Git (couverte par les
+ * tests headless), uniquement le RENDU Vue réactif d'un snapshot. On pilote
+ * l'état via le store réel (execute), puis on observe le DOM.
+ */
+
+import { describe, it, expect, beforeEach } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
+import RefsSidebar from '@/components/RefsSidebar.vue';
+import { useRepoStore } from '@/stores/repo';
+
+function mountSidebar() {
+  const pinia = createPinia();
+  setActivePinia(pinia);
+  const store = useRepoStore();
+  const wrapper = mount(RefsSidebar, { global: { plugins: [pinia] } });
+  return { wrapper, store };
+}
+
+/** Nom de la branche par défaut créée par `git init` + premier commit. */
+function defaultBranch(store: ReturnType<typeof useRepoStore>): string {
+  const h = store.snapshot.head;
+  return h.type === 'branch' ? h.name : 'main';
+}
+
+describe('RefsSidebar — montage et rendu de base (CA-tests-02)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('monte sans erreur', () => {
+    const { wrapper } = mountSidebar();
+    expect(wrapper.find('.refs-sidebar').exists()).toBe(true);
+    expect(wrapper.find('h2').exists()).toBe(true);
+  });
+
+  it('rend la liste des branches du snapshot', async () => {
+    const { wrapper, store } = mountSidebar();
+    store.execute('git init');
+    store.execute('write a.txt "x"');
+    store.execute('git add a.txt');
+    store.execute('git commit -m "C1"');
+    store.execute('git branch feature');
+    await wrapper.vm.$nextTick();
+
+    const names = wrapper.findAll('.item-name').map((n) => n.text());
+    expect(names).toContain('feature');
+    expect(names).toContain(defaultBranch(store));
+  });
+
+  it('marque la branche courante (classe item-current + indicateur ●)', async () => {
+    const { wrapper, store } = mountSidebar();
+    store.execute('git init');
+    store.execute('write a.txt "x"');
+    store.execute('git add a.txt');
+    store.execute('git commit -m "C1"');
+    await wrapper.vm.$nextTick();
+
+    const current = wrapper.find('.item-current');
+    expect(current.exists()).toBe(true);
+    expect(current.find('.indicator').text()).toBe('●');
+  });
+});
+
+describe('RefsSidebar — cas limites (CA-tests-03)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('dépôt non initialisé → placeholder "aucune branche"', () => {
+    const { wrapper } = mountSidebar();
+    expect(wrapper.text()).toContain('aucune branche');
+  });
+
+  it('HEAD détaché → libellé "détaché" visible', async () => {
+    const { wrapper, store } = mountSidebar();
+    store.execute('git init');
+    store.execute('write a.txt "1"');
+    store.execute('git add a.txt');
+    store.execute('git commit -m "C1"');
+    store.execute('write a.txt "2"');
+    store.execute('git add a.txt');
+    store.execute('git commit -m "C2"');
+    store.execute('git checkout HEAD~1');
+    await wrapper.vm.$nextTick();
+
+    expect(store.snapshot.head.type).toBe('detached');
+    expect(wrapper.find('.head-detached').exists()).toBe(true);
+    expect(wrapper.text()).toContain('détaché');
+  });
+
+  it('opération en cours (merge conflictuel) → boutons Continuer / Annuler', async () => {
+    const { wrapper, store } = mountSidebar();
+    store.execute('git init');
+    store.execute('write f.txt "base"');
+    store.execute('git add f.txt');
+    store.execute('git commit -m "base"');
+    const main = defaultBranch(store);
+    store.execute('git checkout -b feature');
+    store.execute('write f.txt "feature"');
+    store.execute('git add f.txt');
+    store.execute('git commit -m "feat"');
+    store.execute(`git checkout ${main}`);
+    store.execute('write f.txt "main"');
+    store.execute('git add f.txt');
+    store.execute('git commit -m "main"');
+    store.execute('git merge feature');
+    await wrapper.vm.$nextTick();
+
+    expect(store.snapshot.operationState).not.toBeNull();
+    expect(wrapper.find('.btn-continue').exists()).toBe(true);
+    expect(wrapper.find('.btn-abort').exists()).toBe(true);
+  });
+
+  it('stash non vide → section Stash avec compteur', async () => {
+    const { wrapper, store } = mountSidebar();
+    store.execute('git init');
+    store.execute('write f.txt "base"');
+    store.execute('git add f.txt');
+    store.execute('git commit -m "base"');
+    store.execute('write f.txt "wip"');
+    store.execute('git add f.txt');
+    store.execute('git stash');
+    await wrapper.vm.$nextTick();
+
+    expect(store.snapshot.stashCount).toBeGreaterThan(0);
+    expect(wrapper.find('.stash-count').exists()).toBe(true);
+    expect(wrapper.find('.stash-count').text()).toContain('entrée');
+  });
+});
+
+describe('RefsSidebar — commandes récentes & scénarios', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('liste vide → "aucune commande", scénarios toujours présents', () => {
+    const { wrapper } = mountSidebar();
+    expect(wrapper.text()).toContain('aucune commande');
+    // Au moins un bouton "Charger" de scénario rendu.
+    expect(wrapper.findAll('.btn-scenario').length).toBeGreaterThan(0);
+  });
+
+  it('affiche les dernières commandes tapées', async () => {
+    const { wrapper, store } = mountSidebar();
+    store.execute('git init');
+    await wrapper.vm.$nextTick();
+    const history = wrapper.findAll('.history-item').map((n) => n.text());
+    expect(history).toContain('git init');
+  });
+});

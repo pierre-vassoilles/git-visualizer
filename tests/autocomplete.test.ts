@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { newEngine, replay } from './helpers';
-import { autocomplete } from '@/utils/autocomplete';
+import { autocomplete, replaceLastToken } from '@/utils/autocomplete';
 
 // ---------------------------------------------------------------------------
 // Helpers locaux
@@ -42,12 +42,14 @@ describe('autocomplete — CA-autocomplete-01 : complétion unique de commande',
     expect(result.candidates.length).toBe(1);
   });
 
-  it('CA-autocomplete-01 : completion === "mit"', () => {
+  it('CA-autocomplete-01 : completion === "commit" (candidat complet)', () => {
     const engine = newEngine();
     const catalog = engine.getCatalog();
     const snap = engine.snapshot();
     const result = autocomplete('git com', catalog, snap);
-    expect(result.completion).toBe('mit');
+    // Nouveau contrat (item B4-3) : completion = candidat COMPLET destiné à
+    // remplacer le dernier token, et non plus un suffixe à ajouter.
+    expect(result.completion).toBe('commit');
   });
 
   it('CA-autocomplete-01 : context === "commandName"', () => {
@@ -133,12 +135,13 @@ describe('autocomplete — CA-autocomplete-04 : complétion unique de flag', () 
     expect(result.candidates).toEqual(['--mixed']);
   });
 
-  it('CA-autocomplete-04 : completion === "xed " (avec espace)', () => {
+  it('CA-autocomplete-04 : completion === "--mixed " (flag complet + espace)', () => {
     const engine = newEngine();
     const catalog = engine.getCatalog();
     const snap = engine.snapshot();
     const result = autocomplete('git reset --mi', catalog, snap);
-    expect(result.completion).toBe('xed ');
+    // Nouveau contrat (item B4-3) : flag complet + espace final pour l'argument.
+    expect(result.completion).toBe('--mixed ');
   });
 
   it('CA-autocomplete-04 : context === "flag"', () => {
@@ -196,12 +199,13 @@ describe('autocomplete — CA-autocomplete-06 : complétion unique de branche', 
     expect(result.candidates).toEqual(['feature']);
   });
 
-  it('CA-autocomplete-06 : completion === "ature"', () => {
+  it('CA-autocomplete-06 : completion === "feature" (ref complète)', () => {
     const engine = engineWithBranchAndTag();
     const catalog = engine.getCatalog();
     const snap = engine.snapshot();
     const result = autocomplete('git checkout fe', catalog, snap);
-    expect(result.completion).toBe('ature');
+    // Nouveau contrat (item B4-3) : ref complète (préserve la casse du candidat).
+    expect(result.completion).toBe('feature');
   });
 
   it('CA-autocomplete-06 : context === "ref"', () => {
@@ -338,5 +342,57 @@ describe('autocomplete — CA-autocomplete-12 : ordre déterministe des candidat
     expect(cherryPickIdx).toBeGreaterThanOrEqual(0);
     // Ordre alphabétique : "checkout" < "cherry-pick"
     expect(checkoutIdx).toBeLessThan(cherryPickIdx);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Item B4-3 : Correction de la casse mixte + replaceLastToken
+// Spec : docs/specs/61-technical-improvements.md (CA-autocase-*)
+// ---------------------------------------------------------------------------
+
+describe('replaceLastToken (CA-autocase-01)', () => {
+  it('remplace le dernier token par le candidat complet', () => {
+    expect(replaceLastToken('git checkout fe', 'Feature')).toBe('git checkout Feature');
+  });
+
+  it('remplace un préfixe de commande', () => {
+    expect(replaceLastToken('git ch', 'checkout')).toBe('git checkout');
+  });
+
+  it('input finissant par un espace → ajoute le candidat', () => {
+    expect(replaceLastToken('git checkout ', 'main')).toBe('git checkout main');
+  });
+
+  it('préserve le préfixe d\'une chaîne de commandes', () => {
+    expect(replaceLastToken('git init && git checkout fe', 'Feature')).toBe(
+      'git init && git checkout Feature',
+    );
+  });
+});
+
+describe('autocomplete — casse mixte (CA-autocase-04)', () => {
+  function engineWithMixedCaseBranch() {
+    return replay([
+      'git init',
+      'write file.txt "hello"',
+      'git add file.txt',
+      'git commit -m "initial"',
+      'git branch Feature',
+    ]);
+  }
+
+  it('"git checkout fe" → candidat "Feature" (casse du candidat préservée)', () => {
+    const engine = engineWithMixedCaseBranch();
+    const result = autocomplete('git checkout fe', engine.getCatalog(), engine.snapshot());
+    expect(result.candidates).toEqual(['Feature']);
+    expect(result.completion).toBe('Feature');
+    // Combiné à replaceLastToken : la ligne finale conserve la casse du candidat.
+    expect(replaceLastToken('git checkout fe', result.completion)).toBe('git checkout Feature');
+  });
+
+  it('filtre insensible à la casse mais candidat gardé dans sa casse (CA-autocase-05)', () => {
+    const engine = engineWithMixedCaseBranch();
+    const result = autocomplete('git checkout FE', engine.getCatalog(), engine.snapshot());
+    expect(result.candidates).toEqual(['Feature']);
   });
 });

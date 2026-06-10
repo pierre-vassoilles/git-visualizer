@@ -4,7 +4,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { useRepoStore } from '@/stores/repo';
-import { autocomplete } from '@/utils/autocomplete';
+import { autocomplete, replaceLastToken } from '@/utils/autocomplete';
 import { splitCommandChain } from '@/utils/shell';
 
 // Séquence ANSI pour effacer l'écran + le scrollback puis ramener le curseur en haut.
@@ -74,7 +74,8 @@ function replaceLine(next: string): void {
  * Gestion de la touche Tab : autocomplétion basée sur le catalogue du moteur.
  *
  * - 0 candidat : ne fait rien.
- * - 1 candidat : insère le suffixe directement dans la ligne courante.
+ * - 1 candidat : remplace le dernier token par le candidat complet (casse
+ *   préservée : `fe` → `Feature`).
  * - N candidats : affiche la liste en dessous du prompt (ANSI cyan), puis
  *   réaffiche le prompt + la ligne courante intacte.
  */
@@ -92,8 +93,9 @@ function handleTab(): void {
   }
 
   if (result.candidates.length === 1) {
-    // Complétion unique : insérer le suffixe dans la ligne courante
-    const newLine = current + result.completion;
+    // Complétion unique : remplacer le dernier token par le candidat complet
+    // (préserve la casse du candidat, pas celle tapée par l'utilisateur).
+    const newLine = replaceLastToken(current, result.completion);
     replaceLine(newLine);
     return;
   }

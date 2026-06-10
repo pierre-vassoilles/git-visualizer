@@ -1,18 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, onBeforeUnmount } from 'vue';
-import type { GraphLayout, GraphEdge, GraphNode } from '@/graph/types';
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
+import type { GraphLayout, GraphEdge, GraphNode, Badge } from '@/graph/types';
+import { culledLayout, type Viewport } from '@/graph/culling';
 
-// ---------------------------------------------------------------------------
-// Badge type (avec discriminant kind)
-// ---------------------------------------------------------------------------
-
-export interface Badge {
-  kind: 'head' | 'branch' | 'remote' | 'tag';
-  label: string;
-  bgColor: string;
-  textColor: string;
-  borderColor: string;
-}
+// `Badge` est défini dans @/graph/types (source de vérité). Réexporté ici pour
+// rétro-compatibilité des imports existants (`from './GraphCanvas.vue'`).
+export type { Badge };
 
 // ---------------------------------------------------------------------------
 // Props
@@ -62,6 +55,10 @@ const emit = defineEmits<{
 const _zoom = ref(1);
 const _panX = ref(0);
 const _panY = ref(0);
+// Dimensions pixel du conteneur (mesurées) — pour calculer le viewport logique.
+const containerEl = ref<HTMLDivElement | null>(null);
+const containerW = ref(0);
+const containerH = ref(0);
 const hoveredHash = ref<string | null>(null);
 const selectedHash = ref<string | null>(null);
 const tooltipX = ref(0);
@@ -84,7 +81,28 @@ const hoveredNode = computed((): GraphNode | null => {
 
 const showLabels = computed(() => zoom.value > 0.4);
 
-/** Map hash → couleur de nœud (précalculée). */
+/**
+ * Layout effectivement rendu, après virtualisation (culling) du viewport.
+ * Sous le seuil (petits graphes, cas pédagogique courant) c'est exactement
+ * `props.layout` — aucun changement visuel. Sur gros DAG, seuls les
+ * nœuds/arêtes visibles (+ buffer) sont conservés.
+ */
+const renderedLayout = computed((): GraphLayout | null => {
+  const lay = props.layout;
+  if (!lay) return null;
+  if (containerW.value === 0 || containerH.value === 0) return lay;
+  // Conversion pixel → coordonnées logiques : screen = logical * zoom + pan.
+  const z = zoom.value || 1;
+  const viewport: Viewport = {
+    x: -panX.value / z,
+    y: -panY.value / z,
+    width: containerW.value / z,
+    height: containerH.value / z,
+  };
+  return culledLayout(lay, viewport);
+});
+
+/** Map hash → couleur de nœud (précalculée sur le layout complet). */
 const colorByHash = computed((): Map<string, string> => {
   const map = new Map<string, string>();
   for (const node of props.layout?.nodes ?? []) {
@@ -93,15 +111,18 @@ const colorByHash = computed((): Map<string, string> => {
   return map;
 });
 
-/** Arêtes linéaires (précalculées). */
+/** Arêtes linéaires visibles (précalculées). */
 const linearEdges = computed(() =>
-  props.layout?.edges.filter(e => e.type === 'linear') ?? [],
+  renderedLayout.value?.edges.filter(e => e.type === 'linear') ?? [],
 );
 
-/** Arêtes de merge (précalculées). */
+/** Arêtes de merge visibles (précalculées). */
 const mergeEdges = computed(() =>
-  props.layout?.edges.filter(e => e.type === 'merge') ?? [],
+  renderedLayout.value?.edges.filter(e => e.type === 'merge') ?? [],
 );
+
+/** Nœuds visibles (après culling). */
+const visibleNodes = computed(() => renderedLayout.value?.nodes ?? []);
 
 // ---------------------------------------------------------------------------
 // SVG rendering helpers
@@ -169,6 +190,22 @@ function handleWheel(e: WheelEvent): void {
   emit('wheel', delta);
 }
 
+let resizeObserver: ResizeObserver | null = null;
+
+onMounted(() => {
+  const el = containerEl.value;
+  if (!el) return;
+  const measure = (): void => {
+    containerW.value = el.clientWidth;
+    containerH.value = el.clientHeight;
+  };
+  measure();
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(el);
+  }
+});
+
 let currentPanCleanup: (() => void) | null = null;
 
 function startPan(e: MouseEvent): void {
@@ -214,6 +251,10 @@ onBeforeUnmount(() => {
   if (currentPanCleanup !== null) {
     currentPanCleanup();
   }
+  if (resizeObserver !== null) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
 });
 
 function handleBackdropClick(e: MouseEvent): void {
@@ -225,6 +266,7 @@ function handleBackdropClick(e: MouseEvent): void {
 
 <template>
   <div
+    ref="containerEl"
     class="graph-canvas"
     @wheel.prevent="handleWheel"
     @mousedown="startPan"
@@ -268,7 +310,7 @@ function handleBackdropClick(e: MouseEvent): void {
       <!-- Badges de refs (dessinés avant les nœuds pour être sous les cercles) -->
       <g v-if="showLabels" class="badges">
         <g
-          v-for="node in layout.nodes"
+          v-for="node in visibleNodes"
           :key="`badges-${node.hash}`"
         >
           <g
@@ -302,7 +344,7 @@ function handleBackdropClick(e: MouseEvent): void {
       <g class="nodes">
         <!-- Halo pour commits surlignés (non poussés / à récupérer) -->
         <circle
-          v-for="node in layout.nodes.filter(n => highlightedNodes.has(n.hash))"
+          v-for="node in visibleNodes.filter(n => highlightedNodes.has(n.hash))"
           :key="`halo-${node.hash}`"
           :cx="node.x"
           :cy="node.y"
@@ -310,7 +352,7 @@ function handleBackdropClick(e: MouseEvent): void {
           class="node-halo"
         />
         <circle
-          v-for="node in layout.nodes"
+          v-for="node in visibleNodes"
           :key="`node-${node.hash}`"
           :cx="node.x"
           :cy="node.y"
@@ -333,7 +375,7 @@ function handleBackdropClick(e: MouseEvent): void {
       <!-- Labels hash + message -->
       <g v-if="showLabels" class="labels">
         <g
-          v-for="node in layout.nodes"
+          v-for="node in visibleNodes"
           :key="`label-${node.hash}`"
           class="label"
           :transform="`translate(${node.x + nodeRadius + 8}, ${node.y})`"

@@ -33,14 +33,16 @@ export function cmdReflog(repo: Repository, args: string[]): CommandResult {
 // ---------------------------------------------------------------------------
 
 function reflogShow(repo: Repository, ref: string): CommandResult {
-  // Résoudre le ref en nom interne
+  // Résoudre le ref en nom interne. On accepte HEAD, une branche, ou un tag
+  // (y compris un tag/branche supprimé dont le reflog subsiste).
   let refName: string;
   if (ref === 'HEAD') {
     refName = 'HEAD';
-  } else if (branchExists(repo, ref)) {
+  } else if (branchExists(repo, ref) || repo.reflog?.[`refs/heads/${ref}`]) {
     refName = `refs/heads/${ref}`;
+  } else if (repo.refs.tags[ref] !== undefined || repo.reflog?.[`refs/tags/${ref}`]) {
+    refName = `refs/tags/${ref}`;
   } else {
-    // Vérifier si c'est une branche qui n'existe pas
     return fail([`fatal: ${ref}: no such branch`], 128);
   }
 
@@ -51,7 +53,8 @@ function reflogShow(repo: Repository, ref: string): CommandResult {
 
   const refLabel = ref === 'HEAD' ? 'HEAD' : ref;
   const lines = entries.map((entry, index) => {
-    const short = shortHash(entry.newHash);
+    // Sur une suppression, newHash est vide : on affiche le hash d'origine.
+    const short = shortHash(entry.newHash || entry.oldHash);
     return `${short} ${refLabel}@{${index}}: ${entry.action}: ${entry.description}`;
   });
 
@@ -72,7 +75,9 @@ function reflogList(repo: Repository): CommandResult {
     const entries = repo.reflog[refName] ?? [];
     if (entries.length > 0) {
       const latest = entries[0]!;
-      const short = shortHash(latest.newHash);
+      // Sur une suppression, newHash est vide : on retombe sur le hash d'origine
+      // (cohérent avec reflogShow).
+      const short = shortHash(latest.newHash || latest.oldHash);
       lines.push(`${short} ${refName}`);
     }
   }

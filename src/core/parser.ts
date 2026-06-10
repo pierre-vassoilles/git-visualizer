@@ -9,6 +9,7 @@
 
 import { fail, ok, type CommandResult } from './types';
 import type { Repository } from './model';
+import { tokenize as tokenizeCore } from './tokenizer';
 import { cmdInit } from './commands/init';
 import { cmdAdd } from './commands/add';
 import { cmdStatus } from './commands/status';
@@ -47,41 +48,10 @@ import { cmdRevParse } from './commands/rev-parse';
  *   'write README.md "# Title"'   → ["write", "README.md", "# Title"]
  */
 export function tokenize(input: string): string[] {
-  const tokens: string[] = [];
-  let current = '';
-  let inQuotes = false;
-  // Un token entre guillemets explicites doit être émis même s'il est vide
-  // (ex. `git branch ""` → [..., ""] pour que la commande rejette le nom vide,
-  // comme le vrai Git). On distingue donc "token vide quoté" de "pas de token".
-  let quoted = false;
-
-  for (let i = 0; i < input.length; i++) {
-    const ch = input[i]!;
-
-    if (ch === '"') {
-      inQuotes = !inQuotes;
-      quoted = true;
-      // Les guillemets eux-mêmes ne sont pas inclus dans le token
-      continue;
-    }
-
-    if (ch === ' ' && !inQuotes) {
-      if (current.length > 0 || quoted) {
-        tokens.push(current);
-        current = '';
-        quoted = false;
-      }
-      continue;
-    }
-
-    current += ch;
-  }
-
-  if (current.length > 0 || quoted) {
-    tokens.push(current);
-  }
-
-  return tokens;
+  // Délègue au tokenizer commun (src/core/tokenizer.ts) avec les options
+  // historiques du parser : guillemets doubles seuls, pas d'échappements,
+  // espaces fusionnés (pas de token vide en fin de ligne).
+  return tokenizeCore(input);
 }
 
 // ---------------------------------------------------------------------------

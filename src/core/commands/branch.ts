@@ -1,6 +1,7 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
 import {
+  addReflogEntry,
   branchExists,
   computeAheadBehind,
   currentBranch,
@@ -8,6 +9,7 @@ import {
   isAncestor,
   isInitialized,
   isValidBranchName,
+  resolveCommitish,
 } from '../repository';
 import { getCommit } from '../objectStore';
 import { shortHash } from '../sha1';
@@ -108,6 +110,16 @@ export function cmdBranch(repo: Repository, args: string[]): CommandResult {
     const hash = repo.refs.heads[branchName] ?? '';
     const short = hash ? shortHash(hash) : '(no commits)';
 
+    // Reflog de suppression (survit à la disparition de la ref, comme git).
+    if (hash !== '') {
+      addReflogEntry(repo, `refs/heads/${branchName}`, {
+        oldHash: hash,
+        newHash: '',
+        action: 'branch',
+        description: `Deleted ${branchName}`,
+      });
+    }
+
     // Supprimer
     delete repo.refs.heads[branchName];
     // Nettoyer l'upstream si présent
@@ -145,9 +157,30 @@ export function cmdBranch(repo: Repository, args: string[]): CommandResult {
     return fail([`fatal: A branch named '${branchName}' already exists.`]);
   }
 
-  // Récupérer le hash de HEAD (peut être "" si branche vide)
-  const headHash = headCommitHash(repo) ?? '';
-  repo.refs.heads[branchName] = headHash;
+  // Point de départ optionnel : `git branch <name> <start-point>`. Sinon HEAD
+  // (peut être "" si branche vide / pas encore de commit).
+  const startPoint = nonFlagArgs[1];
+  let targetHash: string;
+  if (startPoint !== undefined) {
+    const resolved = resolveCommitish(repo, startPoint);
+    if (!resolved) {
+      return fail([`fatal: Not a valid object name: '${startPoint}'.`]);
+    }
+    targetHash = resolved;
+  } else {
+    targetHash = headCommitHash(repo) ?? '';
+  }
+  repo.refs.heads[branchName] = targetHash;
+
+  // Reflog de création (uniquement si la branche pointe sur un commit réel).
+  if (targetHash !== '') {
+    addReflogEntry(repo, `refs/heads/${branchName}`, {
+      oldHash: '',
+      newHash: targetHash,
+      action: 'branch',
+      description: `Created from ${shortHash(targetHash)}`,
+    });
+  }
 
   return ok(); // succès muet
 }

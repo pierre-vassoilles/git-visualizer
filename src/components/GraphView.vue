@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { computeLayout } from '@/graph/layout';
 import { useRepoStore } from '@/stores/repo';
 import GraphCanvas from './GraphCanvas.vue';
-import type { Badge } from './GraphCanvas.vue';
+import type { Badge } from '@/graph/types';
 import type { RepoSnapshot } from '@/core/engine';
 
 const repo = useRepoStore();

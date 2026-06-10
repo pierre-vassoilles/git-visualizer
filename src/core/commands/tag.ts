@@ -1,6 +1,12 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
-import { headCommitHash, isInitialized, resolveCommitish, tagExists } from '../repository';
+import {
+  addReflogEntry,
+  headCommitHash,
+  isInitialized,
+  resolveCommitish,
+  tagExists,
+} from '../repository';
 import { shortHash } from '../sha1';
 import { notARepo } from './init';
 
@@ -71,6 +77,7 @@ function createTagOnHead(repo: Repository, tagName: string): CommandResult {
   }
 
   repo.refs.tags[tagName] = headHash;
+  recordTagCreation(repo, tagName, headHash);
   return ok(); // succès muet
 }
 
@@ -89,6 +96,7 @@ function createTagOnCommit(repo: Repository, tagName: string, commitRef: string)
   }
 
   repo.refs.tags[tagName] = commitHash;
+  recordTagCreation(repo, tagName, commitHash);
   return ok(); // succès muet
 }
 
@@ -100,7 +108,25 @@ function deleteTag(repo: Repository, tagName: string): CommandResult {
   const hash = repo.refs.tags[tagName]!;
   const short = shortHash(hash);
 
+  // Reflog de suppression (symétrique de la création).
+  addReflogEntry(repo, `refs/tags/${tagName}`, {
+    oldHash: hash,
+    newHash: '',
+    action: 'tag',
+    description: `Deleted ${tagName}`,
+  });
+
   delete repo.refs.tags[tagName];
 
   return ok([`Deleted tag '${tagName}' (was ${short}).`]);
+}
+
+/** Enregistre une entrée reflog pour la création d'un tag. */
+function recordTagCreation(repo: Repository, tagName: string, hash: string): void {
+  addReflogEntry(repo, `refs/tags/${tagName}`, {
+    oldHash: '',
+    newHash: hash,
+    action: 'tag',
+    description: `Created from ${shortHash(hash)}`,
+  });
 }
