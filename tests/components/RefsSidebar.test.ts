@@ -152,3 +152,49 @@ describe('RefsSidebar — commandes récentes & scénarios', () => {
     expect(history).toContain('git init');
   });
 });
+
+describe('RefsSidebar — refs cliquables (spec 53)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  function repoWithBranchAndTag() {
+    const { wrapper, store } = mountSidebar();
+    store.execute('git init');
+    store.execute('write a.txt "x"');
+    store.execute('git add a.txt');
+    store.execute('git commit -m "C1"');
+    store.execute('git branch feature');
+    store.execute('git tag v1');
+    return { wrapper, store };
+  }
+
+  it('CA-clickable-01 : clic sur une branche → checkout', async () => {
+    const { wrapper, store } = repoWithBranchAndTag();
+    await wrapper.vm.$nextTick();
+    const featureLi = wrapper.findAll('.item-row').find((li) => li.text().includes('feature'))!;
+    await featureLi.trigger('click');
+    expect(store.snapshot.head.type).toBe('branch');
+    expect(store.snapshot.head.type === 'branch' && store.snapshot.head.name).toBe('feature');
+  });
+
+  it('CA-clickable-02 : clic sur la branche courante → no-op', async () => {
+    const { wrapper, store } = repoWithBranchAndTag();
+    const before = store.snapshot.head;
+    await wrapper.vm.$nextTick();
+    const current = wrapper.find('.item-current');
+    await current.trigger('click');
+    expect(store.snapshot.head).toEqual(before);
+  });
+
+  it('CA-clickable-03 : clic sur un tag → HEAD détaché', async () => {
+    const { wrapper, store } = repoWithBranchAndTag();
+    await wrapper.vm.$nextTick();
+    // Le tag v1 est dans la section Tags (item-row clickable avec l'icône ⬡).
+    const tagLi = wrapper
+      .findAll('.item-row.clickable')
+      .find((li) => li.text().includes('v1') && li.text().includes('⬡'))!;
+    await tagLi.trigger('click');
+    expect(store.snapshot.head.type).toBe('detached');
+  });
+});

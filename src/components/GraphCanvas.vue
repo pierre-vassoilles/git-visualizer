@@ -46,6 +46,7 @@ const emit = defineEmits<{
   hover: [hash: string | null];
   wheel: [delta: number];
   pan: [dx: number, dy: number];
+  nodeContextMenu: [hash: string, x: number, y: number];
 }>();
 
 // ---------------------------------------------------------------------------
@@ -76,7 +77,7 @@ const nodeRadius = 6;
 
 const hoveredNode = computed((): GraphNode | null => {
   if (!hoveredHash.value || !props.layout) return null;
-  return props.layout.nodes.find(n => n.hash === hoveredHash.value) ?? null;
+  return props.layout.nodes.find((n) => n.hash === hoveredHash.value) ?? null;
 });
 
 const showLabels = computed(() => zoom.value > 0.4);
@@ -112,13 +113,13 @@ const colorByHash = computed((): Map<string, string> => {
 });
 
 /** Arêtes linéaires visibles (précalculées). */
-const linearEdges = computed(() =>
-  renderedLayout.value?.edges.filter(e => e.type === 'linear') ?? [],
+const linearEdges = computed(
+  () => renderedLayout.value?.edges.filter((e) => e.type === 'linear') ?? [],
 );
 
 /** Arêtes de merge visibles (précalculées). */
-const mergeEdges = computed(() =>
-  renderedLayout.value?.edges.filter(e => e.type === 'merge') ?? [],
+const mergeEdges = computed(
+  () => renderedLayout.value?.edges.filter((e) => e.type === 'merge') ?? [],
 );
 
 /** Nœuds visibles (après culling). */
@@ -262,6 +263,11 @@ function handleBackdropClick(e: MouseEvent): void {
     selectedHash.value = null;
   }
 }
+
+function onNodeContextMenu(hash: string, e: MouseEvent): void {
+  e.preventDefault();
+  emit('nodeContextMenu', hash, e.clientX, e.clientY);
+}
 </script>
 
 <template>
@@ -309,12 +315,9 @@ function handleBackdropClick(e: MouseEvent): void {
 
       <!-- Badges de refs (dessinés avant les nœuds pour être sous les cercles) -->
       <g v-if="showLabels" class="badges">
-        <g
-          v-for="node in visibleNodes"
-          :key="`badges-${node.hash}`"
-        >
+        <g v-for="node in visibleNodes" :key="`badges-${node.hash}`">
           <g
-            v-for="(badge, idx) in (badgesByHash.get(node.hash) ?? [])"
+            v-for="(badge, idx) in badgesByHash.get(node.hash) ?? []"
             :key="`badge-${node.hash}-${idx}`"
             :transform="`translate(${node.x + nodeRadius + 6}, ${node.y - 12 - ((badgesByHash.get(node.hash) ?? []).length - 1 - idx) * 18})`"
             class="badge"
@@ -335,7 +338,9 @@ function handleBackdropClick(e: MouseEvent): void {
               font-size="9"
               :fill="badge.textColor"
               font-family="ui-monospace, monospace"
-            >{{ badge.label }}</text>
+            >
+              {{ badge.label }}
+            </text>
           </g>
         </g>
       </g>
@@ -344,7 +349,7 @@ function handleBackdropClick(e: MouseEvent): void {
       <g class="nodes">
         <!-- Halo pour commits surlignés (non poussés / à récupérer) -->
         <circle
-          v-for="node in visibleNodes.filter(n => highlightedNodes.has(n.hash))"
+          v-for="node in visibleNodes.filter((n) => highlightedNodes.has(n.hash))"
           :key="`halo-${node.hash}`"
           :cx="node.x"
           :cy="node.y"
@@ -354,6 +359,7 @@ function handleBackdropClick(e: MouseEvent): void {
         <circle
           v-for="node in visibleNodes"
           :key="`node-${node.hash}`"
+          :data-hash="node.hash"
           :cx="node.x"
           :cy="node.y"
           :r="nodeRadius"
@@ -369,6 +375,7 @@ function handleBackdropClick(e: MouseEvent): void {
           @mouseenter="(e) => handleNodeMouseEnter(node.hash, e)"
           @mouseleave="handleNodeMouseLeave"
           @click.stop="selectNode(node.hash)"
+          @contextmenu="(e) => onNodeContextMenu(node.hash, e)"
         />
       </g>
 
@@ -387,7 +394,9 @@ function handleBackdropClick(e: MouseEvent): void {
             font-family="ui-monospace, monospace"
             fill="#333"
             class="label-hash"
-          >{{ node.snapshot.shortHash }}</text>
+          >
+            {{ node.snapshot.shortHash }}
+          </text>
           <text
             x="0"
             y="16"
@@ -395,7 +404,9 @@ function handleBackdropClick(e: MouseEvent): void {
             font-family="system-ui, sans-serif"
             fill="#888"
             class="label-message"
-          >{{ truncateMessage(node.snapshot.message, 36) }}</text>
+          >
+            {{ truncateMessage(node.snapshot.message, 36) }}
+          </text>
         </g>
       </g>
     </svg>
@@ -417,7 +428,13 @@ function handleBackdropClick(e: MouseEvent): void {
       <div class="tooltip-hash">{{ hoveredNode.snapshot.hash }}</div>
       <div class="tooltip-message">{{ hoveredNode.snapshot.message }}</div>
       <div v-if="hoveredNode.snapshot.parents.length" class="tooltip-parents">
-        Parents: {{ hoveredNode.snapshot.parents.slice(0, 2).map(h => h.slice(0, 7)).join(', ') }}
+        Parents:
+        {{
+          hoveredNode.snapshot.parents
+            .slice(0, 2)
+            .map((h) => h.slice(0, 7))
+            .join(', ')
+        }}
       </div>
     </div>
   </div>
@@ -472,7 +489,9 @@ function handleBackdropClick(e: MouseEvent): void {
 .node {
   cursor: pointer;
   opacity: 0.85;
-  transition: opacity 0.12s ease, stroke-width 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    stroke-width 0.12s ease;
   stroke: #fff;
   stroke-width: 2;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.12));

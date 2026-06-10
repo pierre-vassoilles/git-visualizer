@@ -22,6 +22,19 @@ function branchShortHash(name: string): string {
   return hash ? hash.slice(0, 7) : '';
 }
 
+/** Clic sur une branche → checkout (no-op si déjà courante). */
+function checkoutBranch(name: string): void {
+  if (isCurrentBranch(name)) return;
+  repo.execute(`git checkout ${name}`);
+}
+
+/** Clic sur un tag → checkout du commit pointé (HEAD détaché). */
+function checkoutTag(name: string): void {
+  const hash = repo.snapshot.tags[name];
+  if (!hash) return;
+  repo.execute(`git checkout ${hash.slice(0, 7)}`);
+}
+
 // ---------------------------------------------------------------------------
 // HEAD
 // ---------------------------------------------------------------------------
@@ -105,16 +118,14 @@ const stashCount = computed(() => repo.snapshot.stashCount ?? 0);
 // Commandes récentes (10 dernières, plus récente en haut)
 // ---------------------------------------------------------------------------
 
-const recentCommands = computed(() =>
-  [...repo.history].slice(-10).reverse(),
-);
+const recentCommands = computed(() => [...repo.history].slice(-10).reverse());
 
 // ---------------------------------------------------------------------------
 // Reset
 // ---------------------------------------------------------------------------
 
 function onReset(): void {
-  if (confirm('Réinitialiser le dépôt et effacer l\'historique localStorage ?')) {
+  if (confirm("Réinitialiser le dépôt et effacer l'historique localStorage ?")) {
     repo.resetStorage();
   }
 }
@@ -123,13 +134,9 @@ function onReset(): void {
 // Distant
 // ---------------------------------------------------------------------------
 
-const hasRemotes = computed(() =>
-  Object.keys(repo.snapshot.remotes ?? {}).length > 0,
-);
+const hasRemotes = computed(() => Object.keys(repo.snapshot.remotes ?? {}).length > 0);
 
-const remoteNames = computed(() =>
-  Object.keys(repo.snapshot.remotes ?? {}),
-);
+const remoteNames = computed(() => Object.keys(repo.snapshot.remotes ?? {}));
 
 /** URL d'un remote (fournie par snapshot.remotes[name].url si disponible). */
 function remoteUrl(name: string): string | null {
@@ -224,7 +231,6 @@ function onStartTutorial(id: string): void {
 
 <template>
   <aside class="refs-sidebar">
-
     <!-- ================================================================
          Branches
     ================================================================ -->
@@ -235,7 +241,9 @@ function onStartTutorial(id: string): void {
           v-for="name in branchNames"
           :key="name"
           class="item-row"
-          :class="{ 'item-current': isCurrentBranch(name) }"
+          :class="{ 'item-current': isCurrentBranch(name), clickable: !isCurrentBranch(name) }"
+          :title="isCurrentBranch(name) ? 'Branche courante' : `Checkout ${name}`"
+          @click="checkoutBranch(name)"
         >
           <span class="indicator">{{ isCurrentBranch(name) ? '●' : '○' }}</span>
           <span class="item-name">{{ name }}</span>
@@ -250,10 +258,7 @@ function onStartTutorial(id: string): void {
     ================================================================ -->
     <section>
       <h2>HEAD</h2>
-      <div
-        class="head-box"
-        :class="headInfo.detached ? 'head-detached' : 'head-symbolic'"
-      >
+      <div class="head-box" :class="headInfo.detached ? 'head-detached' : 'head-symbolic'">
         <template v-if="!headInfo.detached">
           <span class="head-label">{{ headInfo.label }}</span>
         </template>
@@ -270,7 +275,13 @@ function onStartTutorial(id: string): void {
     <section v-if="tagEntries.length > 0">
       <h2>Tags</h2>
       <ul class="item-list">
-        <li v-for="tag in tagEntries" :key="tag.name" class="item-row">
+        <li
+          v-for="tag in tagEntries"
+          :key="tag.name"
+          class="item-row clickable"
+          :title="`Checkout ${tag.name} (HEAD détaché)`"
+          @click="checkoutTag(tag.name)"
+        >
           <span class="tag-icon">⬡</span>
           <span class="item-name">{{ tag.name }}</span>
           <span class="item-hash">{{ tag.shortHash }}</span>
@@ -296,11 +307,7 @@ function onStartTutorial(id: string): void {
           >
             Continuer
           </button>
-          <button
-            v-if="abortCmd(operationState.type)"
-            class="btn btn-abort"
-            @click="onAbort"
-          >
+          <button v-if="abortCmd(operationState.type)" class="btn btn-abort" @click="onAbort">
             Annuler
           </button>
         </div>
@@ -312,9 +319,7 @@ function onStartTutorial(id: string): void {
     ================================================================ -->
     <section v-if="stashCount > 0">
       <h2>Stash</h2>
-      <p class="stash-count">
-        {{ stashCount }} entrée{{ stashCount > 1 ? 's' : '' }}
-      </p>
+      <p class="stash-count">{{ stashCount }} entrée{{ stashCount > 1 ? 's' : '' }}</p>
     </section>
 
     <!-- ================================================================
@@ -328,9 +333,7 @@ function onStartTutorial(id: string): void {
         </li>
         <li v-if="recentCommands.length === 0" class="muted">aucune commande</li>
       </ul>
-      <button class="btn btn-reset" @click="onReset">
-        Réinitialiser
-      </button>
+      <button class="btn btn-reset" @click="onReset">Réinitialiser</button>
     </section>
 
     <!-- ================================================================
@@ -341,11 +344,7 @@ function onStartTutorial(id: string): void {
 
       <!-- Liste des remotes -->
       <div class="remote-list">
-        <div
-          v-for="name in remoteNames"
-          :key="name"
-          class="remote-entry"
-        >
+        <div v-for="name in remoteNames" :key="name" class="remote-entry">
           <span class="remote-name">{{ name }}</span>
           <span v-if="remoteUrl(name)" class="remote-url">{{ remoteUrl(name) }}</span>
         </div>
@@ -353,14 +352,12 @@ function onStartTutorial(id: string): void {
 
       <!-- Branches avec infos de tracking -->
       <div class="tracking-section">
-        <div
-          v-for="name in branchNames"
-          :key="name"
-          class="branch-track-row"
-        >
+        <div v-for="name in branchNames" :key="name" class="branch-track-row">
           <div class="branch-track-header">
             <span class="indicator">{{ isCurrentBranch(name) ? '●' : '○' }}</span>
-            <span class="item-name" :class="{ 'item-current-name': isCurrentBranch(name) }">{{ name }}</span>
+            <span class="item-name" :class="{ 'item-current-name': isCurrentBranch(name) }">{{
+              name
+            }}</span>
           </div>
           <div v-if="trackingInfo(name)" class="track-stats" :class="`sync-${syncColor(name)}`">
             <span v-if="(trackingInfo(name)!.ahead ?? 0) > 0" class="ahead-count">
@@ -369,12 +366,17 @@ function onStartTutorial(id: string): void {
             <span v-if="(trackingInfo(name)!.behind ?? 0) > 0" class="behind-count">
               &#8595;{{ trackingInfo(name)!.behind }}
             </span>
-            <span v-if="(trackingInfo(name)!.ahead ?? 0) === 0 && (trackingInfo(name)!.behind ?? 0) === 0 && upstreamLabel(name)" class="synced-label">
+            <span
+              v-if="
+                (trackingInfo(name)!.ahead ?? 0) === 0 &&
+                (trackingInfo(name)!.behind ?? 0) === 0 &&
+                upstreamLabel(name)
+              "
+              class="synced-label"
+            >
               a jour
             </span>
-            <span v-if="trackingInfo(name)!.gone" class="gone-label">
-              (gone)
-            </span>
+            <span v-if="trackingInfo(name)!.gone" class="gone-label"> (gone) </span>
             <span v-if="upstreamLabel(name)" class="upstream-label">
               [{{ upstreamLabel(name) }}]
             </span>
@@ -397,11 +399,7 @@ function onStartTutorial(id: string): void {
     <section>
       <h2>Scénarios</h2>
       <ul class="item-list scenario-list">
-        <li
-          v-for="s in scenarios"
-          :key="s.id"
-          class="scenario-item"
-        >
+        <li v-for="s in scenarios" :key="s.id" class="scenario-item">
           <div class="scenario-header">
             <span class="scenario-title">{{ s.title }}</span>
             <span class="scenario-difficulty" :class="`diff-${s.difficulty}`">
@@ -409,9 +407,7 @@ function onStartTutorial(id: string): void {
             </span>
           </div>
           <p class="scenario-desc">{{ s.description }}</p>
-          <button class="btn btn-scenario" @click="onLoadScenario(s.id)">
-            Charger
-          </button>
+          <button class="btn btn-scenario" @click="onLoadScenario(s.id)">Charger</button>
         </li>
       </ul>
     </section>
@@ -431,13 +427,10 @@ function onStartTutorial(id: string): void {
           </div>
           <p class="scenario-desc">{{ t.description }}</p>
           <p class="tuto-meta">{{ t.steps.length }} étapes · ~{{ t.duration }} min</p>
-          <button class="btn btn-tutorial" @click="onStartTutorial(t.id)">
-            Commencer
-          </button>
+          <button class="btn btn-tutorial" @click="onStartTutorial(t.id)">Commencer</button>
         </li>
       </ul>
     </section>
-
   </aside>
 </template>
 
@@ -480,6 +473,14 @@ h2 {
   gap: 4px;
   padding: 2px 0;
   border-bottom: 1px solid #e8e8e8;
+}
+
+.item-row.clickable {
+  cursor: pointer;
+}
+
+.item-row.clickable:hover {
+  background: #eef4ff;
 }
 
 .item-current .item-name {

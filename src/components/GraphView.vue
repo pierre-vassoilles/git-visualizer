@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { computeLayout } from '@/graph/layout';
 import { useRepoStore } from '@/stores/repo';
 import GraphCanvas from './GraphCanvas.vue';
@@ -15,9 +15,7 @@ const repo = useRepoStore();
 type DisplayMode = 'local' | 'split' | 'remote';
 const displayMode = ref<DisplayMode>('local');
 
-const hasRemote = computed(() =>
-  Object.keys(repo.snapshot.remotes ?? {}).length > 0,
-);
+const hasRemote = computed(() => Object.keys(repo.snapshot.remotes ?? {}).length > 0);
 
 // Bascule automatiquement en split si un distant est disponible et qu'on est en local
 watch(hasRemote, (val) => {
@@ -87,9 +85,8 @@ function buildLocalBadges(snap: RepoSnapshot): Map<string, Badge[]> {
   const commits = snap.allCommits ?? snap.commits;
   if (!commits.length) return map;
 
-  const hHash = snap.head.type === 'detached'
-    ? snap.head.hash
-    : (snap.branches[snap.head.name] ?? null);
+  const hHash =
+    snap.head.type === 'detached' ? snap.head.hash : (snap.branches[snap.head.name] ?? null);
   const hBranchName = snap.head.type === 'branch' ? snap.head.name : null;
   const hDetached = snap.head.type === 'detached';
 
@@ -134,7 +131,9 @@ function buildLocalBadges(snap: RepoSnapshot): Map<string, Badge[]> {
         // HEAD détaché
         badges.push({
           kind: 'head',
-          label: hDetached ? (snap.head as { type: 'detached'; hash: string }).hash.slice(0, 7).concat(' (HEAD)') : headBadgeLabel.value,
+          label: hDetached
+            ? (snap.head as { type: 'detached'; hash: string }).hash.slice(0, 7).concat(' (HEAD)')
+            : headBadgeLabel.value,
           bgColor: '#fee2e2',
           textColor: '#dc2626',
           borderColor: '#dc2626',
@@ -205,9 +204,8 @@ function buildRemoteBadges(snap: RepoSnapshot): Map<string, Badge[]> {
 
   // HEAD du distant
   const remoteHead = remote.head;
-  const remoteHHash = remoteHead.type === 'detached'
-    ? remoteHead.hash
-    : (remote.heads[remoteHead.name] ?? null);
+  const remoteHHash =
+    remoteHead.type === 'detached' ? remoteHead.hash : (remote.heads[remoteHead.name] ?? null);
   const remoteHBranchName = remoteHead.type === 'branch' ? remoteHead.name : null;
   const remoteHDetached = remoteHead.type === 'detached';
 
@@ -339,14 +337,14 @@ const nonPushedNodes = computed((): Set<string> => {
 
 const unpulledNodes = computed((): Set<string> => {
   const snap = repo.snapshot;
-  const localHashes = new Set((snap.allCommits ?? snap.commits).map(c => c.hash));
+  const localHashes = new Set((snap.allCommits ?? snap.commits).map((c) => c.hash));
   const remotes = snap.remotes;
   if (!remotes) return new Set();
   const remoteName = Object.keys(remotes)[0];
   if (!remoteName) return new Set();
   const remote = remotes[remoteName];
   if (!remote) return new Set();
-  return new Set(remote.allCommits.filter(c => !localHashes.has(c.hash)).map(c => c.hash));
+  return new Set(remote.allCommits.filter((c) => !localHashes.has(c.hash)).map((c) => c.hash));
 });
 
 // ---------------------------------------------------------------------------
@@ -386,9 +384,9 @@ function onPanRemote(dx: number, dy: number): void {
 }
 
 // Computed : valeurs sync ou null (null = GraphCanvas gère son propre état)
-const externalZoom = computed(() => syncZoomPan.value ? syncZoom.value : null);
-const externalPanX = computed(() => syncZoomPan.value ? syncPanX.value : null);
-const externalPanY = computed(() => syncZoomPan.value ? syncPanY.value : null);
+const externalZoom = computed(() => (syncZoomPan.value ? syncZoom.value : null));
+const externalPanX = computed(() => (syncZoomPan.value ? syncPanX.value : null));
+const externalPanY = computed(() => (syncZoomPan.value ? syncPanY.value : null));
 
 // ---------------------------------------------------------------------------
 // Nom du premier distant
@@ -398,6 +396,79 @@ const firstRemoteName = computed(() => {
   if (!remotes) return 'origin';
   return Object.keys(remotes)[0] ?? 'origin';
 });
+
+// ---------------------------------------------------------------------------
+// Menu contextuel sur un nœud du graphe local (spec 53)
+// ---------------------------------------------------------------------------
+
+const contextMenu = ref<{ x: number; y: number; hash: string } | null>(null);
+
+function onNodeContextMenu(hash: string, x: number, y: number): void {
+  contextMenu.value = { x, y, hash };
+}
+function closeContextMenu(): void {
+  contextMenu.value = null;
+}
+
+/** Le commit est-il pointé par HEAD ? (checkout inutile). */
+function isHeadCommit(hash: string): boolean {
+  return localHeadHash.value === hash;
+}
+/** Le commit est-il une racine (sans parent) ? (revert impossible). */
+function isRootCommit(hash: string): boolean {
+  const commits = repo.snapshot.allCommits ?? repo.snapshot.commits;
+  const c = commits.find((x) => x.hash === hash);
+  return !!c && c.parents.length === 0;
+}
+
+function runMenuAction(action: string): void {
+  const menu = contextMenu.value;
+  if (!menu) return;
+  const short = menu.hash.slice(0, 7);
+  switch (action) {
+    case 'checkout':
+      repo.execute(`git checkout ${short}`);
+      break;
+    case 'reset-soft':
+      if (confirm('Reset --soft vers ce commit ? (working tree et index inchangés)')) {
+        repo.execute(`git reset --soft ${short}`);
+      }
+      break;
+    case 'reset-mixed':
+      if (confirm("Reset --mixed vers ce commit ? L'index sera réinitialisé.")) {
+        repo.execute(`git reset --mixed ${short}`);
+      }
+      break;
+    case 'reset-hard':
+      if (confirm('DANGER : reset --hard supprime définitivement les changements. Continuer ?')) {
+        repo.execute(`git reset --hard ${short}`);
+      }
+      break;
+    case 'revert':
+      repo.execute(`git revert ${short}`);
+      break;
+    case 'cherry-pick':
+      repo.execute(`git cherry-pick ${short}`);
+      break;
+    case 'tag': {
+      const name = prompt('Nom du tag :');
+      if (name && name.trim()) repo.execute(`git tag ${name.trim()} ${short}`);
+      break;
+    }
+    case 'copy-hash':
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        void navigator.clipboard.writeText(menu.hash);
+      }
+      break;
+  }
+  closeContextMenu();
+}
+
+function onEscape(e: KeyboardEvent): void {
+  if (e.key === 'Escape') closeContextMenu();
+}
+onMounted(() => window.addEventListener('keydown', onEscape));
+onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
 </script>
 
 <template>
@@ -458,6 +529,7 @@ const firstRemoteName = computed(() => {
             :external-pan-y="externalPanY"
             @wheel="onWheelLocal"
             @pan="onPanLocal"
+            @node-context-menu="onNodeContextMenu"
           />
           <div v-else-if="!repo.snapshot.initialized" class="graph-placeholder">
             <p class="title">Graphe Git</p>
@@ -503,6 +575,38 @@ const firstRemoteName = computed(() => {
         </div>
       </div>
     </div>
+
+    <!-- Menu contextuel sur un nœud (clic droit) -->
+    <template v-if="contextMenu">
+      <div class="ctx-overlay" @click="closeContextMenu" @contextmenu.prevent="closeContextMenu" />
+      <div
+        class="ctx-menu"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+        @click.stop
+      >
+        <div
+          v-if="!isHeadCommit(contextMenu.hash)"
+          class="ctx-item"
+          @click="runMenuAction('checkout')"
+        >
+          Checkout (détaché)
+        </div>
+        <div class="ctx-item" @click="runMenuAction('reset-soft')">Reset --soft</div>
+        <div class="ctx-item" @click="runMenuAction('reset-mixed')">Reset --mixed</div>
+        <div class="ctx-item danger" @click="runMenuAction('reset-hard')">Reset --hard</div>
+        <div
+          v-if="!isRootCommit(contextMenu.hash)"
+          class="ctx-item"
+          @click="runMenuAction('revert')"
+        >
+          Revert
+        </div>
+        <div class="ctx-item" @click="runMenuAction('cherry-pick')">Cherry-pick</div>
+        <div class="ctx-item" @click="runMenuAction('tag')">Tag…</div>
+        <div class="ctx-separator" />
+        <div class="ctx-item" @click="runMenuAction('copy-hash')">Copier le hash</div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -647,5 +751,40 @@ const firstRemoteName = computed(() => {
 .graph-placeholder .hint {
   font-size: 0.85rem;
   color: #bbb;
+}
+
+/* Menu contextuel */
+.ctx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+.ctx-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 180px;
+  background: #2b2b2b;
+  color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  padding: 4px 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+}
+.ctx-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.ctx-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.ctx-item.danger {
+  color: #ff6b6b;
+}
+.ctx-separator {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 4px 0;
 }
 </style>
