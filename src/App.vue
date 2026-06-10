@@ -5,6 +5,7 @@ import TerminalPanel from '@/components/TerminalPanel.vue';
 import RefsSidebar from '@/components/RefsSidebar.vue';
 import InteractiveRebaseModal from '@/components/InteractiveRebaseModal.vue';
 import ConflictEditorModal from '@/components/ConflictEditorModal.vue';
+import GuidedTutorialModal from '@/components/GuidedTutorialModal.vue';
 import { useRepoStore } from '@/stores/repo';
 
 const store = useRepoStore();
@@ -19,6 +20,7 @@ onMounted(() => {
   <!-- Modales montées au niveau racine pour l'overlay -->
   <InteractiveRebaseModal />
   <ConflictEditorModal />
+  <GuidedTutorialModal />
   <div class="layout">
     <header class="topbar">
       <span class="brand">Git Visualizer</span>

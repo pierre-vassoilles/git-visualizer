@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useRepoStore } from '@/stores/repo';
 import { getAllScenarios } from '@/constants/scenarios';
+import { getAllTutorials } from '@/constants/tutorials';
 
 const repo = useRepoStore();
 
@@ -207,6 +208,18 @@ function onLoadScenario(id: string): void {
 function difficultyLabel(d: 1 | 2 | 3): string {
   return d === 1 ? 'Facile' : d === 2 ? 'Moyen' : 'Difficile';
 }
+
+// ---------------------------------------------------------------------------
+// Tutoriels guidés (spec 51)
+// ---------------------------------------------------------------------------
+
+const tutorials = computed(() => getAllTutorials());
+
+function onStartTutorial(id: string): void {
+  if (confirm('Démarrer ce tutoriel ? Le dépôt courant sera réinitialisé.')) {
+    repo.startTutorial(id);
+  }
+}
 </script>
 
 <template>
@@ -398,6 +411,28 @@ function difficultyLabel(d: 1 | 2 | 3): string {
           <p class="scenario-desc">{{ s.description }}</p>
           <button class="btn btn-scenario" @click="onLoadScenario(s.id)">
             Charger
+          </button>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ================================================================
+         Tutoriels guidés
+    ================================================================ -->
+    <section>
+      <h2>Tutoriels guidés</h2>
+      <ul class="item-list scenario-list">
+        <li v-for="t in tutorials" :key="t.id" class="scenario-item">
+          <div class="scenario-header">
+            <span class="scenario-title">{{ t.title }}</span>
+            <span class="scenario-difficulty" :class="`diff-${t.difficulty}`">
+              {{ difficultyLabel(t.difficulty) }}
+            </span>
+          </div>
+          <p class="scenario-desc">{{ t.description }}</p>
+          <p class="tuto-meta">{{ t.steps.length }} étapes · ~{{ t.duration }} min</p>
+          <button class="btn btn-tutorial" @click="onStartTutorial(t.id)">
+            Commencer
           </button>
         </li>
       </ul>
@@ -641,6 +676,23 @@ h2 {
 .btn-scenario:hover {
   background: #eff6ff;
   border-color: #93c5fd;
+}
+
+.tuto-meta {
+  font-size: 0.68rem;
+  color: #6b7280;
+  margin: 2px 0;
+}
+
+.btn-tutorial {
+  margin-top: 2px;
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.btn-tutorial:hover {
+  background: #e0e7ff;
+  border-color: #a5b4fc;
 }
 
 /* --- Distant --- */

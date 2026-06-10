@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, shallowRef } from 'vue';
+import { computed, ref, shallowRef } from 'vue';
 import { GitEngine } from '@/core/engine';
 import type { CommandCatalog } from '@/core/catalog';
 import type { CommandResult } from '@/core/types';
@@ -8,6 +8,8 @@ import type { TodoItem } from '@/core/model';
 import { loadHistory, saveHistory, clearHistory } from '@/utils/storage';
 import { getScenarioById } from '@/constants/scenarios';
 import { parseConflictContent, buildResolvedContent } from '@/core/repository';
+import { getTutorialById } from '@/constants/tutorials';
+import type { Tutorial, TutorialStep } from '@/core/tutorial-helpers';
 
 /** Une entrée du journal du terminal (commande tapée + résultat). */
 export interface LogEntry {
@@ -178,6 +180,115 @@ export const useRepoStore = defineStore('repo', () => {
     return engine.value.readFile(path);
   }
 
+  // -------------------------------------------------------------------------
+  // PHASE B2 : Tutoriels guidés (spec 51)
+  // -------------------------------------------------------------------------
+
+  interface TutorialProgress {
+    tutorialId: string;
+    currentStepIndex: number; // peut valoir steps.length → tutoriel terminé
+    completedSteps: string[];
+    skippedSteps: string[];
+    hintUsed: boolean;
+    hintsUsedCount: number;
+  }
+
+  const tutorialProgress = ref<TutorialProgress | null>(null);
+
+  const currentTutorial = computed<Tutorial | null>(() =>
+    tutorialProgress.value ? getTutorialById(tutorialProgress.value.tutorialId) : null,
+  );
+
+  const currentStep = computed<TutorialStep | null>(() => {
+    const t = currentTutorial.value;
+    const p = tutorialProgress.value;
+    if (!t || !p) return null;
+    return t.steps[p.currentStepIndex] ?? null;
+  });
+
+  const tutorialCompleted = computed(
+    () =>
+      tutorialProgress.value !== null &&
+      currentTutorial.value !== null &&
+      tutorialProgress.value.currentStepIndex >= currentTutorial.value.steps.length,
+  );
+
+  /** Objectifs de l'étape courante évalués contre le snapshot (passed booléen). */
+  const tutorialObjectives = computed(() => {
+    const step = currentStep.value;
+    if (!step) return [] as Array<{ description: string; passed: boolean }>;
+    return step.objectives.map((o) => {
+      let passed = false;
+      try {
+        passed = o.validate(snapshot.value);
+      } catch {
+        // Spec : un prédicat qui lance est traité comme non atteint.
+        passed = false;
+      }
+      return { description: o.description, passed };
+    });
+  });
+
+  const currentStepComplete = computed(
+    () => tutorialObjectives.value.length > 0 && tutorialObjectives.value.every((o) => o.passed),
+  );
+
+  function startTutorial(id: string): void {
+    const t = getTutorialById(id);
+    if (!t) return;
+    // Dépôt neuf + purge de la session précédente (comme executeScenario).
+    clearHistory();
+    reset();
+    tutorialProgress.value = {
+      tutorialId: id,
+      currentStepIndex: 0,
+      completedSteps: [],
+      skippedSteps: [],
+      hintUsed: false,
+      hintsUsedCount: 0,
+    };
+  }
+
+  function nextStep(): void {
+    const p = tutorialProgress.value;
+    const t = currentTutorial.value;
+    if (!p || !t) return;
+    // Marquer l'étape courante complétée si ses objectifs sont atteints.
+    const step = currentStep.value;
+    if (step && currentStepComplete.value && !p.completedSteps.includes(step.id)) {
+      p.completedSteps.push(step.id);
+    }
+    p.currentStepIndex++;
+    p.hintUsed = false;
+  }
+
+  function previousStep(): void {
+    const p = tutorialProgress.value;
+    if (!p || p.currentStepIndex <= 0) return;
+    p.currentStepIndex--;
+    p.hintUsed = false;
+  }
+
+  function skipStep(): void {
+    const p = tutorialProgress.value;
+    const step = currentStep.value;
+    if (!p || !step) return;
+    if (!p.skippedSteps.includes(step.id)) p.skippedSteps.push(step.id);
+    p.currentStepIndex++;
+    p.hintUsed = false;
+  }
+
+  function useHint(): void {
+    const p = tutorialProgress.value;
+    if (!p || p.hintUsed) return;
+    p.hintUsed = true;
+    p.hintsUsedCount++;
+  }
+
+  function quitTutorial(): void {
+    tutorialProgress.value = null;
+  }
+
   /**
    * PHASE B2 : Parse les sections de conflit d'un fichier (délègue au helper pur
    * du core). Permet à la modale de rester sans import de logique core.
@@ -249,5 +360,18 @@ export const useRepoStore = defineStore('repo', () => {
     readFile,
     getConflictSections,
     resolveConflict,
+    // Tutoriels guidés
+    tutorialProgress,
+    currentTutorial,
+    currentStep,
+    tutorialCompleted,
+    tutorialObjectives,
+    currentStepComplete,
+    startTutorial,
+    nextStep,
+    previousStep,
+    skipStep,
+    useHint,
+    quitTutorial,
   };
 });

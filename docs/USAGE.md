@@ -3702,6 +3702,28 @@ s'ouvre automatiquement (sans avoir à éditer les marqueurs `<<<<<<<` à la mai
 
 ---
 
+## Tutoriels guidés (Axe B2)
+
+À côté des **scénarios** (qui chargent un état d'un coup), les **tutoriels guidés**
+font construire l'état **étape par étape**, avec validation automatique :
+
+- Section **« Tutoriels guidés »** dans la barre latérale → bouton **« Commencer »**
+  (réinitialise le dépôt).
+- Une **modale** affiche, pour chaque étape : l'énoncé, un **indice** optionnel,
+  et une **checklist d'objectifs** qui se cochent automatiquement à mesure que
+  vous tapez les bonnes commandes dans le terminal.
+- **« Suivant »** se débloque une fois tous les objectifs atteints ;
+  **« Revenir »**, **« Passer »**, **« Quitter »** sont disponibles.
+- Écran de **récapitulatif** en fin de parcours (indices utilisés, étapes sautées).
+
+Tutoriels fournis : **Premier commit** (facile), **Créer et fusionner une
+branche** (moyen), **Annuler avec reset & reflog** (moyen).
+
+> Les objectifs sont des **prédicats purs** du moteur évalués sur le snapshot —
+> aucune logique Git dans l'UI.
+
+---
+
 ## À venir en Phase 10+
 
 Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seront implémentées ultérieurement :
