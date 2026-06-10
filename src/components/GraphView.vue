@@ -5,8 +5,14 @@ import { useRepoStore } from '@/stores/repo';
 import GraphCanvas from './GraphCanvas.vue';
 import type { Badge } from '@/graph/types';
 import type { RepoSnapshot } from '@/core/engine';
+import { useGraphAnimations } from '@/composables/useGraphAnimations';
 
 const repo = useRepoStore();
+const {
+  userEnabled: animationsEnabled,
+  reducedMotion,
+  setEnabled: setAnimations,
+} = useGraphAnimations();
 
 // ---------------------------------------------------------------------------
 // Mode d'affichage
@@ -505,6 +511,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
         <input v-model="syncZoomPan" type="checkbox" />
         <span>Sync zoom/pan</span>
       </label>
+
+      <label
+        class="sync-label anim-label"
+        :title="reducedMotion ? 'Désactivé par le système (prefers-reduced-motion)' : ''"
+      >
+        <input
+          type="checkbox"
+          :checked="animationsEnabled"
+          :disabled="reducedMotion"
+          @change="setAnimations(($event.target as HTMLInputElement).checked)"
+        />
+        <span>Animations</span>
+      </label>
     </div>
 
     <!-- Conteneur graphes -->
@@ -669,9 +688,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
   align-items: center;
   gap: 4px;
   font-size: 0.7rem;
-  color: #555;
+  color: var(--text-secondary, #555);
   cursor: pointer;
   user-select: none;
+}
+
+.anim-label {
+  margin-left: auto;
 }
 
 /* Conteneur graphes */

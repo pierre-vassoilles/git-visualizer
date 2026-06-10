@@ -10,12 +10,16 @@ import ThemeSwitcher from '@/components/ThemeSwitcher.vue';
 import CommandPalette from '@/components/CommandPalette.vue';
 import { useRepoStore } from '@/stores/repo';
 import { useTheme } from '@/composables/useTheme';
+import { useGraphAnimations } from '@/composables/useGraphAnimations';
 
 const store = useRepoStore();
 const { initTheme } = useTheme();
+const { initGraphAnimations } = useGraphAnimations();
 
 // Appliquer le thème (light/dark/auto) avant le premier rendu visible.
 initTheme();
+// Charger la préférence d'animation + détecter prefers-reduced-motion.
+initGraphAnimations();
 
 // PHASE 6 : Restaurer la session depuis localStorage avant toute interaction utilisateur.
 onMounted(() => {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import type { GraphLayout, GraphEdge, GraphNode, Badge } from '@/graph/types';
 import { culledLayout, type Viewport } from '@/graph/culling';
+import { useGraphAnimations, lerp, easeOutCubic } from '@/composables/useGraphAnimations';
 
 // `Badge` est défini dans @/graph/types (source de vérité). Réexporté ici pour
 // rétro-compatibilité des imports existants (`from './GraphCanvas.vue'`).
@@ -70,6 +71,141 @@ const panX = computed(() => props.externalPanX ?? _panX.value);
 const panY = computed(() => props.externalPanY ?? _panY.value);
 
 // ---------------------------------------------------------------------------
+// Animation de transition entre deux layouts (spec 52)
+// ---------------------------------------------------------------------------
+// Principe : `computeLayout` reste pur ; on interpole côté UI entre le layout
+// précédent (`prevLayout`) et le layout courant (`props.layout`) via une
+// progression 0→1 pilotée par requestAnimationFrame. Les nœuds/arêtes présents
+// dans les deux layouts voient leur position interpolée ; les nouveaux
+// apparaissent (opacity 0→1, descente depuis le bas) ; les disparus restent
+// rendus en fondu (opacity 1→0) le temps de l'animation puis sont retirés.
+
+const { animationsActive } = useGraphAnimations();
+
+const prevLayout = ref<GraphLayout | null>(null);
+const animProgress = ref(1);
+let animationFrame: number | null = null;
+const ANIM_DURATION = 380; // ms
+// Horloge injectable pour rester déterministe/testable (performance.now par défaut).
+const now = (): number =>
+  typeof performance !== 'undefined' && performance.now ? performance.now() : 0;
+
+/** Positions du layout précédent indexées par hash (pour interpolation). */
+const prevNodePos = computed((): Map<string, { x: number; y: number; color: string }> => {
+  const map = new Map<string, { x: number; y: number; color: string }>();
+  for (const n of prevLayout.value?.nodes ?? []) {
+    map.set(n.hash, { x: n.x, y: n.y, color: n.color });
+  }
+  return map;
+});
+
+/** Hashes présents dans le layout courant. */
+const currentHashes = computed((): Set<string> => {
+  return new Set((props.layout?.nodes ?? []).map((n) => n.hash));
+});
+
+/** Clé d'arête stable. */
+function edgeKey(e: GraphEdge): string {
+  return `${e.fromHash}->${e.toHash}`;
+}
+
+/** Arêtes du layout courant indexées par clé. */
+const currentEdgeKeys = computed((): Set<string> => {
+  return new Set((props.layout?.edges ?? []).map(edgeKey));
+});
+
+const isAnimating = computed(() => animProgress.value < 1 && prevLayout.value !== null);
+
+/** Nœuds présents dans prevLayout mais plus dans le courant (en disparition). */
+const disappearingNodes = computed((): GraphNode[] => {
+  if (!isAnimating.value) return [];
+  const cur = currentHashes.value;
+  return (prevLayout.value?.nodes ?? []).filter((n) => !cur.has(n.hash));
+});
+
+/** Arêtes présentes dans prevLayout mais plus dans le courant (en disparition). */
+const disappearingEdges = computed((): GraphEdge[] => {
+  if (!isAnimating.value) return [];
+  const cur = currentEdgeKeys.value;
+  return (prevLayout.value?.edges ?? []).filter((e) => !cur.has(edgeKey(e)));
+});
+
+function stopAnimation(): void {
+  if (animationFrame !== null) {
+    cancelAnimationFrame(animationFrame);
+    animationFrame = null;
+  }
+}
+
+function startAnimation(): void {
+  stopAnimation();
+  animProgress.value = 0;
+  const startTime = now();
+  const step = (): void => {
+    const elapsed = now() - startTime;
+    animProgress.value = Math.min(elapsed / ANIM_DURATION, 1);
+    if (animProgress.value < 1) {
+      animationFrame = requestAnimationFrame(step);
+    } else {
+      animationFrame = null;
+      prevLayout.value = props.layout;
+    }
+  };
+  if (typeof requestAnimationFrame === 'undefined') {
+    // Environnement sans rAF (tests) : appliquer l'état final immédiatement.
+    animProgress.value = 1;
+    prevLayout.value = props.layout;
+    return;
+  }
+  animationFrame = requestAnimationFrame(step);
+}
+
+watch(
+  () => props.layout,
+  (newLayout, oldLayout) => {
+    if (!animationsActive.value || !oldLayout || !newLayout) {
+      // Pas d'animation : on bascule directement sur le layout final.
+      prevLayout.value = newLayout ?? null;
+      animProgress.value = 1;
+      stopAnimation();
+      return;
+    }
+    prevLayout.value = oldLayout;
+    startAnimation();
+  },
+);
+
+/** Fraction d'easing courante (ease-out). */
+const eased = computed(() => easeOutCubic(animProgress.value));
+
+/** Position X interpolée d'un nœud courant. */
+function nodeX(node: GraphNode): number {
+  if (!isAnimating.value) return node.x;
+  const prev = prevNodePos.value.get(node.hash);
+  if (!prev) return node.x; // nouveau nœud : x final d'emblée
+  return lerp(prev.x, node.x, eased.value);
+}
+
+/** Position Y interpolée (les nouveaux nœuds montent depuis le bas). */
+function nodeY(node: GraphNode): number {
+  if (!isAnimating.value) return node.y;
+  const prev = prevNodePos.value.get(node.hash);
+  if (!prev) {
+    const startY = (props.layout?.height ?? node.y) + 40;
+    return lerp(startY, node.y, eased.value);
+  }
+  return lerp(prev.y, node.y, eased.value);
+}
+
+/** Opacité interpolée d'un nœud courant (apparition vs stable). */
+function nodeOpacity(node: GraphNode): number {
+  if (!isAnimating.value) return 0.85;
+  const prev = prevNodePos.value.get(node.hash);
+  if (!prev) return lerp(0, 0.85, eased.value); // apparition
+  return 0.85;
+}
+
+// ---------------------------------------------------------------------------
 // Computed helpers
 // ---------------------------------------------------------------------------
 
@@ -129,12 +265,52 @@ const visibleNodes = computed(() => renderedLayout.value?.nodes ?? []);
 // SVG rendering helpers
 // ---------------------------------------------------------------------------
 
-function getBezierPath(edge: GraphEdge): string {
-  const { fromX, fromY, toX, toY } = edge;
+/** Position animée d'un endpoint d'arête (suit le nœud s'il bouge). */
+function edgeEndpoint(
+  hash: string,
+  fallbackX: number,
+  fallbackY: number,
+): { x: number; y: number } {
+  if (!isAnimating.value) return { x: fallbackX, y: fallbackY };
+  const node = props.layout?.nodes.find((n) => n.hash === hash);
+  if (node) return { x: nodeX(node), y: nodeY(node) };
+  const prev = prevNodePos.value.get(hash);
+  if (prev) return { x: prev.x, y: prev.y };
+  return { x: fallbackX, y: fallbackY };
+}
+
+/** Coordonnées interpolées d'une arête (from = fromHash, to = toHash). */
+function edgeCoords(edge: GraphEdge): { x1: number; y1: number; x2: number; y2: number } {
+  const from = edgeEndpoint(edge.fromHash, edge.fromX, edge.fromY);
+  const to = edgeEndpoint(edge.toHash, edge.toX, edge.toY);
+  return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
+}
+
+/** Opacité animée d'une arête courante (apparition vs stable). */
+function edgeOpacity(edge: GraphEdge, base: number): number {
+  if (!isAnimating.value) return base;
+  if (currentEdgeKeysWasPresent(edge)) return base;
+  return lerp(0, base, eased.value); // arête nouvelle : fade-in
+}
+
+function currentEdgeKeysWasPresent(edge: GraphEdge): boolean {
+  const k = edgeKey(edge);
+  for (const e of prevLayout.value?.edges ?? []) {
+    if (edgeKey(e) === k) return true;
+  }
+  return false;
+}
+
+function getBezierPathCoords(c: { x1: number; y1: number; x2: number; y2: number }): string {
+  const { x1: fromX, y1: fromY, x2: toX, y2: toY } = c;
   const midY = (fromY + toY) / 2;
   const controlX1 = fromX + (toX - fromX) * 0.2;
   const controlX2 = toX - (toX - fromX) * 0.2;
   return `M ${fromX} ${fromY} C ${controlX1} ${midY}, ${controlX2} ${midY}, ${toX} ${toY}`;
+}
+
+function getBezierPath(edge: GraphEdge): string {
+  return getBezierPathCoords(edgeCoords(edge));
 }
 
 function getEdgeColor(edge: GraphEdge): string {
@@ -256,6 +432,7 @@ onBeforeUnmount(() => {
     resizeObserver.disconnect();
     resizeObserver = null;
   }
+  stopAnimation();
 });
 
 function handleBackdropClick(e: MouseEvent): void {
@@ -290,17 +467,38 @@ function onNodeContextMenu(hash: string, e: MouseEvent): void {
     >
       <!-- Arêtes -->
       <g class="edges">
-        <!-- Arêtes linéaires -->
+        <!-- Arêtes disparaissantes (présentes dans prevLayout uniquement) -->
         <line
-          v-for="edge in linearEdges"
-          :key="`edge-${edge.fromHash}-${edge.toHash}`"
+          v-for="edge in disappearingEdges.filter((e) => e.type === 'linear')"
+          :key="`old-edge-${edge.fromHash}-${edge.toHash}`"
           :x1="edge.fromX"
           :y1="edge.fromY"
           :x2="edge.toX"
           :y2="edge.toY"
+          class="edge edge-disappearing"
+          :stroke="getEdgeColor(edge)"
+          :style="{ opacity: (1 - eased) * 0.6 }"
+        />
+        <path
+          v-for="edge in disappearingEdges.filter((e) => e.type === 'merge')"
+          :key="`old-edge-${edge.fromHash}-${edge.toHash}`"
+          :d="getBezierPathCoords({ x1: edge.fromX, y1: edge.fromY, x2: edge.toX, y2: edge.toY })"
+          class="edge edge-merge edge-disappearing"
+          :stroke="getEdgeColor(edge)"
+          :style="{ opacity: (1 - eased) * 0.55 }"
+        />
+        <!-- Arêtes linéaires -->
+        <line
+          v-for="edge in linearEdges"
+          :key="`edge-${edge.fromHash}-${edge.toHash}`"
+          :x1="edgeCoords(edge).x1"
+          :y1="edgeCoords(edge).y1"
+          :x2="edgeCoords(edge).x2"
+          :y2="edgeCoords(edge).y2"
           class="edge"
           :class="{ 'edge-related': isEdgeRelated(edge) }"
           :stroke="getEdgeColor(edge)"
+          :style="{ opacity: edgeOpacity(edge, 0.6) }"
         />
         <!-- Arêtes de merge (courbes de Bézier) -->
         <path
@@ -310,16 +508,21 @@ function onNodeContextMenu(hash: string, e: MouseEvent): void {
           class="edge edge-merge"
           :class="{ 'edge-related': isEdgeRelated(edge) }"
           :stroke="getEdgeColor(edge)"
+          :style="{ opacity: edgeOpacity(edge, 0.55) }"
         />
       </g>
 
       <!-- Badges de refs (dessinés avant les nœuds pour être sous les cercles) -->
       <g v-if="showLabels" class="badges">
-        <g v-for="node in visibleNodes" :key="`badges-${node.hash}`">
+        <g
+          v-for="node in visibleNodes"
+          :key="`badges-${node.hash}`"
+          :style="{ opacity: nodeOpacity(node) / 0.85 }"
+        >
           <g
             v-for="(badge, idx) in badgesByHash.get(node.hash) ?? []"
             :key="`badge-${node.hash}-${idx}`"
-            :transform="`translate(${node.x + nodeRadius + 6}, ${node.y - 12 - ((badgesByHash.get(node.hash) ?? []).length - 1 - idx) * 18})`"
+            :transform="`translate(${nodeX(node) + nodeRadius + 6}, ${nodeY(node) - 12 - ((badgesByHash.get(node.hash) ?? []).length - 1 - idx) * 18})`"
             class="badge"
             :class="`badge-${badge.kind}`"
           >
@@ -347,12 +550,23 @@ function onNodeContextMenu(hash: string, e: MouseEvent): void {
 
       <!-- Nœuds (commits) -->
       <g class="nodes">
+        <!-- Nœuds disparaissants (présents dans prevLayout uniquement) -->
+        <circle
+          v-for="node in disappearingNodes"
+          :key="`old-node-${node.hash}`"
+          :cx="node.x"
+          :cy="node.y"
+          :r="nodeRadius"
+          :fill="node.color"
+          class="node node-disappearing"
+          :style="{ opacity: (1 - eased) * 0.85 }"
+        />
         <!-- Halo pour commits surlignés (non poussés / à récupérer) -->
         <circle
           v-for="node in visibleNodes.filter((n) => highlightedNodes.has(n.hash))"
           :key="`halo-${node.hash}`"
-          :cx="node.x"
-          :cy="node.y"
+          :cx="nodeX(node)"
+          :cy="nodeY(node)"
           :r="nodeRadius + 4"
           class="node-halo"
         />
@@ -360,11 +574,12 @@ function onNodeContextMenu(hash: string, e: MouseEvent): void {
           v-for="node in visibleNodes"
           :key="`node-${node.hash}`"
           :data-hash="node.hash"
-          :cx="node.x"
-          :cy="node.y"
+          :cx="nodeX(node)"
+          :cy="nodeY(node)"
           :r="nodeRadius"
           :fill="node.color"
           class="node"
+          :style="{ opacity: nodeOpacity(node) }"
           :class="{
             'node-hovered': hoveredHash === node.hash,
             'node-selected': selectedHash === node.hash,
@@ -385,7 +600,8 @@ function onNodeContextMenu(hash: string, e: MouseEvent): void {
           v-for="node in visibleNodes"
           :key="`label-${node.hash}`"
           class="label"
-          :transform="`translate(${node.x + nodeRadius + 8}, ${node.y})`"
+          :transform="`translate(${nodeX(node) + nodeRadius + 8}, ${nodeY(node)})`"
+          :style="{ opacity: nodeOpacity(node) / 0.85 }"
         >
           <text
             x="0"
@@ -475,6 +691,14 @@ function onNodeContextMenu(hash: string, e: MouseEvent): void {
 .edge-related {
   opacity: 1;
   stroke-width: 2.5;
+}
+
+.edge-disappearing {
+  pointer-events: none;
+}
+
+.node-disappearing {
+  pointer-events: none;
 }
 
 /* Halos pour commits surlignés */
