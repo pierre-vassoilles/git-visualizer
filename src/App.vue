@@ -4,6 +4,7 @@ import GraphView from '@/components/GraphView.vue';
 import TerminalPanel from '@/components/TerminalPanel.vue';
 import RefsSidebar from '@/components/RefsSidebar.vue';
 import InteractiveRebaseModal from '@/components/InteractiveRebaseModal.vue';
+import ConflictEditorModal from '@/components/ConflictEditorModal.vue';
 import { useRepoStore } from '@/stores/repo';
 
 const store = useRepoStore();
@@ -15,8 +16,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <!-- Modale rebase interactif : montée au niveau racine pour l'overlay -->
+  <!-- Modales montées au niveau racine pour l'overlay -->
   <InteractiveRebaseModal />
+  <ConflictEditorModal />
   <div class="layout">
     <header class="topbar">
       <span class="brand">Git Visualizer</span>

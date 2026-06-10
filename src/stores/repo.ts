@@ -7,6 +7,7 @@ import type { RepoSnapshot } from '@/core/engine';
 import type { TodoItem } from '@/core/model';
 import { loadHistory, saveHistory, clearHistory } from '@/utils/storage';
 import { getScenarioById } from '@/constants/scenarios';
+import { parseConflictContent, buildResolvedContent } from '@/core/repository';
 
 /** Une entrée du journal du terminal (commande tapée + résultat). */
 export interface LogEntry {
@@ -172,6 +173,65 @@ export const useRepoStore = defineStore('repo', () => {
     return engine.value.getCatalog();
   }
 
+  /** PHASE B2 : Lit le contenu brut d'un fichier (pour l'éditeur de conflits). */
+  function readFile(path: string): string | null {
+    return engine.value.readFile(path);
+  }
+
+  /**
+   * PHASE B2 : Parse les sections de conflit d'un fichier (délègue au helper pur
+   * du core). Permet à la modale de rester sans import de logique core.
+   */
+  function getConflictSections(path: string) {
+    const content = engine.value.readFile(path);
+    return content ? parseConflictContent(content) : [];
+  }
+
+  /**
+   * PHASE B2 : Résout un conflit sur un fichier via l'éditeur 3-way.
+   *
+   * Logique git PURE déléguée au core (parseConflictContent/buildResolvedContent) :
+   * le store ne fait que l'orchestration (lire → résoudre → écrire → stager).
+   *
+   * @param filePath - Fichier en conflit.
+   * @param choice - 'ours' | 'theirs' | 'both' | 'manual'.
+   * @param manualContent - Contenu pour le choix 'manual'.
+   */
+  function resolveConflict(
+    filePath: string,
+    choice: 'ours' | 'theirs' | 'both' | 'manual',
+    manualContent?: string,
+  ): CommandResult {
+    const content = engine.value.readFile(filePath);
+    if (content === null) {
+      return { output: [], errors: [`fichier introuvable: ${filePath}`], exitCode: 1 };
+    }
+
+    let resolved: string;
+    if (choice === 'manual') {
+      resolved = manualContent ?? '';
+    } else {
+      const sections = parseConflictContent(content);
+      if (sections.length === 0) {
+        // Pas de conflit détecté : conserver le contenu tel quel.
+        resolved = content;
+      } else {
+        // Modèle « conflit pleine-page » : la 1re section couvre tout le fichier.
+        const { ours, theirs } = sections[0]!;
+        resolved = buildResolvedContent(ours, theirs, choice);
+      }
+    }
+
+    // Écrire le contenu résolu directement (writeFile gère tout caractère, sans
+    // passer par le parsing fragile de la commande `write`), puis stager.
+    const writeResult = engine.value.writeFile(filePath, resolved);
+    if (writeResult.exitCode !== 0) {
+      snapshot.value = engine.value.snapshot();
+      return writeResult;
+    }
+    return execute(`git add ${filePath}`);
+  }
+
   // `engine` reste privé au store : les composants passent par execute()/snapshot()
   // pour que journal et snapshot restent cohérents.
   return {
@@ -186,5 +246,8 @@ export const useRepoStore = defineStore('repo', () => {
     resetStorage,
     executeScenario,
     getCatalog,
+    readFile,
+    getConflictSections,
+    resolveConflict,
   };
 });

@@ -4,7 +4,19 @@
  * Expose les helpers de haut niveau utilisés par les commandes.
  */
 
-import type { Blob, Commit, GitObject, Index, IndexEntry, ReflogEntry, RemoteRepository, Repository, Tree, WorkingTree, WorkingTreeEntry } from './model';
+import type {
+  Blob,
+  Commit,
+  GitObject,
+  Index,
+  IndexEntry,
+  ReflogEntry,
+  RemoteRepository,
+  Repository,
+  Tree,
+  WorkingTree,
+  WorkingTreeEntry,
+} from './model';
 import { getCommit, getTree, hashBlob, storeBlob, storeCommit, storeTree } from './objectStore';
 
 export const AUTHOR = 'Unnamed <unnamed@example.com>';
@@ -678,9 +690,9 @@ export function buildWorkingTreeFromTree(repo: Repository, treeHash: string): Wo
  */
 export interface TreeDiff {
   /** Fichiers ajoutés dans 'to' par rapport à 'from'. */
-  added: Record<string, string>;    // path → content
+  added: Record<string, string>; // path → content
   /** Fichiers supprimés dans 'to' par rapport à 'from'. */
-  deleted: Record<string, string>;  // path → content (de 'from')
+  deleted: Record<string, string>; // path → content (de 'from')
   /** Fichiers modifiés (présents dans les deux, contenu différent). */
   modified: Record<string, { from: string; to: string }>;
 }
@@ -744,6 +756,90 @@ export function computeTreeDiff(
  */
 export function makeConflictMarkers(ours: string, theirs: string, label: string): string {
   return `<<<<<<< HEAD\n${ours}\n=======\n${theirs}\n>>>>>>> ${label}`;
+}
+
+// ---------------------------------------------------------------------------
+// Résolution de conflits (spec 50) — helpers PURS pour l'éditeur 3-way
+// ---------------------------------------------------------------------------
+
+/** Une section de conflit extraite d'un fichier (versions ours/theirs). */
+export interface ConflictSection {
+  ours: string;
+  theirs: string;
+}
+
+/** true si le contenu contient au moins un marqueur de conflit `<<<<<<<`. */
+export function hasConflictMarkers(content: string): boolean {
+  return content.includes('<<<<<<<');
+}
+
+/**
+ * Parse un contenu contenant des marqueurs de conflit Git
+ * (`<<<<<<< ... ======= ... >>>>>>>`) et retourne les sections ours/theirs.
+ * Le contenu hors conflit (avant `<<<<<<<` / après `>>>>>>>`) est ignoré.
+ * Retourne `[]` si aucun conflit. Pur, testable headless.
+ */
+export function parseConflictContent(content: string): ConflictSection[] {
+  const lines = content.split('\n');
+  const sections: ConflictSection[] = [];
+  let currentOurs = '';
+  let currentTheirs = '';
+  let inConflict = false;
+  let inOurs = false;
+
+  for (const line of lines) {
+    if (line.startsWith('<<<<<<<')) {
+      inConflict = true;
+      inOurs = true;
+      currentOurs = '';
+      currentTheirs = '';
+      continue;
+    }
+    if (inConflict && line.startsWith('=======')) {
+      inOurs = false;
+      continue;
+    }
+    if (inConflict && line.startsWith('>>>>>>>')) {
+      inConflict = false;
+      sections.push({
+        ours: currentOurs.replace(/\n$/, ''),
+        theirs: currentTheirs.replace(/\n$/, ''),
+      });
+      continue;
+    }
+    if (inConflict) {
+      if (inOurs) currentOurs += line + '\n';
+      else currentTheirs += line + '\n';
+    }
+  }
+
+  return sections;
+}
+
+/**
+ * Construit le contenu résolu d'une section de conflit selon le choix.
+ *  - 'ours'   → version locale
+ *  - 'theirs' → version distante
+ *  - 'both'   → ours puis theirs (concaténées par un saut de ligne)
+ *  - 'manual' → contenu fourni par l'utilisateur
+ * Pur, testable headless.
+ */
+export function buildResolvedContent(
+  ours: string,
+  theirs: string,
+  choice: 'ours' | 'theirs' | 'both' | 'manual',
+  manualContent?: string,
+): string {
+  switch (choice) {
+    case 'ours':
+      return ours;
+    case 'theirs':
+      return theirs;
+    case 'both':
+      return `${ours}\n${theirs}`;
+    case 'manual':
+      return manualContent ?? '';
+  }
 }
 
 /**
@@ -846,10 +942,7 @@ export function buildWorkingTreeFromFiles(
  * Construit un Index depuis un map path → content.
  * Stocke les blobs dans repo.objects.
  */
-export function buildIndexFromFiles(
-  repo: Repository,
-  files: Record<string, string>,
-): Index {
+export function buildIndexFromFiles(repo: Repository, files: Record<string, string>): Index {
   const index: Index = {};
   for (const [path, content] of Object.entries(files)) {
     const blobHash = storeBlob(repo, content);
@@ -958,17 +1051,12 @@ export interface ReplayContinueOptions {
  * 3. Si conflit : met à jour index/WT avec marqueurs, retourne conflicts + resumeState
  * 4. Si pas de conflit : crée le commit, met à jour index/WT, retourne newHash
  */
-export function replayCommit(
-  repo: Repository,
-  options: ReplayCommitOptions,
-): ReplayCommitResult {
+export function replayCommit(repo: Repository, options: ReplayCommitOptions): ReplayCommitResult {
   const { origCommit, origHash: _origHash, newParentHash, label } = options;
 
   // 1. Calculer le diff du commit original
   const parentHash = origCommit.parents[0] ?? null;
-  const parentTreeHash = parentHash
-    ? (getCommit(repo, parentHash)?.tree ?? null)
-    : null;
+  const parentTreeHash = parentHash ? (getCommit(repo, parentHash)?.tree ?? null) : null;
   const diff = computeTreeDiff(repo, parentTreeHash, origCommit.tree);
 
   // 2. Récupérer les fichiers du nouveau parent
@@ -1043,10 +1131,7 @@ export function replayCommit(
  * Crée le commit après résolution manuelle de conflits.
  * Utilise l'index courant du repo comme source de l'arbre final.
  */
-export function replayCommitContinue(
-  repo: Repository,
-  options: ReplayContinueOptions,
-): string {
+export function replayCommitContinue(repo: Repository, options: ReplayContinueOptions): string {
   const treeHash = buildTreeFromIndex(repo, repo.index);
   return createCommitWithParents(repo, {
     message: options.commitMessage,
@@ -1111,9 +1196,7 @@ export function getReflog(repo: Repository, refName: string): ReflogEntry[] {
 /**
  * Deepcopy d'une entrée de stash (pour éviter les mutations partagées).
  */
-export function cloneStashEntry(
-  entry: import('./model').StashEntry,
-): import('./model').StashEntry {
+export function cloneStashEntry(entry: import('./model').StashEntry): import('./model').StashEntry {
   return {
     branchName: entry.branchName,
     message: entry.message,

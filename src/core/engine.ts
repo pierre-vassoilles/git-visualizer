@@ -1,9 +1,25 @@
 import { ok, type CommandResult } from './types';
 import type { Repository, TodoItem } from './model';
-import { type CommandCatalog, type Flag, getCatalog, getCommandFlags, getCommandNames } from './catalog';
-import { createEmptyRepo, currentBranch, flattenTree, getCommitHistoryWithHashes, headCommitHash, computeAheadBehind, isInitialized } from './repository';
+import {
+  type CommandCatalog,
+  type Flag,
+  getCatalog,
+  getCommandFlags,
+  getCommandNames,
+} from './catalog';
+import {
+  createEmptyRepo,
+  currentBranch,
+  flattenTree,
+  getCommitHistoryWithHashes,
+  hasConflictMarkers,
+  headCommitHash,
+  computeAheadBehind,
+  isInitialized,
+} from './repository';
 import { hashBlob } from './objectStore';
 import { dispatch } from './parser';
+import { cmdWrite } from './commands/write';
 import { shortHash } from './sha1';
 import { executeRebaseInteractive } from './commands/rebase';
 
@@ -100,6 +116,12 @@ export interface RepoSnapshot {
   readonly operationState?: {
     readonly type: 'merging' | 'reverting' | 'cherryPicking' | 'rebasing';
     readonly branchName?: string;
+    /**
+     * PHASE B2 : chemins du working tree contenant encore des marqueurs de
+     * conflit (`<<<<<<<`). Consommé par l'éditeur de conflits ; un fichier sort
+     * de la liste une fois résolu (marqueurs retirés). Vide ⇒ on peut continuer.
+     */
+    readonly filesInConflict?: readonly string[];
   };
   /**
    * PHASE 5 : Nombre d'entrées dans la pile de stash.
@@ -122,13 +144,16 @@ export interface RepoSnapshot {
    * PHASE 7 : État des dépôts distants (pour le split-screen graphe distant).
    * Pour chaque remote : commits triés topologiquement, branches, HEAD.
    */
-  readonly remotes?: Record<string, {
-    readonly allCommits: SnapshotCommit[];
-    readonly heads: Record<string, string>;
-    readonly head:
-      | { readonly type: 'branch'; readonly name: string }
-      | { readonly type: 'detached'; readonly hash: string };
-  }>;
+  readonly remotes?: Record<
+    string,
+    {
+      readonly allCommits: SnapshotCommit[];
+      readonly heads: Record<string, string>;
+      readonly head:
+        | { readonly type: 'branch'; readonly name: string }
+        | { readonly type: 'detached'; readonly hash: string };
+    }
+  >;
   /**
    * PHASE 7 : Références de suivi distantes (décoration du graphe local).
    * Copie de repo.refs.remotes.
@@ -138,13 +163,16 @@ export interface RepoSnapshot {
    * PHASE 7 : Infos de synchronisation par branche locale.
    * Pour chaque branche ayant un upstream, expose ahead/behind/gone.
    */
-  readonly tracking?: Record<string, {
-    readonly upstream?: { readonly remote: string; readonly branch: string };
-    readonly ahead?: number;
-    readonly behind?: number;
-    /** true si l'upstream est configuré mais que la ref distante a disparu */
-    readonly gone?: boolean;
-  }>;
+  readonly tracking?: Record<
+    string,
+    {
+      readonly upstream?: { readonly remote: string; readonly branch: string };
+      readonly ahead?: number;
+      readonly behind?: number;
+      /** true si l'upstream est configuré mais que la ref distante a disparu */
+      readonly gone?: boolean;
+    }
+  >;
   /**
    * PHASE 8 : Upstream configuré par branche locale.
    * Copie de repo.branchUpstream.
@@ -237,7 +265,7 @@ function getAllCommitsTopologicalOrder(
 
   if (roots.length === 0) {
     // Cas pathologique : commencer par le commit avec le hash le plus petit
-    const firstHash = commitEntries.map(e => e.hash).sort()[0]!;
+    const firstHash = commitEntries.map((e) => e.hash).sort()[0]!;
     dfs(firstHash);
   } else {
     for (const rootHash of roots) {
@@ -248,8 +276,8 @@ function getAllCommitsTopologicalOrder(
   // Visiter les commits non encore atteints (graphes non-connectés)
   if (visited.size < commitEntries.length) {
     const unvisited = commitEntries
-      .map(e => e.hash)
-      .filter(h => !visited.has(h))
+      .map((e) => e.hash)
+      .filter((h) => !visited.has(h))
       .sort();
     for (const hash of unvisited) {
       dfs(hash);
@@ -330,6 +358,25 @@ export class GitEngine {
    */
   getCatalog(): CommandCatalog {
     return getCatalog();
+  }
+
+  /**
+   * PHASE B2 : Lit le contenu brut d'un fichier du working tree (ou null s'il
+   * n'existe pas). Utilisé par l'éditeur de conflits pour récupérer le contenu
+   * complet (avec marqueurs) sans le dupliquer dans le snapshot.
+   */
+  readFile(path: string): string | null {
+    return this.repo.workingTree[path]?.content ?? null;
+  }
+
+  /**
+   * PHASE B2 : Écrit un contenu arbitraire dans le working tree virtuel, sans
+   * passer par le parsing de la ligne de commande `write` (qui ne gère pas les
+   * guillemets/échappements). Utilisé par l'éditeur de conflits pour appliquer
+   * un contenu résolu pouvant contenir n'importe quels caractères.
+   */
+  writeFile(path: string, content: string): CommandResult {
+    return cmdWrite(this.repo, path, content);
   }
 
   /**
@@ -449,15 +496,23 @@ export class GitEngine {
     const allCommitsRaw = getAllCommitsTopologicalOrder(repo, hashToBranches, hashToTags);
 
     // Phase 4 : état d'opération en cours
+    // Phase B2 : fichiers encore en conflit (marqueurs présents dans le WT).
+    const filesInConflict = Object.freeze(
+      Object.entries(repo.workingTree)
+        .filter(([, entry]) => hasConflictMarkers(entry.content))
+        .map(([path]) => path)
+        .sort(),
+    );
+
     let operationState: RepoSnapshot['operationState'] = undefined;
     if (repo.merging) {
-      operationState = { type: 'merging', branchName: repo.merging.branchName };
+      operationState = { type: 'merging', branchName: repo.merging.branchName, filesInConflict };
     } else if (repo.rebasing) {
-      operationState = { type: 'rebasing' };
+      operationState = { type: 'rebasing', filesInConflict };
     } else if (repo.reverting) {
-      operationState = { type: 'reverting' };
+      operationState = { type: 'reverting', filesInConflict };
     } else if (repo.cherryPicking) {
-      operationState = { type: 'cherryPicking' };
+      operationState = { type: 'cherryPicking', filesInConflict };
     }
 
     // Phase 5 : stash count
@@ -469,11 +524,15 @@ export class GitEngine {
       const { awaitingTodoEdit, todoList, currentIndex } = repo.rebasing.interactive;
       rebasingInteractive = Object.freeze({
         awaitingTodoEdit,
-        todoList: Object.freeze(todoList.map((item) => Object.freeze({
-          action: item.action,
-          commitHash: item.commitHash,
-          message: item.message,
-        }))),
+        todoList: Object.freeze(
+          todoList.map((item) =>
+            Object.freeze({
+              action: item.action,
+              commitHash: item.commitHash,
+              message: item.message,
+            }),
+          ),
+        ),
         currentIndex,
       });
     }
@@ -481,11 +540,14 @@ export class GitEngine {
     // Phase 7 : snapshot des dépôts distants
     let remotesSnapshot: RepoSnapshot['remotes'] = undefined;
     if (repo.remotes && Object.keys(repo.remotes).length > 0) {
-      const remotesObj: Record<string, {
-        allCommits: SnapshotCommit[];
-        heads: Record<string, string>;
-        head: { type: 'branch'; name: string } | { type: 'detached'; hash: string };
-      }> = {};
+      const remotesObj: Record<
+        string,
+        {
+          allCommits: SnapshotCommit[];
+          heads: Record<string, string>;
+          head: { type: 'branch'; name: string } | { type: 'detached'; hash: string };
+        }
+      > = {};
 
       for (const [remoteName, remoteRepo] of Object.entries(repo.remotes)) {
         // Construire un "faux repo" minimal pour réutiliser getAllCommitsTopologicalOrder
@@ -508,13 +570,14 @@ export class GitEngine {
         );
 
         const remoteHeadsCopy: Record<string, string> = { ...remoteRepo.refs.heads };
-        const remoteHeadState: { type: 'branch'; name: string } | { type: 'detached'; hash: string } =
-          remoteRepo.head.symbolic
-            ? {
-                type: 'branch',
-                name: remoteRepo.head.target.replace('refs/heads/', ''),
-              }
-            : { type: 'detached', hash: remoteRepo.head.target };
+        const remoteHeadState:
+          | { type: 'branch'; name: string }
+          | { type: 'detached'; hash: string } = remoteRepo.head.symbolic
+          ? {
+              type: 'branch',
+              name: remoteRepo.head.target.replace('refs/heads/', ''),
+            }
+          : { type: 'detached', hash: remoteRepo.head.target };
 
         remotesObj[remoteName] = {
           allCommits: Object.freeze(remoteAllCommits) as SnapshotCommit[],
@@ -539,12 +602,15 @@ export class GitEngine {
     // Phase 7/8 : tracking ahead/behind/gone
     let tracking: RepoSnapshot['tracking'] = undefined;
     if (repo.branchUpstream && Object.keys(repo.branchUpstream).length > 0) {
-      const trackingObj: Record<string, {
-        upstream?: { remote: string; branch: string };
-        ahead?: number;
-        behind?: number;
-        gone?: boolean;
-      }> = {};
+      const trackingObj: Record<
+        string,
+        {
+          upstream?: { remote: string; branch: string };
+          ahead?: number;
+          behind?: number;
+          gone?: boolean;
+        }
+      > = {};
 
       for (const [localBranch, upstream] of Object.entries(repo.branchUpstream)) {
         const localHash = repo.refs.heads[localBranch];

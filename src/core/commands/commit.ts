@@ -6,6 +6,7 @@ import {
   createCommit,
   createCommitWithParents,
   currentBranch,
+  hasConflictMarkers,
   headCommit,
   headCommitHash,
   isInitialized,
@@ -93,6 +94,20 @@ export function cmdCommit(repo: Repository, args: string[]): CommandResult {
 function finalizeMergeCommit(repo: Repository, args: string[]): CommandResult {
   const mergingState = repo.merging!;
 
+  // Refuser la finalisation tant qu'il reste des marqueurs de conflit non
+  // résolus dans le working tree (comme le vrai git), pour ne jamais committer
+  // de marqueurs <<<<<<< ======= >>>>>>>.
+  if (Object.values(repo.workingTree).some((e) => hasConflictMarkers(e.content))) {
+    return fail(
+      [
+        'error: Committing is not possible because you have unmerged files.',
+        "hint: Fix them up in the work tree, and then use 'git add/rm <file>'",
+        'fatal: Exiting because of an unresolved conflict.',
+      ],
+      1,
+    );
+  }
+
   // Chercher le flag -m (optionnel pour le merge commit)
   const mIndex = args.indexOf('-m');
   let message: string;
@@ -137,6 +152,18 @@ function finalizeMergeCommit(repo: Repository, args: string[]): CommandResult {
  */
 function finalizeCherryPickCommit(repo: Repository, args: string[]): CommandResult {
   const pickState = repo.cherryPicking!;
+
+  // Idem merge : pas de finalisation avec des marqueurs de conflit résiduels.
+  if (Object.values(repo.workingTree).some((e) => hasConflictMarkers(e.content))) {
+    return fail(
+      [
+        'error: Committing is not possible because you have unmerged files.',
+        "hint: Fix them up in the work tree, and then use 'git add/rm <file>'",
+        'fatal: Exiting because of an unresolved conflict.',
+      ],
+      1,
+    );
+  }
 
   // Message : flag -m si donné, sinon message original du commit cherry-pické
   const mIndex = args.indexOf('-m');

@@ -3681,6 +3681,27 @@ absente**, ou si **source == destination**. Le renommage préserve le hash du bl
 
 ---
 
+## Éditeur de résolution de conflits (Axe B2)
+
+Lorsqu'un `git merge` ou `git rebase` produit un **conflit**, une **modale 3-way**
+s'ouvre automatiquement (sans avoir à éditer les marqueurs `<<<<<<<` à la main) :
+
+- **Liste** des fichiers en conflit (cliquables).
+- **Trois colonnes** : `OURS` (version locale) · `THEIRS` (version à fusionner) ·
+  `RÉSULTAT` (prévisualisation).
+- **Boutons** : « Garder ours », « Garder theirs », « Garder les deux »,
+  « Éditer manuellement » (textarea).
+- **« Marquer résolu »** écrit le contenu choisi et stage le fichier (`git add`).
+- **« Continuer »** (actif une fois tous les conflits résolus) finalise via
+  `git merge --continue` / `git rebase --continue`. **« Annuler »** abandonne
+  l'opération.
+
+> Sous le capot, tout le parsing/écriture est dans le moteur (helpers purs
+> `parseConflictContent` / `buildResolvedContent`) ; la modale ne fait que rendre
+> l'état et appeler le store.
+
+---
+
 ## À venir en Phase 10+
 
 Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seront implémentées ultérieurement :

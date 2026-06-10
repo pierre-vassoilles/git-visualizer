@@ -21,6 +21,7 @@ import {
 import { getCommit } from '../objectStore';
 import { buildTreeFromIndex } from '../repository';
 import { notARepo } from './init';
+import { cmdCommit } from './commit';
 
 /**
  * git merge [--no-ff] [-m <message>] <branchname>
@@ -32,6 +33,14 @@ export function cmdMerge(repo: Repository, args: string[]): CommandResult {
   // git merge --abort
   if (args.includes('--abort')) {
     return mergeAbort(repo);
+  }
+
+  // git merge --continue : finalise le merge en cours (= git commit du merge).
+  if (args.includes('--continue')) {
+    if (!repo.merging) {
+      return fail(['fatal: There is no merge in progress (MERGE_HEAD missing).'], 128);
+    }
+    return cmdCommit(repo, []);
   }
 
   // Vérifier qu'on n'est pas déjà en train de merger
