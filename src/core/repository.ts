@@ -4,7 +4,7 @@
  * Expose les helpers de haut niveau utilisés par les commandes.
  */
 
-import type { Blob, Commit, Index, IndexEntry, ReflogEntry, Repository, Tree, WorkingTree, WorkingTreeEntry } from './model';
+import type { Blob, Commit, GitObject, Index, IndexEntry, ReflogEntry, RemoteRepository, Repository, Tree, WorkingTree, WorkingTreeEntry } from './model';
 import { getCommit, getTree, hashBlob, storeBlob, storeCommit, storeTree } from './objectStore';
 
 export const AUTHOR = 'Unnamed <unnamed@example.com>';
@@ -19,12 +19,14 @@ export const VIRTUAL_PATH = './.git/';
 export function createEmptyRepo(): Repository {
   return {
     objects: {},
-    refs: { heads: {}, tags: {} },
+    refs: { heads: {}, tags: {}, remotes: {} },
     head: { symbolic: true, target: 'refs/heads/main' },
     index: {},
     workingTree: {},
     commitCount: 0,
     prevBranch: null,
+    remotes: {},
+    branchUpstream: {},
   };
 }
 
@@ -34,8 +36,13 @@ export function createEmptyRepo(): Repository {
 
 /** Renvoie true si le dépôt a été initialisé. */
 export function isInitialized(repo: Repository): boolean {
-  // Après init, refs.heads.main existe (valeur "" = pas de commit, ou hash)
-  return 'main' in repo.refs.heads;
+  // Un dépôt vierge (createEmptyRepo) a refs.heads vide et HEAD symbolique sur
+  // refs/heads/main (clé absente). Après `git init` la clé `main` existe (""),
+  // après `git clone` la branche par défaut existe (pas forcément `main`), et un
+  // clone détaché a un HEAD non symbolique pointant un hash réel.
+  if (Object.keys(repo.refs.heads).length > 0) return true;
+  if (!repo.head.symbolic && repo.head.target !== '') return true;
+  return false;
 }
 
 /** Renvoie le nom de la branche courante (HEAD symbolique). */
@@ -1081,4 +1088,116 @@ export function cloneStashEntry(
     index: cloneIndex(entry.index),
     headHash: entry.headHash,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 7 : helpers remotes
+// ---------------------------------------------------------------------------
+
+/**
+ * Copie récursivement depuis srcObjects vers dstObjects tous les objets
+ * atteignables depuis fromCommitHash (commit → tree → blobs + parents)
+ * qui sont absents de dstObjects.
+ */
+export function copyMissingObjects(
+  srcObjects: Record<string, GitObject>,
+  dstObjects: Record<string, GitObject>,
+  fromCommitHash: string,
+): void {
+  const visited = new Set<string>();
+  const queue: string[] = [fromCommitHash];
+
+  while (queue.length > 0) {
+    const hash = queue.shift()!;
+    if (visited.has(hash)) continue;
+    visited.add(hash);
+
+    const obj = srcObjects[hash];
+    if (!obj) continue;
+
+    // Copier l'objet s'il est absent de la destination
+    if (!dstObjects[hash]) {
+      dstObjects[hash] = obj;
+    }
+
+    if (obj.type === 'commit') {
+      // Parcourir le tree et les parents
+      queue.push(obj.tree);
+      for (const parent of obj.parents) {
+        queue.push(parent);
+      }
+    } else if (obj.type === 'tree') {
+      // Parcourir les entrées du tree
+      for (const entry of Object.values(obj.entries)) {
+        queue.push(entry.hash);
+      }
+    }
+    // blob : pas d'enfants
+  }
+}
+
+/**
+ * Détermine la branche par défaut d'un dépôt distant.
+ * - HEAD symbolique : extrait le nom depuis "refs/heads/<x>"
+ * - HEAD détaché : première branche alphabétiquement, ou null si aucune
+ */
+export function getDefaultBranch(remote: RemoteRepository): string | null {
+  if (remote.head.symbolic) {
+    const match = /^refs\/heads\/(.+)$/.exec(remote.head.target);
+    return match ? match[1]! : null;
+  }
+  // HEAD détaché : fallback alphabétique
+  const branches = Object.keys(remote.refs.heads).sort();
+  return branches.length > 0 ? branches[0]! : null;
+}
+
+/**
+ * Calcule le nombre de commits en avance (ahead) et en retard (behind)
+ * de localHash par rapport à remoteHash.
+ *
+ * ahead  = commits dans local non accessibles depuis remote (local a avancé)
+ * behind = commits dans remote non accessibles depuis local (remote a avancé)
+ */
+export function computeAheadBehind(
+  repo: Repository,
+  localHash: string,
+  remoteHash: string,
+): { ahead: number; behind: number } {
+  if (localHash === remoteHash) return { ahead: 0, behind: 0 };
+
+  /** Ensemble des commits accessibles depuis `tip` (lui inclus), via TOUS les parents. */
+  function reachable(tip: string): Set<string> {
+    const seen = new Set<string>();
+    const stack = [tip];
+    while (stack.length > 0) {
+      const h = stack.pop()!;
+      if (seen.has(h)) continue;
+      seen.add(h);
+      const commit = getCommit(repo, h);
+      if (commit) stack.push(...commit.parents);
+    }
+    return seen;
+  }
+
+  // ahead/behind = différence symétrique des ensembles accessibles (sémantique
+  // `git rev-list --count remote..local` / `local..remote`), correcte sur tout DAG.
+  const localReach = reachable(localHash);
+  const remoteReach = reachable(remoteHash);
+
+  let ahead = 0;
+  for (const h of localReach) if (!remoteReach.has(h)) ahead++;
+  let behind = 0;
+  for (const h of remoteReach) if (!localReach.has(h)) behind++;
+
+  return { ahead, behind };
+}
+
+/**
+ * Valide un nom de remote.
+ * Accepte : lettres, chiffres, '.', '_', '-', '/'.
+ * Refuse : vide, espaces, ou autres caractères spéciaux.
+ */
+export function validateRemoteName(name: string): boolean {
+  if (!name || name.trim() === '') return false;
+  return /^[A-Za-z0-9._/-]+$/.test(name);
 }

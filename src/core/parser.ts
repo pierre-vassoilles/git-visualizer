@@ -28,6 +28,9 @@ import { cmdRebase } from './commands/rebase';
 import { cmdStash } from './commands/stash';
 import { cmdReflog } from './commands/reflog';
 import { cmdHelp } from './commands/help';
+import { cmdRemote } from './commands/remote';
+import { cmdClone } from './commands/clone';
+import { cmdFetch } from './commands/fetch';
 
 // ---------------------------------------------------------------------------
 // Tokenisation
@@ -90,6 +93,11 @@ export function dispatch(repo: Repository, input: string): CommandResult {
   if (tokens.length === 0) return ok();
 
   const cmd = tokens[0]!;
+
+  // git clone : fonctionne même sans dépôt initialisé (initialise lui-même)
+  if (cmd === 'git' && tokens[1] === 'clone') {
+    return cmdClone(repo, tokens.slice(2));
+  }
 
   // Commandes utilitaires (non-git)
   if (cmd === 'write') {
@@ -177,6 +185,12 @@ export function dispatch(repo: Repository, input: string): CommandResult {
 
     case 'help':
       return cmdHelp(repo, rest);
+
+    case 'remote':
+      return cmdRemote(repo, rest);
+
+    case 'fetch':
+      return cmdFetch(repo, rest);
 
     default:
       return fail([`git: '${subcommand}' is not a git command. See 'git --help'.`]);

@@ -2410,16 +2410,406 @@ La sidebar se met à jour **automatiquement** après chaque commande. Vous n'ave
 
 ---
 
-## À venir en Phase 7+
+## Dépôts distants (Phase 7)
 
-Les fonctionnalités suivantes ne sont **pas disponibles en Phase 6** mais seront implémentées ultérieurement :
+Git Visualizer introduit le support des dépôts distants, permettant de cloner des repositories, de synchroniser les changements via fetch, et de gérer les remotes (dépôts distants prédéfinis). Sans réseau réel, les dépôts distants sont des catalogues en mémoire qui simulent la collaboration.
 
+### Concept : Dépôt distant et références de suivi
+
+Un **dépôt distant** (ou "remote") est une version de référence du projet, accessible via un nom symbolique (`origin` par défaut). Chaque remote possède :
+- Ses propres branches (ex. `main`, `develop`)
+- Un ensemble d'objets Git (commits, arbres, fichiers)
+- Une branche par défaut (généralement `main`)
+
+Le dépôt local maintient des **références de suivi** (`origin/main`, `origin/develop`, etc.) qui pointent vers les branches distantes. Ces références ne changent que via `fetch`, `clone`, ou `push`—jamais via vos commits locaux.
+
+### Gestion des remotes
+
+#### `git remote` — Lister, ajouter ou supprimer des dépôts distants
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git remote [list]` ou `git remote -v` ou `git remote add <nom> <url>` ou `git remote remove <nom>` |
+| **Description** | Gère les dépôts distants : liste, ajoute ou supprime |
+| **Options Phase 7** | Aucun argument : liste les remotes ; `-v` : avec URLs ; `add <nom> <url>` : ajouter ; `remove <nom>` : supprimer (alias `rm`) |
+
+##### Lister les remotes
+
+**Cas 1 : Liste simple**
+
+```bash
+$ git remote
+origin
+upstream
+
+# Affiche les noms des remotes configurés
+```
+
+**Cas 2 : Liste détaillée avec URLs**
+
+```bash
+$ git remote -v
+origin    https://github.com/user/project.git (fetch)
+origin    https://github.com/user/project.git (push)
+upstream  https://github.com/upstream/project.git (fetch)
+upstream  https://github.com/upstream/project.git (push)
+
+# L'URL est cosmétique (pas de réseau réel)
+```
+
+**Code de sortie :** 0
+
+---
+
+##### Ajouter un remote
+
+**Syntaxe** : `git remote add <nom> <url>`
+
+```bash
+# Ajouter un remote nommé "origin"
+$ git remote add origin https://github.com/user/project.git
+
+# Ajouter un deuxième remote "upstream"
+$ git remote add upstream https://github.com/upstream/project.git
+
+# Vérifier l'ajout
+$ git remote -v
+origin     https://github.com/user/project.git (fetch)
+origin     https://github.com/user/project.git (push)
+upstream   https://github.com/upstream/project.git (fetch)
+upstream   https://github.com/upstream/project.git (push)
+```
+
+**Comportement** :
+- Crée un nouveau dépôt distant bare (sans working tree)
+- L'URL est stockée cosmétiquement (pas de vérification réseau)
+- Erreur si le nom existe déjà
+
+**Code de sortie :** 0 (succès) | 128 (erreur : remote existe)
+
+---
+
+##### Supprimer un remote
+
+**Syntaxe** : `git remote remove <nom>` ou `git remote rm <nom>`
+
+```bash
+# Supprimer le remote "upstream"
+$ git remote rm upstream
+
+# Vérifier la suppression
+$ git remote
+origin
+```
+
+**Comportement** :
+- Supprime le dépôt distant
+- Supprime aussi les références de suivi associées (`origin/*`)
+- Erreur si le remote n'existe pas
+
+**Code de sortie :** 0 (succès) | 128 (erreur : remote inexistant)
+
+---
+
+### Cloner un dépôt
+
+#### `git clone` — Créer une copie locale d'un dépôt distant
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git clone <source>` |
+| **Description** | Initialise un nouveau dépôt local en copiant un dépôt source prédéfini, configure le remote `origin`, et crée une branche locale correspondant à la branche par défaut |
+| **Options Phase 7** | Aucun ; `<source>` est un nom de dépôt prédéfini (pas d'URL) |
+
+##### Dépôts source prédéfinis
+
+Phase 7 propose un catalogue de dépôts source pour la démonstration :
+
+| Nom | Description | Branches | Commits |
+|-----|-------------|----------|---------|
+| `public-repo` | Dépôt public simple | `main` | 3 commits linéaires (C0 ← C1 ← C2) |
+| `collab-repo` | Dépôt avec branches | `main`, `develop` | 5 commits (deux branches divergentes) |
+
+Utilisez l'un de ces noms comme argument à `git clone`.
+
+##### Exemple : Clone simple
+
+```bash
+# Cloner le dépôt public-repo
+$ git clone public-repo
+Cloning into 'local-copy'...
+remote: Enumerating objects: 3, done.
+Receiving objects: 100% (3/3), done.
+
+# Après clone, vous êtes sur la branche par défaut (main) du dépôt source
+$ git status
+On branch main
+Your branch is up to date with 'origin/main'.
+
+nothing to commit, working tree clean
+```
+
+**État après clone** :
+- Dépôt local initialisé (`.git`)
+- Remote `origin` configuré et pointant vers `public-repo`
+- Tous les objets (commits, arbres, fichiers) copiés
+- Branche locale `main` créée et l'upstream configuré vers `origin/main`
+- HEAD sur `main`, index et working tree synchronisés
+- Références de suivi `origin/*` créées pour toutes les branches distantes
+
+**Code de sortie** : 0 (succès) | 128 (erreur : source inexistante ou dépôt déjà existant)
+
+---
+
+##### Exemple : Clone avec plusieurs branches
+
+```bash
+# Cloner collab-repo qui a deux branches
+$ git clone collab-repo
+Cloning into 'local-copy'...
+remote: Enumerating objects: 5, done.
+Receiving objects: 100% (5/3), done.
+
+# La branche locale par défaut (main) est créée
+$ git status
+On branch main
+Your branch is up to date with 'origin/main'.
+
+# Les autres branches distantes sont accessibles en tant que références
+$ git branch -a
+* main
+  remotes/origin/main
+  remotes/origin/develop
+
+# Vous pouvez créer une branche locale depuis une branche distante
+$ git checkout develop
+Switched to a new branch 'develop'
+Branch 'develop' set up to track 'origin/develop'.
+
+# Maintenant develop est créée localement avec upstream configuré
+$ git status
+On branch develop
+Your branch is up to date with 'origin/develop'.
+```
+
+**Comportement** :
+1. Initialise un nouveau dépôt
+2. Configure le remote `origin` pointant vers la source
+3. Copie tous les objets du source
+4. Crée les références de suivi `origin/*` pour chaque branche distante
+5. Crée la branche locale pour la branche par défaut du source
+6. Pose l'upstream de cette branche vers `origin/<branchname>`
+7. Checkout et synchronise le working tree
+
+**Code de sortie** : 0
+
+---
+
+### Récupérer les changements distants
+
+#### `git fetch` — Mettre à jour les références distantes
+
+| Aspect | Détail |
+|--------|--------|
+| **Syntaxe** | `git fetch [<remote>] [<branche>]` |
+| **Description** | Récupère les nouveaux commits et mises à jour de branches d'un dépôt distant, met à jour les références de suivi (`origin/*`). **Ne modifie jamais vos branches locales ou HEAD.** |
+| **Options Phase 7** | Optionnel : `<remote>` (défaut : `origin`) ; optionnel : `<branche>` (défaut : toutes les branches) |
+
+##### Concept clé : Fetch ≠ Merge
+
+**`fetch` récupère**, **merge fusionne**.
+
+`git fetch` copie les nouveaux commits du distant et met à jour les références de suivi, mais ne touche pas vos branches locales. C'est une opération sûre et non-destructrice. Pour intégrer les changements distants, vous devez explicitement merger ou rebase après fetch.
+
+---
+
+##### Exemple : Fetch depuis origin
+
+```bash
+# Vous avez un dépôt initialisé avec un remote "origin"
+$ git remote -v
+origin    https://github.com/user/project.git (fetch)
+
+# Le distant a de nouveaux commits ; vous les récupérez
+$ git fetch origin
+From https://github.com/user/project.git
+ * [new branch]      main       -> origin/main
+ * [new branch]      develop    -> origin/develop
+
+# Les références de suivi sont mises à jour
+$ git branch -a
+* main                   (votre branche locale)
+  remotes/origin/main    (références de suivi)
+  remotes/origin/develop
+
+# Votre branche locale "main" est INCHANGÉE
+# Mais "origin/main" pointe le commit distant le plus récent
+```
+
+**Comportement** :
+1. Vérifie que le remote `origin` existe
+2. Pour chaque branche distante :
+   - Récupère le commit tip distant
+   - Copie tous les objets manquants
+   - Met à jour la référence de suivi (`origin/<branchname>`)
+3. Affiche un résumé des branches mises à jour
+
+**Code de sortie** : 0
+
+---
+
+##### Exemple : Fetch branche spécifique
+
+```bash
+# Récupérer uniquement la branche "develop"
+$ git fetch origin develop
+From https://github.com/user/project.git
+ * branch            develop    -> origin/develop
+
+# Seule "origin/develop" est mise à jour
+# "origin/main" reste inchangée
+```
+
+---
+
+##### Exemple : Fetch avec changement distant
+
+```bash
+# Cas 1 : Nouvelles commits sur le distant (fast-forward)
+$ git fetch origin main
+From https://github.com/user/project.git
+ abc1234..def5678  main       -> origin/main
+
+# Cas 2 : Distant a avancé après votre "origin/main" local
+#         (vous aviez copié une version antérieure lors d'un clone antérieur)
+$ git branch -vv
+* main              abc1234 [origin/main: behind 2]
+
+# Après fetch
+$ git fetch origin main
+From https://github.com/user/project.git
+ abc1234..xyz9999  main       -> origin/main
+
+$ git branch -vv
+* main              abc1234 [origin/main: behind 4]
+# Maintenant origin/main pointe 4 commits en avance
+```
+
+---
+
+##### Fetch par défaut
+
+```bash
+# Sans argument, fetch depuis "origin" toutes les branches
+$ git fetch
+From https://github.com/user/project.git
+ * [new branch]      hotfix     -> origin/hotfix
+   branch            main       -> origin/main
+   branch            develop    -> origin/develop
+```
+
+**Équivalent à** : `git fetch origin`
+
+---
+
+### Workflow complet : Clone + Fetch
+
+Voici une session réaliste montrant le workflow distant :
+
+```bash
+# 1. Cloner un dépôt
+$ git clone public-repo
+Cloning into 'local-copy'...
+...
+$ git status
+On branch main
+Your branch is up to date with 'origin/main'.
+
+# 2. Examiner votre historique local
+$ git log --oneline
+abc1234 Add file2
+def5678 Add file1
+ghi9012 Initial commit
+
+# 3. Vérifier la branche par défaut et les références distantes
+$ git branch -a
+* main
+  remotes/origin/main
+
+$ git remote -v
+origin    https://github.com/user/project.git (fetch)
+
+# 4. Plus tard, le distant est mis à jour
+#    (simulé : le catalogue change)
+
+# 5. Récupérer les changements distants
+$ git fetch origin
+From https://github.com/user/project.git
+ xyz1234..jkl5678  main       -> origin/main
+
+# 6. Vérifier que votre branche locale est inchangée
+$ git status
+On branch main
+Your branch is behind 'origin/main' by 2 commits.
+
+# 7. Vous pouvez consulter les changements distants
+$ git log origin/main
+# Affiche les commits du distant
+
+# 8. Fusionner les changements distants
+$ git merge origin/main
+Updating abc1234..jkl5678
+Fast-forward
+ file2.txt | 1 +
+ 1 file changed, 1 insertion(+)
+
+# 9. Maintenant vous êtes à jour
+$ git status
+On branch main
+Your branch is up to date with 'origin/main'.
+```
+
+---
+
+### Erreurs courantes
+
+#### Remote inexistant
+```bash
+$ git fetch nosuchremote
+fatal: No remote named 'nosuchremote'
+```
+**Solution** : Vérifiez le nom avec `git remote` et ajoutez-le si nécessaire.
+
+#### Clone dans un dépôt existant
+```bash
+$ git init && git clone public-repo
+fatal: destination path '.' already exists and is not an empty directory.
+```
+**Solution** : Clone dans un répertoire vide ou créez un répertoire dédié.
+
+#### Branche distante inexistante
+```bash
+$ git fetch origin nosuchbranch
+fatal: Couldn't find remote ref nosuchbranch
+```
+**Solution** : Vérifiez les branches distantes avec `git branch -a`.
+
+---
+
+## À venir en Phase 8+
+
+Les fonctionnalités suivantes ne sont **pas disponibles en Phase 7** mais seront implémentées ultérieurement :
+
+- **`git push`** : Envoyer vos commits vers le dépôt distant
+- **`git pull`** : Combinaison de `git fetch` + `git merge` en une seule commande
+- **`git branch -vv`** : Affichage détaillé des upstreams et ahead/behind count
+- **Split-screen** : Visualisation côte à côte du dépôt local et du distant
 - **Interactions avancées** : Clic sur une branche pour checkout, clic sur tag pour inspect
 - **Historique avancé** : `git log -p` (affichage des diffs), `git log --follow` (historique des fichiers renommés)
 - **Shell interactif** : Un shell complet avec `echo`, `cat`, `touch`, etc.
 - **Export/Import** : Sauvegarder une session en fichier, charger depuis un fichier
 
-**Phase 6 complète les opérations Git avancées avec une DX (Developer Experience) polie** : aide intégrée, autocomplétion intelligente, persistance automatique, scénarios pédagogiques, et une sidebar riche pour explorer l'état du dépôt. Vous avez maintenant un environnement complet pour apprendre et expérimenter Git !
+**Phase 7 ajoute le modèle distant complet** : création de remotes, clone de dépôts source prédéfinis, synchronisation via fetch. Vous avez maintenant les briques fondamentales pour simuler la collaboration Git !
 
 ---
 
@@ -2472,6 +2862,17 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 6** mais seron
 - **Scénarios pédagogiques** : 5 scénarios préchargés pour apprendre Git (Branche & Merge, Merge --no-ff, Conflit, Cherry-pick & Tag, Reset & Undo)
 - **RefsSidebar enrichie** : affichage de branches, HEAD, tags, opération en cours, stash, commandes récentes, avec boutons d'interaction
 
+**Phase 7 – Dépôts distants :**
+- `git remote` — Lister, ajouter ou supprimer des dépôts distants
+- `git remote -v` — Afficher les remotes avec leurs URLs (cosmétiques)
+- `git remote add <nom> <url>` — Configurer un nouveau remote
+- `git remote remove <nom>` (alias `rm`) — Supprimer un remote
+- `git clone <source>` — Cloner un dépôt source prédéfini (public-repo, collab-repo)
+- `git fetch [<remote>] [<branche>]` — Récupérer les changements distants et mettre à jour les références de suivi
+- **Références de suivi** : `origin/main`, `origin/develop` etc., mises à jour uniquement par fetch/clone
+- **Dépôts source prédéfinis** : `public-repo` (simple), `collab-repo` (avec branches)
+- **Concept** : Fetch récupère sans modifier les branches locales ; à fusionner explicitement
+
 ### Workflow complet
 
 1. Initialisez un dépôt (`git init`)
@@ -2484,4 +2885,4 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 6** mais seron
 8. **Découvrez avec autocomplétion et aide** : tap Tab pour compléter, `git help` pour apprendre (Phase 6)
 9. **Chargez des scénarios** pour apprendre, explorez la sidebar pour maîtriser l'état (Phase 6)
 
-Vous pouvez explorer et maîtriser votre dépôt Git directement dans le terminal web avec un contrôle complet du workflow collaboratif : création de branches, fusion, réécriture d'historique, rebase interactif avec édition visuelle, gestion des modifications temporaires via stash, et récupération des commits "perdus" via reflog. Tout cela avec une vue d'ensemble visuelle et intuitive grâce au graphe interactif, aidé par l'autocomplétion intelligente, les scénarios pédagogiques, et une sidebar enrichie pour maîtriser chaque aspect du dépôt !
+Vous pouvez explorer et maîtriser votre dépôt Git directement dans le terminal web avec un contrôle complet du workflow collaboratif : création de branches, fusion, réécriture d'historique, rebase interactif avec édition visuelle, gestion des modifications temporaires via stash, et récupération des commits "perdus" via reflog. La **Phase 7 ajoute le modèle distant** : clonez des dépôts prédéfinis, configurez plusieurs remotes, et synchronisez vos changements via fetch. Tout cela avec une vue d'ensemble visuelle et intuitive grâce au graphe interactif, aidé par l'autocomplétion intelligente, les scénarios pédagogiques, et une sidebar enrichie pour maîtriser chaque aspect du dépôt local et distant !

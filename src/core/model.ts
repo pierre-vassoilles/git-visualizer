@@ -204,11 +204,34 @@ export interface StashEntry {
   headHash: string;
 }
 
+// ---------------------------------------------------------------------------
+// Phase 7 : Dépôt distant (bare)
+// ---------------------------------------------------------------------------
+
+/**
+ * Dépôt distant bare : object store + branches + HEAD.
+ * Pas d'index ni de working tree.
+ */
+export interface RemoteRepository {
+  /** URL symbolique (cosmétique, pas de réseau réel). */
+  url: string;
+  /** Object store : hash → GitObject (blobs, trees, commits). */
+  objects: Record<string, GitObject>;
+  /** Branches distantes : branchName → commitHash. */
+  refs: {
+    heads: Record<string, string>;
+  };
+  /** HEAD du dépôt distant (symbolique ou détaché). */
+  head: Head;
+}
+
 export interface Repository {
   objects: Record<string, GitObject>;
   refs: {
     heads: Record<string, string>; // branchName → commitHash (or "" for empty branch)
     tags: Record<string, string>;  // tagName → commitHash
+    /** Références de suivi distantes : remote → (branchName → hash). Phase 7. */
+    remotes?: Record<string, Record<string, string>>;
   };
   head: Head;
   index: Index;
@@ -229,4 +252,8 @@ export interface Repository {
   stashStack?: StashEntry[];
   /** Reflog par ref (Phase 5). Map ref → liste d'entrées (du plus récent au plus ancien). */
   reflog?: Record<string, ReflogEntry[]>;
+  /** Dépôts distants (Phase 7) : nom → RemoteRepository bare. */
+  remotes?: Record<string, RemoteRepository>;
+  /** Upstream pour chaque branche locale (Phase 7) : branchName → { remote, branch }. */
+  branchUpstream?: Record<string, { remote: string; branch: string }>;
 }

@@ -1,7 +1,7 @@
 import { ok, type CommandResult } from './types';
 import type { Repository, TodoItem } from './model';
 import { type CommandCatalog, type Flag, getCatalog, getCommandFlags, getCommandNames } from './catalog';
-import { createEmptyRepo, currentBranch, flattenTree, getCommitHistoryWithHashes, headCommitHash } from './repository';
+import { createEmptyRepo, currentBranch, flattenTree, getCommitHistoryWithHashes, headCommitHash, computeAheadBehind, isInitialized } from './repository';
 import { hashBlob } from './objectStore';
 import { dispatch } from './parser';
 import { shortHash } from './sha1';
@@ -118,6 +118,31 @@ export interface RepoSnapshot {
     }>;
     readonly currentIndex: number;
   };
+  /**
+   * PHASE 7 : État des dépôts distants (pour le split-screen graphe distant).
+   * Pour chaque remote : commits triés topologiquement, branches, HEAD.
+   */
+  readonly remotes?: Record<string, {
+    readonly allCommits: SnapshotCommit[];
+    readonly heads: Record<string, string>;
+    readonly head:
+      | { readonly type: 'branch'; readonly name: string }
+      | { readonly type: 'detached'; readonly hash: string };
+  }>;
+  /**
+   * PHASE 7 : Références de suivi distantes (décoration du graphe local).
+   * Copie de repo.refs.remotes.
+   */
+  readonly remoteTrackingRefs?: Record<string, Record<string, string>>;
+  /**
+   * PHASE 7 : Infos de synchronisation par branche locale.
+   * Pour chaque branche ayant un upstream, expose ahead/behind.
+   */
+  readonly tracking?: Record<string, {
+    readonly upstream?: { readonly remote: string; readonly branch: string };
+    readonly ahead?: number;
+    readonly behind?: number;
+  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -306,7 +331,7 @@ export class GitEngine {
    */
   snapshot(): RepoSnapshot {
     const repo = this.repo;
-    const initialized = 'main' in repo.refs.heads;
+    const initialized = isInitialized(repo);
 
     // Branches
     const branches: Record<string, string> = {};
@@ -443,6 +468,95 @@ export class GitEngine {
       });
     }
 
+    // Phase 7 : snapshot des dépôts distants
+    let remotesSnapshot: RepoSnapshot['remotes'] = undefined;
+    if (repo.remotes && Object.keys(repo.remotes).length > 0) {
+      const remotesObj: Record<string, {
+        allCommits: SnapshotCommit[];
+        heads: Record<string, string>;
+        head: { type: 'branch'; name: string } | { type: 'detached'; hash: string };
+      }> = {};
+
+      for (const [remoteName, remoteRepo] of Object.entries(repo.remotes)) {
+        // Construire un "faux repo" minimal pour réutiliser getAllCommitsTopologicalOrder
+        // On passe directement les objects du remote et ses refs
+        const remoteHashToBranches: Record<string, string[]> = {};
+        for (const [branch, hash] of Object.entries(remoteRepo.refs.heads)) {
+          if (hash) (remoteHashToBranches[hash] ??= []).push(branch);
+        }
+        const remoteHashToTags: Record<string, string[]> = {};
+
+        // On crée un objet minimal compatible pour getAllCommitsTopologicalOrder
+        const remoteRepoLike = {
+          objects: remoteRepo.objects,
+        } as import('./model').Repository;
+
+        const remoteAllCommits = getAllCommitsTopologicalOrder(
+          remoteRepoLike,
+          remoteHashToBranches,
+          remoteHashToTags,
+        );
+
+        const remoteHeadsCopy: Record<string, string> = { ...remoteRepo.refs.heads };
+        const remoteHeadState: { type: 'branch'; name: string } | { type: 'detached'; hash: string } =
+          remoteRepo.head.symbolic
+            ? {
+                type: 'branch',
+                name: remoteRepo.head.target.replace('refs/heads/', ''),
+              }
+            : { type: 'detached', hash: remoteRepo.head.target };
+
+        remotesObj[remoteName] = {
+          allCommits: Object.freeze(remoteAllCommits) as SnapshotCommit[],
+          heads: Object.freeze(remoteHeadsCopy),
+          head: Object.freeze(remoteHeadState),
+        };
+      }
+
+      remotesSnapshot = Object.freeze(remotesObj);
+    }
+
+    // Phase 7 : remote tracking refs
+    let remoteTrackingRefs: RepoSnapshot['remoteTrackingRefs'] = undefined;
+    if (repo.refs.remotes && Object.keys(repo.refs.remotes).length > 0) {
+      const rtCopy: Record<string, Record<string, string>> = {};
+      for (const [remote, refs] of Object.entries(repo.refs.remotes)) {
+        rtCopy[remote] = Object.freeze({ ...refs });
+      }
+      remoteTrackingRefs = Object.freeze(rtCopy);
+    }
+
+    // Phase 7 : tracking ahead/behind
+    let tracking: RepoSnapshot['tracking'] = undefined;
+    if (repo.branchUpstream && Object.keys(repo.branchUpstream).length > 0) {
+      const trackingObj: Record<string, {
+        upstream?: { remote: string; branch: string };
+        ahead?: number;
+        behind?: number;
+      }> = {};
+
+      for (const [localBranch, upstream] of Object.entries(repo.branchUpstream)) {
+        const localHash = repo.refs.heads[localBranch];
+        const remoteTrackHash = repo.refs.remotes?.[upstream.remote]?.[upstream.branch];
+
+        let ahead: number | undefined;
+        let behind: number | undefined;
+
+        if (localHash && remoteTrackHash) {
+          const ab = computeAheadBehind(repo, localHash, remoteTrackHash);
+          ahead = ab.ahead;
+          behind = ab.behind;
+        }
+
+        trackingObj[localBranch] = Object.freeze({
+          upstream: Object.freeze({ ...upstream }),
+          ahead,
+          behind,
+        });
+      }
+      tracking = Object.freeze(trackingObj);
+    }
+
     // Immuabilité (cf. contrat RepoSnapshot) : on gèle les conteneurs pour
     // qu'un composant ne puisse pas muter le snapshot posé dans le store.
     return Object.freeze({
@@ -457,6 +571,9 @@ export class GitEngine {
       operationState: operationState ? Object.freeze(operationState) : undefined,
       stashCount,
       rebasingInteractive,
+      remotes: remotesSnapshot,
+      remoteTrackingRefs,
+      tracking,
     });
   }
 }

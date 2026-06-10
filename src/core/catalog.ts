@@ -420,6 +420,67 @@ const COMMANDS_BY_CATEGORY: Record<string, CommandMetadata[]> = {
     },
   ],
 
+  'Distant': [
+    {
+      name: 'remote',
+      description: 'Gérer les dépôts distants',
+      category: 'Distant',
+      flags: [
+        { name: '-v', hasArgument: false, description: 'Afficher les URLs des remotes', isCommon: true },
+        { name: 'add', hasArgument: false, description: 'Ajouter un remote', isCommon: true },
+        { name: 'remove', hasArgument: false, description: 'Supprimer un remote', isCommon: true },
+        { name: 'rm', hasArgument: false, description: 'Alias de remove', isCommon: false },
+        { name: '<name>', hasArgument: true, description: 'Nom du remote', isCommon: true },
+        { name: '<url>', hasArgument: true, description: 'URL du remote', isCommon: true },
+      ],
+      synopsis:
+        'git remote\ngit remote -v\ngit remote add <name> <url>\ngit remote remove <name>',
+      longDescription:
+        'Gère les connexions vers des dépôts distants. ' +
+        'Sans argument, liste les remotes. Avec add/remove, ajoute ou supprime un remote.',
+      examples: [
+        'git remote',
+        'git remote -v',
+        'git remote add origin https://github.com/user/repo.git',
+        'git remote remove origin',
+      ],
+    },
+    {
+      name: 'clone',
+      description: 'Cloner un dépôt distant prédéfini',
+      category: 'Distant',
+      flags: [
+        { name: '<source>', hasArgument: true, description: 'Nom du dépôt source à cloner', isCommon: true },
+      ],
+      synopsis: 'git clone <source>',
+      longDescription:
+        'Crée un nouveau dépôt local en copiant un dépôt distant prédéfini. ' +
+        'Initialise le dépôt, copie tous les objets, pose les refs de suivi et checkout la branche par défaut.',
+      examples: [
+        'git clone public-repo',
+        'git clone collab-repo',
+      ],
+    },
+    {
+      name: 'fetch',
+      description: 'Télécharger les commits d\'un dépôt distant',
+      category: 'Distant',
+      flags: [
+        { name: '<remote>', hasArgument: true, description: 'Nom du remote (défaut : origin)', isCommon: true },
+        { name: '<branch>', hasArgument: true, description: 'Branche spécifique à récupérer (optionnel)', isCommon: false },
+      ],
+      synopsis: 'git fetch [<remote>] [<branch>]',
+      longDescription:
+        'Récupère les nouveaux commits d\'un dépôt distant et met à jour les références de suivi. ' +
+        'Ne modifie jamais les branches locales, HEAD, l\'index ou le working tree.',
+      examples: [
+        'git fetch',
+        'git fetch origin',
+        'git fetch origin main',
+      ],
+    },
+  ],
+
   'Aide': [
     {
       name: 'help',
