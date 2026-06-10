@@ -1,16 +1,43 @@
 <script setup lang="ts">
-import { computed, ref, onBeforeUnmount } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { computeLayout } from '@/graph/layout';
-import type { GraphEdge, GraphNode } from '@/graph/types';
 import { useRepoStore } from '@/stores/repo';
+import GraphCanvas from './GraphCanvas.vue';
+import type { Badge } from './GraphCanvas.vue';
+import type { RepoSnapshot } from '@/core/engine';
 
 const repo = useRepoStore();
 
 // ---------------------------------------------------------------------------
-// Layout réactif (recalculé à chaque changement de snapshot)
+// Mode d'affichage
 // ---------------------------------------------------------------------------
 
-const layout = computed(() => {
+type DisplayMode = 'local' | 'split' | 'remote';
+const displayMode = ref<DisplayMode>('local');
+
+const hasRemote = computed(() =>
+  Object.keys(repo.snapshot.remotes ?? {}).length > 0,
+);
+
+// Bascule automatiquement en split si un distant est disponible et qu'on est en local
+watch(hasRemote, (val) => {
+  if (val && displayMode.value === 'local') {
+    displayMode.value = 'split';
+  } else if (!val) {
+    displayMode.value = 'local';
+  }
+});
+
+function setMode(mode: DisplayMode): void {
+  if (!hasRemote.value && mode !== 'local') return;
+  displayMode.value = mode;
+}
+
+// ---------------------------------------------------------------------------
+// Layouts
+// ---------------------------------------------------------------------------
+
+const localLayout = computed(() => {
   const snap = repo.snapshot;
   if (!snap.initialized) return null;
   const commits = snap.allCommits ?? snap.commits;
@@ -23,112 +50,98 @@ const layout = computed(() => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// HEAD helpers
-// ---------------------------------------------------------------------------
-
-const isHeadDetached = computed(() => repo.snapshot.head.type === 'detached');
-
-const headHash = computed((): string | null => {
-  const head = repo.snapshot.head;
-  if (head.type === 'detached') return head.hash;
-  return repo.snapshot.branches[head.name] ?? null;
+const remoteLayout = computed(() => {
+  const remotes = repo.snapshot.remotes;
+  if (!remotes) return null;
+  // Prend le premier remote disponible (en pratique : origin)
+  const remoteName = Object.keys(remotes)[0];
+  if (!remoteName) return null;
+  const remote = remotes[remoteName];
+  if (!remote || remote.allCommits.length === 0) return null;
+  return computeLayout({
+    commits: remote.allCommits,
+    branches: remote.heads,
+    head: remote.head,
+    tags: {},
+  });
 });
 
-const headBranchName = computed((): string | null => {
-  const head = repo.snapshot.head;
-  if (head.type === 'branch') return head.name;
-  return null;
-});
+// ---------------------------------------------------------------------------
+// HEAD helpers (pour badges locaux) — utilisés dans buildLocalBadges
+// ---------------------------------------------------------------------------
 
 const headBadgeLabel = computed((): string => {
-  if (isHeadDetached.value) {
-    const head = repo.snapshot.head as { type: 'detached'; hash: string };
+  const head = repo.snapshot.head;
+  if (head.type === 'detached') {
     return `HEAD (${head.hash.slice(0, 7)})`;
   }
   return 'HEAD';
 });
 
-function isHeadCommit(hash: string): boolean {
-  return hash === headHash.value;
-}
-
 // ---------------------------------------------------------------------------
-// Interaction state
+// Badges précalculés (dette Phase 3 : mémoïsation + champ kind)
 // ---------------------------------------------------------------------------
 
-const zoom = ref(1);
-const panX = ref(0);
-const panY = ref(0);
-const hoveredHash = ref<string | null>(null);
-const selectedHash = ref<string | null>(null);
-const tooltipX = ref(0);
-const tooltipY = ref(0);
+function buildLocalBadges(snap: RepoSnapshot): Map<string, Badge[]> {
+  const map = new Map<string, Badge[]>();
+  const commits = snap.allCommits ?? snap.commits;
+  if (!commits.length) return map;
 
-// ---------------------------------------------------------------------------
-// Computed helpers
-// ---------------------------------------------------------------------------
+  const hHash = snap.head.type === 'detached'
+    ? snap.head.hash
+    : (snap.branches[snap.head.name] ?? null);
+  const hBranchName = snap.head.type === 'branch' ? snap.head.name : null;
+  const hDetached = snap.head.type === 'detached';
 
-const hoveredNode = computed((): GraphNode | null => {
-  if (!hoveredHash.value || !layout.value) return null;
-  return layout.value.nodes.find(n => n.hash === hoveredHash.value) ?? null;
-});
+  // Refs de suivi distantes : remoteTrackingRefs → Map<hash, label[]>
+  const remoteRefsByHash = new Map<string, string[]>();
+  const rtr = snap.remoteTrackingRefs;
+  if (rtr) {
+    for (const [remoteName, refMap] of Object.entries(rtr)) {
+      for (const [branch, hash] of Object.entries(refMap)) {
+        if (!remoteRefsByHash.has(hash)) remoteRefsByHash.set(hash, []);
+        remoteRefsByHash.get(hash)!.push(`${remoteName}/${branch}`);
+      }
+    }
+  }
 
-const showLabels = computed(() => zoom.value > 0.4);
+  for (const commit of commits) {
+    const badges: Badge[] = [];
+    const isHead = commit.hash === hHash;
 
-const nodeRadius = 6;
-
-// ---------------------------------------------------------------------------
-// SVG rendering helpers
-// ---------------------------------------------------------------------------
-
-function getBezierPath(edge: GraphEdge): string {
-  const { fromX, fromY, toX, toY } = edge;
-  const midY = (fromY + toY) / 2;
-  const controlX1 = fromX + (toX - fromX) * 0.2;
-  const controlX2 = toX - (toX - fromX) * 0.2;
-  return `M ${fromX} ${fromY} C ${controlX1} ${midY}, ${controlX2} ${midY}, ${toX} ${toY}`;
-}
-
-function getEdgeColor(edge: GraphEdge): string {
-  const node = layout.value?.nodes.find(n => n.hash === edge.fromHash);
-  return node?.color ?? '#999';
-}
-
-function truncateMessage(msg: string, maxLen: number): string {
-  return msg.length > maxLen ? msg.slice(0, maxLen) + '…' : msg;
-}
-
-function isEdgeRelated(edge: GraphEdge): boolean {
-  if (!hoveredHash.value) return false;
-  return edge.fromHash === hoveredHash.value || edge.toHash === hoveredHash.value;
-}
-
-// Compute per-node badge list: HEAD badge + branch badges + tag badges
-interface Badge {
-  label: string;
-  bgColor: string;
-  textColor: string;
-  borderColor: string;
-}
-
-function getNodeBadges(node: GraphNode): Badge[] {
-  const badges: Badge[] = [];
-
-  // HEAD badge
-  if (isHeadCommit(node.hash)) {
-    if (!isHeadDetached.value && headBranchName.value && node.snapshot.branches.includes(headBranchName.value)) {
-      // HEAD -> branchname combined badge
-      badges.push({
-        label: `HEAD → ${headBranchName.value}`,
-        bgColor: '#dcfce7',
-        textColor: '#16a34a',
-        borderColor: '#16a34a',
-      });
-      // Add remaining branches (not the one already shown)
-      for (const b of node.snapshot.branches) {
-        if (b !== headBranchName.value) {
+    if (isHead) {
+      if (!hDetached && hBranchName && commit.branches.includes(hBranchName)) {
+        // HEAD → branchname combined badge
+        badges.push({
+          kind: 'head',
+          label: `HEAD → ${hBranchName}`,
+          bgColor: '#dcfce7',
+          textColor: '#16a34a',
+          borderColor: '#16a34a',
+        });
+        for (const b of commit.branches) {
+          if (b !== hBranchName) {
+            badges.push({
+              kind: 'branch',
+              label: b,
+              bgColor: '#e0e7ff',
+              textColor: '#4f46e5',
+              borderColor: '#4f46e5',
+            });
+          }
+        }
+      } else {
+        // HEAD détaché
+        badges.push({
+          kind: 'head',
+          label: hDetached ? (snap.head as { type: 'detached'; hash: string }).hash.slice(0, 7).concat(' (HEAD)') : headBadgeLabel.value,
+          bgColor: '#fee2e2',
+          textColor: '#dc2626',
+          borderColor: '#dc2626',
+        });
+        for (const b of commit.branches) {
           badges.push({
+            kind: 'branch',
             label: b,
             bgColor: '#e0e7ff',
             textColor: '#4f46e5',
@@ -137,15 +150,9 @@ function getNodeBadges(node: GraphNode): Badge[] {
         }
       }
     } else {
-      // Detached HEAD or HEAD on commit not directly a branch tip
-      badges.push({
-        label: headBadgeLabel.value,
-        bgColor: '#fee2e2',
-        textColor: '#dc2626',
-        borderColor: '#dc2626',
-      });
-      for (const b of node.snapshot.branches) {
+      for (const b of commit.branches) {
         badges.push({
+          kind: 'branch',
           label: b,
           bgColor: '#e0e7ff',
           textColor: '#4f46e5',
@@ -153,264 +160,347 @@ function getNodeBadges(node: GraphNode): Badge[] {
         });
       }
     }
-  } else {
-    for (const b of node.snapshot.branches) {
+
+    // Refs de suivi distantes (kind: 'remote')
+    const remoteRefs = remoteRefsByHash.get(commit.hash);
+    if (remoteRefs) {
+      for (const label of remoteRefs) {
+        badges.push({
+          kind: 'remote',
+          label,
+          bgColor: '#f0f0f0',
+          textColor: '#555',
+          borderColor: '#999',
+        });
+      }
+    }
+
+    // Tags
+    for (const t of commit.tags) {
       badges.push({
-        label: b,
-        bgColor: '#e0e7ff',
-        textColor: '#4f46e5',
-        borderColor: '#4f46e5',
+        kind: 'tag',
+        label: `tag: ${t}`,
+        bgColor: '#fef3c7',
+        textColor: '#b45309',
+        borderColor: '#f59e0b',
       });
+    }
+
+    if (badges.length > 0) {
+      map.set(commit.hash, badges);
     }
   }
 
-  for (const t of node.snapshot.tags) {
-    badges.push({
-      label: `tag: ${t}`,
-      bgColor: '#fef3c7',
-      textColor: '#b45309',
-      borderColor: '#f59e0b',
-    });
+  return map;
+}
+
+function buildRemoteBadges(snap: RepoSnapshot): Map<string, Badge[]> {
+  const map = new Map<string, Badge[]>();
+  const remotes = snap.remotes;
+  if (!remotes) return map;
+  const remoteName = Object.keys(remotes)[0];
+  if (!remoteName) return map;
+  const remote = remotes[remoteName];
+  if (!remote) return map;
+
+  // HEAD du distant
+  const remoteHead = remote.head;
+  const remoteHHash = remoteHead.type === 'detached'
+    ? remoteHead.hash
+    : (remote.heads[remoteHead.name] ?? null);
+  const remoteHBranchName = remoteHead.type === 'branch' ? remoteHead.name : null;
+  const remoteHDetached = remoteHead.type === 'detached';
+
+  for (const commit of remote.allCommits) {
+    const badges: Badge[] = [];
+    const isHead = commit.hash === remoteHHash;
+
+    if (isHead && remoteHBranchName && commit.branches.includes(remoteHBranchName)) {
+      badges.push({
+        kind: 'head',
+        label: `HEAD → ${remoteHBranchName}`,
+        bgColor: '#dcfce7',
+        textColor: '#16a34a',
+        borderColor: '#16a34a',
+      });
+      for (const b of commit.branches) {
+        if (b !== remoteHBranchName) {
+          badges.push({
+            kind: 'branch',
+            label: b,
+            bgColor: '#e0e7ff',
+            textColor: '#4f46e5',
+            borderColor: '#4f46e5',
+          });
+        }
+      }
+    } else if (isHead && remoteHDetached) {
+      badges.push({
+        kind: 'head',
+        label: `HEAD (${commit.hash.slice(0, 7)})`,
+        bgColor: '#fee2e2',
+        textColor: '#dc2626',
+        borderColor: '#dc2626',
+      });
+      for (const b of commit.branches) {
+        badges.push({
+          kind: 'branch',
+          label: b,
+          bgColor: '#e0e7ff',
+          textColor: '#4f46e5',
+          borderColor: '#4f46e5',
+        });
+      }
+    } else {
+      for (const b of commit.branches) {
+        badges.push({
+          kind: 'branch',
+          label: b,
+          bgColor: '#e0e7ff',
+          textColor: '#4f46e5',
+          borderColor: '#4f46e5',
+        });
+      }
+    }
+
+    for (const t of commit.tags) {
+      badges.push({
+        kind: 'tag',
+        label: `tag: ${t}`,
+        bgColor: '#fef3c7',
+        textColor: '#b45309',
+        borderColor: '#f59e0b',
+      });
+    }
+
+    if (badges.length > 0) {
+      map.set(commit.hash, badges);
+    }
   }
 
-  return badges;
+  return map;
 }
 
-// Compute badge width based on label length
-function badgeWidth(label: string): number {
-  return Math.max(40, label.length * 6 + 10);
-}
+const localBadgesByHash = computed(() => buildLocalBadges(repo.snapshot));
+const remoteBadgesByHash = computed(() => buildRemoteBadges(repo.snapshot));
 
-// ---------------------------------------------------------------------------
-// Interactions
-// ---------------------------------------------------------------------------
+// HEAD courant (pour l'anneau distinctif sur le nœud) — local et distant
+const localHeadHash = computed((): string | null => {
+  const h = repo.snapshot.head;
+  return h.type === 'detached' ? h.hash : (repo.snapshot.branches[h.name] ?? null);
+});
+const localHeadDetached = computed(() => repo.snapshot.head.type === 'detached');
 
-function selectNode(hash: string): void {
-  selectedHash.value = selectedHash.value === hash ? null : hash;
-}
-
-function handleNodeMouseEnter(hash: string, e: MouseEvent): void {
-  hoveredHash.value = hash;
-  tooltipX.value = e.clientX + 12;
-  tooltipY.value = e.clientY + 12;
-}
-
-function handleNodeMouseLeave(): void {
-  hoveredHash.value = null;
-}
-
-function handleMouseMove(e: MouseEvent): void {
-  if (hoveredHash.value) {
-    tooltipX.value = e.clientX + 12;
-    tooltipY.value = e.clientY + 12;
-  }
-}
-
-function handleWheel(e: WheelEvent): void {
-  e.preventDefault();
-  const delta = e.deltaY > 0 ? 0.9 : 1.1;
-  zoom.value = Math.max(0.1, Math.min(5, zoom.value * delta));
-}
-
-// Référence vers la fonction de nettoyage du drag courant.
-// Permet à onBeforeUnmount de retirer les listeners si le composant est démonté pendant un drag.
-let currentPanCleanup: (() => void) | null = null;
-
-function startPan(e: MouseEvent): void {
-  // Left button drag for pan
-  if (e.button !== 0) return;
-  e.preventDefault();
-  const startX = e.clientX;
-  const startY = e.clientY;
-  const startPanX = panX.value;
-  const startPanY = panY.value;
-
-  const onMouseMove = (moveEvent: MouseEvent): void => {
-    panX.value = startPanX + (moveEvent.clientX - startX);
-    panY.value = startPanY + (moveEvent.clientY - startY);
-  };
-
-  const cleanup = (): void => {
-    document.removeEventListener('mousemove', onMouseMove);
-    document.removeEventListener('mouseup', onMouseUp);
-    currentPanCleanup = null;
-  };
-
-  const onMouseUp = (): void => {
-    cleanup();
-  };
-
-  document.addEventListener('mousemove', onMouseMove);
-  document.addEventListener('mouseup', onMouseUp);
-  currentPanCleanup = cleanup;
-}
-
-// Nettoyage des listeners actifs si le composant est démonté pendant un drag (M1)
-onBeforeUnmount(() => {
-  if (currentPanCleanup !== null) {
-    currentPanCleanup();
-  }
+const remoteHeadHash = computed((): string | null => {
+  const remotes = repo.snapshot.remotes;
+  const name = remotes ? Object.keys(remotes)[0] : undefined;
+  const r = name ? remotes![name] : null;
+  if (!r) return null;
+  return r.head.type === 'detached' ? r.head.hash : (r.heads[r.head.name] ?? null);
+});
+const remoteHeadDetached = computed(() => {
+  const remotes = repo.snapshot.remotes;
+  const name = remotes ? Object.keys(remotes)[0] : undefined;
+  const r = name ? remotes![name] : null;
+  return r ? r.head.type === 'detached' : false;
 });
 
-function handleBackdropClick(e: MouseEvent): void {
-  // Deselect if click is on the SVG background (not a node)
-  if ((e.target as SVGElement).classList.contains('graph-svg')) {
-    selectedHash.value = null;
+// ---------------------------------------------------------------------------
+// Surlignage (commits non poussés / à récupérer)
+// ---------------------------------------------------------------------------
+
+const nonPushedNodes = computed((): Set<string> => {
+  const snap = repo.snapshot;
+  const local = snap.allCommits ?? snap.commits;
+  // Carte hash → parents (sur le graphe local).
+  const parents = new Map<string, string[]>();
+  for (const c of local) parents.set(c.hash, c.parents);
+  // Tips des refs de suivi distantes = points déjà connus du distant.
+  const tips: string[] = [];
+  const rtr = snap.remoteTrackingRefs;
+  if (rtr) {
+    for (const refMap of Object.values(rtr)) {
+      for (const hash of Object.values(refMap)) tips.push(hash);
+    }
+  }
+  // « Poussé » = accessible depuis un tip distant (parcours des parents),
+  // pas seulement égal à un tip. Évite de marquer les ancêtres comme non poussés.
+  const pushed = new Set<string>();
+  const stack = [...tips];
+  while (stack.length > 0) {
+    const h = stack.pop()!;
+    if (pushed.has(h)) continue;
+    pushed.add(h);
+    const ps = parents.get(h);
+    if (ps) stack.push(...ps);
+  }
+  return new Set(local.filter((c) => !pushed.has(c.hash)).map((c) => c.hash));
+});
+
+const unpulledNodes = computed((): Set<string> => {
+  const snap = repo.snapshot;
+  const localHashes = new Set((snap.allCommits ?? snap.commits).map(c => c.hash));
+  const remotes = snap.remotes;
+  if (!remotes) return new Set();
+  const remoteName = Object.keys(remotes)[0];
+  if (!remoteName) return new Set();
+  const remote = remotes[remoteName];
+  if (!remote) return new Set();
+  return new Set(remote.allCommits.filter(c => !localHashes.has(c.hash)).map(c => c.hash));
+});
+
+// ---------------------------------------------------------------------------
+// Sync zoom/pan (optionnel)
+// ---------------------------------------------------------------------------
+
+const syncZoomPan = ref(false);
+
+const syncZoom = ref(1);
+const syncPanX = ref(0);
+const syncPanY = ref(0);
+
+function onWheelLocal(delta: number): void {
+  if (syncZoomPan.value) {
+    syncZoom.value = Math.max(0.1, Math.min(5, syncZoom.value * delta));
   }
 }
+
+function onWheelRemote(delta: number): void {
+  if (syncZoomPan.value) {
+    syncZoom.value = Math.max(0.1, Math.min(5, syncZoom.value * delta));
+  }
+}
+
+function onPanLocal(dx: number, dy: number): void {
+  if (syncZoomPan.value) {
+    syncPanX.value += dx;
+    syncPanY.value += dy;
+  }
+}
+
+function onPanRemote(dx: number, dy: number): void {
+  if (syncZoomPan.value) {
+    syncPanX.value += dx;
+    syncPanY.value += dy;
+  }
+}
+
+// Computed : valeurs sync ou null (null = GraphCanvas gère son propre état)
+const externalZoom = computed(() => syncZoomPan.value ? syncZoom.value : null);
+const externalPanX = computed(() => syncZoomPan.value ? syncPanX.value : null);
+const externalPanY = computed(() => syncZoomPan.value ? syncPanY.value : null);
+
+// ---------------------------------------------------------------------------
+// Nom du premier distant
+// ---------------------------------------------------------------------------
+const firstRemoteName = computed(() => {
+  const remotes = repo.snapshot.remotes;
+  if (!remotes) return 'origin';
+  return Object.keys(remotes)[0] ?? 'origin';
+});
 </script>
 
 <template>
-  <div
-    class="graph-view"
-    @wheel.prevent="handleWheel"
-    @mousedown="startPan"
-    @mousemove="handleMouseMove"
-  >
-    <!-- SVG graphe -->
-    <svg
-      v-if="layout"
-      :viewBox="`0 0 ${layout.width} ${layout.height}`"
-      :width="layout.width * zoom"
-      :height="layout.height * zoom"
-      class="graph-svg"
-      :style="{ transform: `translate(${panX}px, ${panY}px)` }"
-      @click="handleBackdropClick"
-    >
-      <!-- Arêtes -->
-      <g class="edges">
-        <!-- Arêtes linéaires -->
-        <line
-          v-for="edge in layout.edges.filter(e => e.type === 'linear')"
-          :key="`edge-${edge.fromHash}-${edge.toHash}`"
-          :x1="edge.fromX"
-          :y1="edge.fromY"
-          :x2="edge.toX"
-          :y2="edge.toY"
-          class="edge"
-          :class="{ 'edge-related': isEdgeRelated(edge) }"
-          :stroke="getEdgeColor(edge)"
-        />
-        <!-- Arêtes de merge (courbes de Bézier) -->
-        <path
-          v-for="edge in layout.edges.filter(e => e.type === 'merge')"
-          :key="`edge-${edge.fromHash}-${edge.toHash}`"
-          :d="getBezierPath(edge)"
-          class="edge edge-merge"
-          :class="{ 'edge-related': isEdgeRelated(edge) }"
-          :stroke="getEdgeColor(edge)"
-        />
-      </g>
-
-      <!-- Badges de refs (dessinés avant les nœuds pour être sous les cercles) -->
-      <g v-if="showLabels" class="badges">
-        <g
-          v-for="node in layout.nodes"
-          :key="`badges-${node.hash}`"
+  <div class="graph-view">
+    <!-- Toolbar mode split-screen -->
+    <div class="graph-toolbar">
+      <div class="mode-buttons">
+        <button
+          class="mode-btn"
+          :class="{ active: displayMode === 'local' }"
+          @click="setMode('local')"
         >
-          <g
-            v-for="(badge, idx) in getNodeBadges(node)"
-            :key="`badge-${node.hash}-${idx}`"
-            :transform="`translate(${node.x + nodeRadius + 6}, ${node.y - 12 - (getNodeBadges(node).length - 1 - idx) * 18})`"
-            class="badge"
-            :class="{
-              'badge-head': badge.bgColor === '#dcfce7' || badge.bgColor === '#fee2e2',
-              'badge-branch': badge.bgColor === '#e0e7ff',
-              'badge-tag': badge.bgColor === '#fef3c7',
-            }"
-          >
-            <rect
-              x="0"
-              y="-11"
-              :width="badgeWidth(badge.label)"
-              height="15"
-              :fill="badge.bgColor"
-              :stroke="badge.borderColor"
-              rx="3"
-            />
-            <text
-              x="4"
-              y="1"
-              font-size="9"
-              :fill="badge.textColor"
-              font-family="ui-monospace, monospace"
-            >{{ badge.label }}</text>
-          </g>
-        </g>
-      </g>
-
-      <!-- Nœuds (commits) -->
-      <g class="nodes">
-        <circle
-          v-for="node in layout.nodes"
-          :key="`node-${node.hash}`"
-          :cx="node.x"
-          :cy="node.y"
-          :r="nodeRadius"
-          :fill="node.color"
-          class="node"
-          :class="{
-            'node-hovered': hoveredHash === node.hash,
-            'node-selected': selectedHash === node.hash,
-            'node-head': isHeadCommit(node.hash),
-            'node-head-detached': isHeadCommit(node.hash) && isHeadDetached,
-          }"
-          @mouseenter="(e) => handleNodeMouseEnter(node.hash, e)"
-          @mouseleave="handleNodeMouseLeave"
-          @click.stop="selectNode(node.hash)"
-        />
-      </g>
-
-      <!-- Labels hash + message -->
-      <g v-if="showLabels" class="labels">
-        <g
-          v-for="node in layout.nodes"
-          :key="`label-${node.hash}`"
-          class="label"
-          :transform="`translate(${node.x + nodeRadius + 8}, ${node.y})`"
+          Local
+        </button>
+        <button
+          class="mode-btn"
+          :class="{ active: displayMode === 'split' }"
+          :disabled="!hasRemote"
+          @click="setMode('split')"
         >
-          <text
-            x="0"
-            y="4"
-            font-size="10"
-            font-family="ui-monospace, monospace"
-            fill="#333"
-            class="label-hash"
-          >{{ node.snapshot.shortHash }}</text>
-          <text
-            x="0"
-            y="16"
-            font-size="9"
-            font-family="system-ui, sans-serif"
-            fill="#888"
-            class="label-message"
-          >{{ truncateMessage(node.snapshot.message, 36) }}</text>
-        </g>
-      </g>
-    </svg>
+          Split
+        </button>
+        <button
+          class="mode-btn"
+          :class="{ active: displayMode === 'remote' }"
+          :disabled="!hasRemote"
+          @click="setMode('remote')"
+        >
+          Distant
+        </button>
+      </div>
 
-    <!-- Placeholder dépôt non initialisé -->
-    <div v-else-if="!repo.snapshot.initialized" class="graph-placeholder">
-      <p class="title">Graphe Git</p>
-      <p class="hint">Initialisez un dépôt pour voir le graphe.</p>
+      <label v-if="hasRemote" class="sync-label">
+        <input v-model="syncZoomPan" type="checkbox" />
+        <span>Sync zoom/pan</span>
+      </label>
     </div>
 
-    <!-- Placeholder dépôt vide (initialisé mais aucun commit) -->
-    <div v-else class="graph-placeholder">
-      <p class="title">Graphe Git</p>
-      <p class="hint">Aucun commit pour l'instant.</p>
-    </div>
+    <!-- Conteneur graphes -->
+    <div class="graphs-container" :class="`mode-${displayMode}`">
+      <!-- Graphe local -->
+      <div
+        v-if="displayMode === 'local' || displayMode === 'split'"
+        class="graph-pane"
+        :class="displayMode === 'split' ? 'pane-half' : 'pane-full'"
+      >
+        <div v-if="displayMode === 'split'" class="pane-header">Local</div>
+        <div class="pane-body">
+          <GraphCanvas
+            v-if="localLayout"
+            :layout="localLayout"
+            :badges-by-hash="localBadgesByHash"
+            :highlighted-nodes="nonPushedNodes"
+            :head-hash="localHeadHash"
+            :head-detached="localHeadDetached"
+            :external-zoom="externalZoom"
+            :external-pan-x="externalPanX"
+            :external-pan-y="externalPanY"
+            @wheel="onWheelLocal"
+            @pan="onPanLocal"
+          />
+          <div v-else-if="!repo.snapshot.initialized" class="graph-placeholder">
+            <p class="title">Graphe Git</p>
+            <p class="hint">Initialisez un depot pour voir le graphe.</p>
+          </div>
+          <div v-else class="graph-placeholder">
+            <p class="title">Graphe Git</p>
+            <p class="hint">Aucun commit pour l'instant.</p>
+          </div>
+        </div>
+      </div>
 
-    <!-- Tooltip au survol -->
-    <div
-      v-if="hoveredHash && hoveredNode"
-      class="tooltip"
-      :style="{ left: `${tooltipX}px`, top: `${tooltipY}px` }"
-    >
-      <div class="tooltip-hash">{{ hoveredNode.snapshot.hash }}</div>
-      <div class="tooltip-message">{{ hoveredNode.snapshot.message }}</div>
-      <div v-if="hoveredNode.snapshot.parents.length" class="tooltip-parents">
-        Parents: {{ hoveredNode.snapshot.parents.slice(0, 2).map(h => h.slice(0, 7)).join(', ') }}
+      <!-- Séparateur en mode split -->
+      <div v-if="displayMode === 'split'" class="pane-divider" />
+
+      <!-- Graphe distant -->
+      <div
+        v-if="displayMode === 'split' || displayMode === 'remote'"
+        class="graph-pane"
+        :class="displayMode === 'split' ? 'pane-half' : 'pane-full'"
+      >
+        <div v-if="displayMode === 'split'" class="pane-header">
+          {{ firstRemoteName }} (distant)
+        </div>
+        <div class="pane-body">
+          <GraphCanvas
+            v-if="remoteLayout"
+            :layout="remoteLayout"
+            :badges-by-hash="remoteBadgesByHash"
+            :highlighted-nodes="unpulledNodes"
+            :head-hash="remoteHeadHash"
+            :head-detached="remoteHeadDetached"
+            :external-zoom="externalZoom"
+            :external-pan-x="externalPanX"
+            :external-pan-y="externalPanY"
+            @wheel="onWheelRemote"
+            @pan="onPanRemote"
+          />
+          <div v-else class="graph-placeholder">
+            <p class="title">Graphe distant</p>
+            <p class="hint">Aucun commit distant disponible.</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -418,99 +508,126 @@ function handleBackdropClick(e: MouseEvent): void {
 
 <style scoped>
 .graph-view {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #fafafa;
-  position: relative;
-  user-select: none;
-  cursor: grab;
 }
 
-.graph-view:active {
-  cursor: grabbing;
+/* Toolbar */
+.graph-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
+  border-bottom: 1px solid #ddd;
+  background: #f5f5f5;
+  flex-shrink: 0;
+  min-height: 30px;
 }
 
-.graph-svg {
-  transform-origin: 0 0;
-  display: block;
+.mode-buttons {
+  display: flex;
+  gap: 2px;
 }
 
-/* Arêtes */
-.edge {
-  stroke-width: 1.5;
-  fill: none;
-  opacity: 0.6;
-}
-
-.edge-merge {
-  stroke-dasharray: 4, 3;
-  opacity: 0.55;
-}
-
-.edge-related {
-  opacity: 1;
-  stroke-width: 2.5;
-}
-
-/* Nœuds */
-.node {
+.mode-btn {
+  padding: 2px 10px;
+  font-size: 0.72rem;
+  border: 1px solid #ccc;
+  background: #fff;
+  border-radius: 3px;
   cursor: pointer;
-  opacity: 0.85;
-  transition: opacity 0.12s ease, stroke-width 0.12s ease;
-  stroke: #fff;
-  stroke-width: 2;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.12));
+  font-family: ui-monospace, monospace;
+  transition: background 0.12s;
 }
 
-.node:hover,
-.node-hovered {
-  opacity: 1;
-  stroke-width: 3;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.22));
+.mode-btn:hover:not(:disabled) {
+  background: #e8f4fb;
 }
 
-.node-selected {
-  stroke: #111;
-  stroke-width: 3;
+.mode-btn.active {
+  background: #24292e;
+  color: #fff;
+  border-color: #24292e;
 }
 
-.node-head {
-  stroke: #16a34a;
-  stroke-width: 3;
-  filter: drop-shadow(0 0 5px rgba(22, 163, 74, 0.45));
+.mode-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
-.node-head-detached {
-  stroke: #dc2626;
-  stroke-width: 3;
-  filter: drop-shadow(0 0 5px rgba(220, 38, 38, 0.45));
+.sync-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: #555;
+  cursor: pointer;
+  user-select: none;
 }
 
-/* Badges */
-.badge {
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.08));
+/* Conteneur graphes */
+.graphs-container {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
 }
 
-.badge text {
-  font-weight: 500;
-  font-size: 9px;
+.graphs-container.mode-local,
+.graphs-container.mode-remote {
+  flex-direction: row;
 }
 
-/* Labels */
-.label {
-  pointer-events: none;
+.graphs-container.mode-split {
+  flex-direction: row;
 }
 
-.label-hash {
+/* Panneaux */
+.graph-pane {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.pane-full {
+  flex: 1;
+}
+
+.pane-half {
+  flex: 1;
+  min-width: 0;
+}
+
+.pane-header {
+  padding: 3px 8px;
+  font-size: 0.68rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #666;
+  background: #f0f0f0;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
 }
 
-.label-message {
-  fill: #888;
+.pane-body {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
 }
 
-/* Placeholder */
+/* Séparateur */
+.pane-divider {
+  width: 1px;
+  background: #ddd;
+  flex-shrink: 0;
+}
+
+/* Placeholder (dupliqué ici pour les cas sans GraphCanvas) */
 .graph-placeholder {
   position: absolute;
   top: 50%;
@@ -530,40 +647,5 @@ function handleBackdropClick(e: MouseEvent): void {
 .graph-placeholder .hint {
   font-size: 0.85rem;
   color: #bbb;
-}
-
-/* Tooltip */
-.tooltip {
-  position: fixed;
-  background: #1f2937;
-  color: #f9fafb;
-  padding: 8px 12px;
-  border-radius: 5px;
-  font-size: 11px;
-  font-family: ui-monospace, monospace;
-  z-index: 1000;
-  pointer-events: none;
-  max-width: 320px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
-  line-height: 1.5;
-}
-
-.tooltip-hash {
-  font-weight: 700;
-  margin-bottom: 3px;
-  color: #93c5fd;
-  word-break: break-all;
-}
-
-.tooltip-message {
-  margin-bottom: 3px;
-  word-break: break-word;
-  color: #e5e7eb;
-}
-
-.tooltip-parents {
-  opacity: 0.75;
-  font-size: 10px;
-  color: #9ca3af;
 }
 </style>

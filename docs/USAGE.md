@@ -3225,20 +3225,413 @@ $ git branch -vv
 
 ---
 
-## À venir en Phase 9+
+## Visualisation du distant (Phase 9)
 
-Les fonctionnalités suivantes ne sont **pas disponibles en Phase 8** mais seront implémentées ultérieurement :
+### Modes d'affichage du graphe : Local, Split, Distant
 
-- **Split-screen** : Visualisation côte à côte du dépôt local et du distant
+La visualisation graphique peut afficher le dépôt local, le distant, ou les deux côte à côte pour suivre votre synchronisation.
+
+#### Trois modes disponibles
+
+**Toolbar en haut du graphe** :
+
+```
+[Local] [Split] [Remote]
+```
+
+- **Local** : Graphe local seul (plein écran)
+- **Split** : Deux graphes côte à côte (local | distant)
+- **Remote** : Graphe distant seul (plein écran, si distant existe)
+
+Cliquez sur un bouton pour basculer de mode.
+
+#### Mode 1 : Local (par défaut si pas de distant)
+
+Affiche uniquement votre dépôt local avec vos branches, commits et HEAD.
+
+```
+┌─────────────────────┐
+│ [Local] Split ...   │
+├─────────────────────┤
+│                     │
+│   Graphe local      │
+│   (vos branches)    │
+│                     │
+└─────────────────────┘
+```
+
+**Commandes pour explorer** :
+- **Scroll** : zoom in/out
+- **Clic droit + drag** : pan (déplacer le graphe)
+- **Hover** : tooltip avec hash complet et message
+- **Clic** : sélectionner un commit
+
+#### Mode 2 : Split (par défaut si distant existe)
+
+Affiche le graphe local ET le graphe distant côte à côte. Pratique pour voir ce qui a été poussé, ce qui reste à récupérer.
+
+```
+┌────────────────┬────────────────┐
+│ [Local] Split …| Remote         │
+├────────────────┼────────────────┤
+│   Local        │   Remote       │
+│                │  (origin)      │
+│   Graphe       │                │
+│   local        │   Graphe       │
+│                │   distant      │
+└────────────────┴────────────────┘
+```
+
+**Observation clé** :
+- À gauche : votre branche locale `main` avec vos commits
+- À droite : la branche `main` distante (origin/main) avec ses commits
+- **Commits décorés par `[origin/main]`** sur le graphe local (sections 3.2 ci-dessous)
+
+**Interaction** :
+- Chaque graphe est zoomable et panning indépendamment
+- Option (optionnelle) : **« Zoom/Pan synchronisés »** pour synchroniser les actions sur les deux
+
+#### Mode 3 : Remote (si distant existe)
+
+Affiche uniquement le graphe distant, sans vos branches locales.
+
+```
+┌─────────────────────┐
+│ Local Split [Remote]│
+├─────────────────────┤
+│                     │
+│   Graphe distant    │
+│   (origin)          │
+│                     │
+└─────────────────────┘
+```
+
+Utile pour inspecter uniquement l'état du dépôt distant sans distraction.
+
+#### Condition : Pas de distant ?
+
+Si vous n'avez pas de remote configuré (pas de `git clone` ou `git remote add`), seul le mode **Local** est disponible. Les boutons **Split** et **Remote** sont grisés (désactivés).
+
+```
+┌─────────────────────┐
+│ [Local] [Split] ... │ ← Split/Remote grisés
+├─────────────────────┤
+│                     │
+│   Graphe local      │
+│                     │
+│ « Exécutez git clone │
+│  ou git remote add  │
+│  origin <url>       │
+│  pour afficher le   │
+│  distant »          │
+└─────────────────────┘
+```
+
+### Décorations visuelles : Suivi de la synchronisation
+
+Quand un distant est présent, le graphe local reçoit des décorations visuelles pour montrer ce qui a été synchronisé.
+
+#### Badges `origin/<branche>` sur le graphe local
+
+Sur le graphe local, un **badge gris** nommé `origin/main` apparaît sur le commit qui correspond à la dernière version distante.
+
+**Exemple** :
+
+```
+C5 [HEAD] [main]         ← Vous êtes ici, 1 commit en avance
+│
+C4 [origin/main]         ← Dernière version poussée
+│
+C3
+│
+C2
+│
+C1
+```
+
+**Format du badge** :
+- Couleur : gris clair (différent des branches bleues)
+- Label : `origin/branchname` (ex. `origin/feature`)
+- Présent uniquement si cette branche distante existe
+
+#### Surlignage : Commits non-poussés (graphe local)
+
+Les commits qui n'ont pas été poussés (absents de `origin/*`) sont **surlignés** visuellement pour vous avertir.
+
+**Visuel** :
+- **Bordure épaissie** ou **halo coloré** autour du nœud
+- Couleur : orange ou accent distinctif
+
+**Exemple** :
+
+```
+C5 ●━━ Surlignage (non-poussé)
+│
+C4 ● Normal (poussé)
+│
+C3 ●━━ Surlignage (nouveau commit local)
+```
+
+Pour pousser ces commits, utilisez `git push` dans le terminal ou le bouton **[Push]** de la sidebar.
+
+#### Surlignage : Commits non-récupérés (graphe distant)
+
+En mode **Split** ou **Remote**, les commits présents sur le distant mais absents localement sont **surlignés**.
+
+**Visuel** :
+- **Bordure épaissie** ou **halo** distinctif
+- Couleur : bleu ou accent different
+
+**Exemple (graphe distant)** :
+
+```
+C6 ●━━ Surlignage (non-récupéré)
+│
+C5 ● Normal (déjà copié)
+```
+
+Pour récupérer, utilisez `git fetch` ou `git pull`.
+
+### Barre latérale enrichie : Section « Distant »
+
+La **RefsSidebar** (zone gauche) contient maintenant une section **« Distant »** si un remote est configuré.
+
+#### Structure
+
+**Après la section « Commandes récentes »**, vous trouverez :
+
+```
+Distant
+  origin
+  https://github.com/user/project.git
+  
+  Upstream (main)
+  Branches:
+    [*] main
+        ↑ 2 ↓ 0 [origin/main]
+    [ ] feature
+        ↑ 1 ↓ 0 [origin/feature]
+    [ ] develop
+        ↑ 0 ↓ 3 (no upstream)
+  
+  [Fetch]  [Push]  [Pull]
+```
+
+#### Remotes et URLs
+
+**Remotes affichés** : la liste de tous les dépôts distants configurés (généralement juste `origin`).
+
+```
+Distant
+  origin
+  https://github.com/user/project.git
+```
+
+L'URL est cosmétique (pas de vérification réseau réelle).
+
+#### Branches avec indicateurs de suivi
+
+**Pour chaque branche locale**, une ligne affiche :
+
+```
+[*] main                         ← Branche courante (*)
+    ↑ 2 ↓ 0 [origin/main]       ← Ahead 2, Behind 0, upstream: origin/main
+
+[ ] feature
+    ↑ 1 ↓ 3 [origin/feature]    ← À pousser (1), à récupérer (3)
+
+[ ] develop
+    ↑ 0 ↓ 0 (no upstream)       ← Pas d'upstream configuré
+```
+
+**Format** :
+- `[*]` ou `[ ]` : indicateur si branche courante
+- `↑N` : N commits à pousser (couleur verte ou neutre)
+- `↓M` : M commits à récupérer (couleur orange/warning)
+- `[origin/branchname]` : upstream configuré (ex. `[origin/main]`)
+- `(no upstream)` : branche locale sans suivi
+
+**Cas particuliers** :
+- Si `↑0` et `↓0` : branche à jour (couleur verte)
+- Si `↑0` et `↓>0` : vous avez du retard (orange)
+- Si `↑>0` et `↓>0` : divergence (branche et upstream ont évolué différemment, orange/warning)
+
+#### Boutons d'action
+
+Trois boutons exécutent les commandes distantes courantes sur la branche courante :
+
+```
+[Fetch]  [Push]  [Pull]
+```
+
+**Comportement** :
+
+- **[Fetch]** : Exécute `git fetch origin`
+  - Met à jour toutes les références de suivi
+  - Ne touche pas vos branches locales
+  - Idéal pour voir ce qui a changé sans intégrer
+
+- **[Push]** : Exécute `git push origin <branche>`
+  - Envoie les commits locaux vers le distant
+  - Échoue si non-fast-forward (vous devez d'abord `pull`)
+  - Configure automatiquement l'upstream si première poussée
+
+- **[Pull]** : Exécute `git pull origin <branche>`
+  - Combine fetch + merge
+  - Intègre les changements distants dans votre branche
+  - Peut créer un merge commit ou rebase selon votre config
+
+**Important** : Si HEAD est détaché (pas sur une branche), les boutons Push/Pull affichent un message d'erreur : « Vous devez être sur une branche pour push/pull ».
+
+### Scénarios distants : Apprendre la collaboration
+
+Quatre nouveaux scénarios pédagogiques montrent des workflows collaboratifs courants. Accédez-les via la **RefsSidebar**, section **« Scénarios d'apprentissage »** (catégorie « Collaboration »).
+
+#### Scénario 7 : Clone, Commit & Push (Facile)
+
+**Description** : Cloner un dépôt, ajouter un commit local, et le pousser vers le distant.
+
+**Concept** : Workflow basique de synchronisation.
+
+**Commandes** :
+
+```bash
+git clone public-repo
+write feature.txt "New feature"
+git add feature.txt
+git commit -m "Add feature"
+git push
+```
+
+**État final attendu** :
+- Branche locale `main` et `origin/main` pointent le même commit
+- `git branch -vv` affiche : `main ... [origin/main]` (à jour)
+- Graphe : commit local déclaré avec badge `[origin/main]`
+
+**Apprentissage** : Voir comment le push synchronise votre travail local vers le distant.
+
+---
+
+#### Scénario 8 : Fetch divergent & Pull (merge) (Moyen)
+
+**Description** : Le distant a avancé pendant que vous committiez localement. Récupérez et intégrez par une fusion.
+
+**Concept** : Gestion de branches divergentes.
+
+**Commandes** :
+
+```bash
+git clone diverged-repo
+write local.txt "Local work"
+git add local.txt
+git commit -m "Local change"
+git fetch
+git pull --no-rebase
+```
+
+**État final attendu** :
+- Un **commit de merge** à deux parents (local et distant)
+- Graphe affiche une fusion explicite
+- `tracking.main` montre ahead/behind après sync
+
+**Apprentissage** : Voir comment les branches convergent à nouveau après divergence.
+
+---
+
+#### Scénario 9 : Push rejeté → Pull --rebase → Push (Moyen)
+
+**Description** : Vous tentez un push, mais il est rejeté (le distant a avancé). Vous rebasez votre travail et renvoyez.
+
+**Concept** : Résolution d'un push non-fast-forward.
+
+**Commandes** :
+
+```bash
+git clone diverged-repo
+write local.txt "Local work"
+git add local.txt
+git commit -m "Local change"
+git push
+# ← REJECT: non-fast-forward
+git pull --rebase
+git push
+```
+
+**État final attendu** :
+- Historique **linéaire** (pas de merge commit)
+- Vos commits rejoués avec nouveaux hashes
+- Graphe : ligne droite sans branchement
+- `tracking.main` synchronisé
+
+**Apprentissage** : Workflow de rebase pour un historique propre en collaboration.
+
+---
+
+#### Scénario 10 : Collaboration : deux branches (Moyen)
+
+**Description** : `main` et `develop` divergent, chacune reçoit des commits, puis les deux sont poussées sélectivement.
+
+**Concept** : Workflow avec plusieurs branches et upstream.
+
+**Commandes** :
+
+```bash
+git init
+write shared.txt "Base"
+git add shared.txt
+git commit -m "Base commit"
+git remote add origin local://origin
+git push -u origin main
+git checkout -b develop
+write dev.txt "Develop feature"
+git add dev.txt
+git commit -m "Develop work"
+git push -u origin develop
+git checkout main
+write main.txt "Main feature"
+git add main.txt
+git commit -m "Main work"
+git push
+```
+
+**État final attendu** :
+- Dépôt distant contient deux branches : `main` et `develop`
+- Les deux branches locales ont upstreams configurés
+- `git branch -vv` affiche deux lignes synchronisées
+- Graphe local : deux branches indépendantes, toutes deux à jour
+
+**Apprentissage** : Gestion de plusieurs branches en collaboration.
+
+---
+
+#### Comment charger un scénario Distant
+
+1. Ouvrez la **RefsSidebar** (gauche)
+2. Scroll jusqu'à **« Scénarios d'apprentissage »**
+3. Dans la catégorie **« Collaboration »**, cliquez sur le scénario (ex. "Clone & Push")
+4. Une confirmation : « Êtes-vous sûr ? Le dépôt sera réinitialisé »
+5. Cliquez **« Charger »**
+6. Toutes les commandes du scénario s'exécutent silencieusement
+7. Explorez le graphe, la sidebar, et l'état final
+
+**Important** : Charger un scénario **réinitialise votre dépôt**. Tout travail antérieur est perdu.
+
+---
+
+## À venir en Phase 10+
+
+Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seront implémentées ultérieurement :
+
 - **Interactions avancées** : Clic sur une branche pour checkout, clic sur tag pour inspect
 - **Historique avancé** : `git log -p` (affichage des diffs), `git log --follow` (historique des fichiers renommés)
 - **Shell interactif** : Un shell complet avec `echo`, `cat`, `touch`, etc.
 - **Export/Import** : Sauvegarder une session en fichier, charger depuis un fichier
 - **`git remote set-url`** : Modifier l'URL d'un remote
 - **`git push --delete`** : Supprimer une branche distante
-- **`git pull --force`** : Options de contrôle plus fine sur les pulls
+- **Animations** : Transitions visuelles lors du fetch/push
+- **Dark mode** : Thème sombre pour le terminal et graphe
 
-**Phase 8 ajoute la synchronisation complète** : poussez vos commits locaux, intégrez les changements distants, et configurez le suivi des branches pour un workflow collaboratif fluide !
+**Phase 9 ajoute la visualisation complète du workflow distant** : comprenez ce qui est local, ce qui est distant, et explorez les scénarios de collaboration sans réseau réel !
 
 ---
 

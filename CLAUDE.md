@@ -114,6 +114,16 @@ Développement par phases (voir la liste de tâches).
   - Init défensif des champs distant copié dans push/pull/branch → helper `ensureRemoteFields` (dette Phase 7 toujours ouverte).
   - `pull origin <branche-inexistante>` renvoie 128 (la spec voulait 1) ; pas d'ambiguïté signalée branche-locale-à-slash vs `remote/branch` (ordre correct, sans warning).
 
+- **Phase 9 terminée** : visualisation du distant + sidebar distante + scénarios (UI uniquement, zéro nouvelle commande). Refactor `GraphView.vue` → **`GraphCanvas.vue`** (présentationnel PUR : reçoit `layout: GraphLayout`, `badgesByHash`, `highlightedNodes`, `headHash`/`headDetached` en props, n'accède pas au store) + `GraphView.vue` (conteneur connecté). Modes **local / split / remote** (toolbar ; bascule auto en split au 1er distant ; boutons grisés sans distant). `computeLayout` réutilisé tel quel sur `snapshot.remotes[name]` (mêmes `SnapshotCommit`). Décorations : badges `kind:'remote'` (`origin/main`) sur le graphe local, surlignage des commits **non poussés** (calcul par accessibilité depuis les tips de suivi) et **non récupérés**. **Dette Phase 3 soldée** : badges mémoïsés en `computed` (Map par hash), champ discriminant `kind:'head'|'branch'|'tag'|'remote'`, couleurs d'arête en Map (plus de `.find()` O(E·N)). Sidebar « Distant » (remotes, ahead/behind/upstream/gone, boutons Fetch/Push/Pull → `store.execute`). 4 scénarios « Distant » (clone-push, pull-merge, push-rejected-rebase, collab-two-branches — dépôts prédéfinis réels + clone/reset pour la divergence). Specs `40-41`, doc `docs/USAGE.md`. 929 tests verts (dont `tests/scenarios-remote.test.ts`).
+
+  Dette Phase 9 (revue QA) — non bloquante :
+  - **Pas de tests composants** (`@vue/test-utils` absent) → `GraphCanvas`/`GraphView`/`RefsSidebar` non couverts ; la non-régression du graphe repose sur la revue. M1 (perte de l'anneau HEAD à l'extraction) et le surlignage non-poussé par tip-only ont été **corrigés** avant commit. À verrouiller en ajoutant `@vue/test-utils` (spec 61).
+  - Duplication ~85 % `buildLocalBadges`/`buildRemoteBadges` (palettes hex répétées) → factoriser un `buildBadges(commits, headState, {remoteRefs})`.
+  - `RefsSidebar` : garde HEAD-détaché des boutons push/pull via `alert()` (duplique une règle moteur ; idéalement laisser le moteur renvoyer `fail` et surfacer le résultat) ; `remoteUrl()` renvoie toujours null (l'url n'est pas exposée dans `snapshot.remotes` — l'exposer ou retirer).
+  - Sélection mono-remote (`Object.keys(remotes)[0]`) : le multi-remote n'affiche qu'origin.
+  - Divergences spec↔code à acter : catégorie scénarios `'Distant'` (spec disait `'Collaboration'`), `pull-merge` (spec : `fetch-pull-merge`), contrat de props `GraphCanvas` (amélioré vs spec 40).
+  - Reprises de la dette Phase 8 toujours ouvertes (R3 `resolveUpstream`, R5 discriminant `state` dans `tracking`, R6 `ensureRemoteFields`).
+
 
 ### Graphe (à connaître pour la Phase 4)
 

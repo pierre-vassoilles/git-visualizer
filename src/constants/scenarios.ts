@@ -274,6 +274,105 @@ export const SCENARIOS: Scenario[] = [
   },
 
   // -------------------------------------------------------------------
+  // Scénario distant 1 : Clone, commit, push (facile)
+  // -------------------------------------------------------------------
+  {
+    id: 'clone-push',
+    title: 'Clone, Commit & Push',
+    description: 'Cloner un depot distant, ajouter un commit, le pousser sur origin.',
+    category: 'Distant',
+    difficulty: 1,
+    commands: [
+      'git clone public-repo',
+      'write feature.txt "nouvelle fonctionnalite"',
+      'git add feature.txt',
+      'git commit -m "Ajout de la fonctionnalite"',
+      'git push',
+    ],
+  },
+
+  // -------------------------------------------------------------------
+  // Scénario distant 2 : Pull avec merge (moyen)
+  // Divergence : on recule le local d'un commit (origin/main reste en avance)
+  // puis on commit localement → ahead 1, behind 1 → git pull --no-rebase
+  // -------------------------------------------------------------------
+  {
+    id: 'pull-merge',
+    title: 'Pull divergent (merge)',
+    description: 'Le local recule pendant qu\'origin avance : recuperer par une fusion.',
+    category: 'Distant',
+    difficulty: 2,
+    commands: [
+      'git clone public-repo',
+      // Reculer d'un commit pour que origin/main soit en avance
+      'git reset --hard HEAD~1',
+      // Ajouter un commit local sur un fichier différent → pas de conflit
+      'write local.txt "travail local"',
+      'git add local.txt',
+      'git commit -m "C2-local : travail local"',
+      // git pull --no-rebase : merge origin/main dans main → commit de merge
+      'git pull --no-rebase',
+    ],
+  },
+
+  // -------------------------------------------------------------------
+  // Scénario distant 3 : Push rejeté → pull --rebase → push (moyen)
+  // -------------------------------------------------------------------
+  {
+    id: 'push-rejected-rebase',
+    title: 'Push rejete -> Pull --rebase -> Push',
+    description: 'Un push non-fast-forward est rejete ; rebase sur origin puis push.',
+    category: 'Distant',
+    difficulty: 2,
+    commands: [
+      'git clone public-repo',
+      // Reculer pour que origin/main soit en avance
+      'git reset --hard HEAD~1',
+      'write local.txt "travail local"',
+      'git add local.txt',
+      'git commit -m "C2-local"',
+      // Ce push sera REJETE (non-fast-forward) : exitCode != 0, scénario continue
+      'git push',
+      // Rebase local sur origin/main puis push
+      'git pull --rebase',
+      'git push',
+    ],
+  },
+
+  // -------------------------------------------------------------------
+  // Scénario distant 4 : Collaboration, deux branches (moyen)
+  // -------------------------------------------------------------------
+  {
+    id: 'collab-two-branches',
+    title: 'Collaboration : deux branches',
+    description: 'main et develop divergent depuis une base commune, push selectif par branche.',
+    category: 'Distant',
+    difficulty: 2,
+    commands: [
+      // Dépôt neuf + distant vide : chaque branche poussée crée une nouvelle
+      // branche distante (pas de divergence préexistante).
+      'git init',
+      'write shared.txt "base partagee"',
+      'git add shared.txt',
+      'git commit -m "C1: base partagee"',
+      'git remote add origin local://origin',
+      'git push -u origin main',
+      // Créer develop depuis main et la pousser
+      'git checkout -b develop',
+      'write dev.txt "fonctionnalite develop"',
+      'git add dev.txt',
+      'git commit -m "C2: develop"',
+      'git push -u origin develop',
+      // Revenir sur main et ajouter un commit
+      'git checkout main',
+      'write main.txt "fonctionnalite main"',
+      'git add main.txt',
+      'git commit -m "C3: main"',
+      'git push',
+    ],
+  },
+
+  // -------------------------------------------------------------------
   // Scénario 8 : Rebase d'une feature sur une branche dev mise à jour
   // -------------------------------------------------------------------
   {

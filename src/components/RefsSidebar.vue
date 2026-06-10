@@ -119,6 +119,80 @@ function onReset(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Distant
+// ---------------------------------------------------------------------------
+
+const hasRemotes = computed(() =>
+  Object.keys(repo.snapshot.remotes ?? {}).length > 0,
+);
+
+const remoteNames = computed(() =>
+  Object.keys(repo.snapshot.remotes ?? {}),
+);
+
+/** URL d'un remote (fournie par snapshot.remotes[name].url si disponible). */
+function remoteUrl(name: string): string | null {
+  // Le snapshot expose heads, allCommits, head — pas d'URL directe Phase 7.
+  // On essaie de lire depuis branchUpstream s'il y a un upstream configuré.
+  const upstream = repo.snapshot.branchUpstream;
+  if (!upstream) return null;
+  for (const info of Object.values(upstream)) {
+    if (info.remote === name) {
+      // L'URL n'est pas dans le snapshot (moteur stocke dans repo.remotes[name].url).
+      // On retourne null ; si le moteur l'expose un jour, on la lit ici.
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Infos de tracking pour une branche (ahead, behind, upstream). */
+function trackingInfo(branch: string) {
+  return repo.snapshot.tracking?.[branch] ?? null;
+}
+
+/** Texte formaté de l'upstream pour une branche. */
+function upstreamLabel(branch: string): string | null {
+  const info = trackingInfo(branch);
+  if (!info?.upstream) return null;
+  return `${info.upstream.remote}/${info.upstream.branch}`;
+}
+
+/** Couleur CSS de l'indicateur de synchro. */
+function syncColor(branch: string): 'synced' | 'ahead' | 'behind' | 'diverged' {
+  const info = trackingInfo(branch);
+  if (!info) return 'synced';
+  const a = info.ahead ?? 0;
+  const b = info.behind ?? 0;
+  if (a > 0 && b > 0) return 'diverged';
+  if (b > 0) return 'behind';
+  if (a > 0) return 'ahead';
+  return 'synced';
+}
+
+function onFetch(): void {
+  repo.execute('git fetch');
+}
+
+function onPush(): void {
+  const head = repo.snapshot.head;
+  if (head.type === 'detached') {
+    alert('HEAD est detache. Checkout une branche avant de pousser.');
+    return;
+  }
+  repo.execute(`git push`);
+}
+
+function onPull(): void {
+  const head = repo.snapshot.head;
+  if (head.type === 'detached') {
+    alert('HEAD est detache. Checkout une branche avant de tirer.');
+    return;
+  }
+  repo.execute(`git pull`);
+}
+
+// ---------------------------------------------------------------------------
 // Scénarios
 // ---------------------------------------------------------------------------
 
@@ -244,6 +318,64 @@ function difficultyLabel(d: 1 | 2 | 3): string {
       <button class="btn btn-reset" @click="onReset">
         Réinitialiser
       </button>
+    </section>
+
+    <!-- ================================================================
+         Distant
+    ================================================================ -->
+    <section v-if="hasRemotes">
+      <h2>Distant</h2>
+
+      <!-- Liste des remotes -->
+      <div class="remote-list">
+        <div
+          v-for="name in remoteNames"
+          :key="name"
+          class="remote-entry"
+        >
+          <span class="remote-name">{{ name }}</span>
+          <span v-if="remoteUrl(name)" class="remote-url">{{ remoteUrl(name) }}</span>
+        </div>
+      </div>
+
+      <!-- Branches avec infos de tracking -->
+      <div class="tracking-section">
+        <div
+          v-for="name in branchNames"
+          :key="name"
+          class="branch-track-row"
+        >
+          <div class="branch-track-header">
+            <span class="indicator">{{ isCurrentBranch(name) ? '●' : '○' }}</span>
+            <span class="item-name" :class="{ 'item-current-name': isCurrentBranch(name) }">{{ name }}</span>
+          </div>
+          <div v-if="trackingInfo(name)" class="track-stats" :class="`sync-${syncColor(name)}`">
+            <span v-if="(trackingInfo(name)!.ahead ?? 0) > 0" class="ahead-count">
+              &#8593;{{ trackingInfo(name)!.ahead }}
+            </span>
+            <span v-if="(trackingInfo(name)!.behind ?? 0) > 0" class="behind-count">
+              &#8595;{{ trackingInfo(name)!.behind }}
+            </span>
+            <span v-if="(trackingInfo(name)!.ahead ?? 0) === 0 && (trackingInfo(name)!.behind ?? 0) === 0 && upstreamLabel(name)" class="synced-label">
+              a jour
+            </span>
+            <span v-if="trackingInfo(name)!.gone" class="gone-label">
+              (gone)
+            </span>
+            <span v-if="upstreamLabel(name)" class="upstream-label">
+              [{{ upstreamLabel(name) }}]
+            </span>
+            <span v-else class="no-upstream-label">(pas d'upstream)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Boutons d'action -->
+      <div class="remote-actions">
+        <button class="btn btn-fetch" @click="onFetch">Fetch</button>
+        <button class="btn btn-push" @click="onPush">Push</button>
+        <button class="btn btn-pull" @click="onPull">Pull</button>
+      </div>
     </section>
 
     <!-- ================================================================
@@ -509,6 +641,109 @@ h2 {
 .btn-scenario:hover {
   background: #eff6ff;
   border-color: #93c5fd;
+}
+
+/* --- Distant --- */
+.remote-list {
+  margin-bottom: 8px;
+}
+
+.remote-entry {
+  padding: 2px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.remote-name {
+  font-weight: 700;
+  color: #333;
+}
+
+.remote-url {
+  font-size: 0.68rem;
+  color: #888;
+  word-break: break-all;
+}
+
+.tracking-section {
+  margin-bottom: 8px;
+}
+
+.branch-track-row {
+  padding: 3px 0;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.branch-track-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.item-current-name {
+  font-weight: 700;
+  color: #0070f3;
+}
+
+.track-stats {
+  font-size: 0.68rem;
+  margin-left: 16px;
+  margin-top: 1px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.ahead-count {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.behind-count {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.synced-label {
+  color: #16a34a;
+  font-style: italic;
+}
+
+.gone-label {
+  color: #dc2626;
+  font-style: italic;
+}
+
+.upstream-label {
+  color: #0070f3;
+}
+
+.no-upstream-label {
+  color: #aaa;
+  font-style: italic;
+}
+
+.remote-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.btn-fetch:hover {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+}
+
+.btn-push:hover {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.btn-pull:hover {
+  background: #fef3c7;
+  border-color: #fde68a;
 }
 
 /* --- Divers --- */
