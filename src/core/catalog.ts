@@ -196,6 +196,46 @@ const COMMANDS_BY_CATEGORY: Record<string, CommandMetadata[]> = {
         'git log main',
       ],
     },
+    {
+      name: 'diff',
+      description: 'Afficher les différences entre états',
+      category: 'Commits',
+      flags: [
+        { name: '--staged', hasArgument: false, description: 'Index vs HEAD (changements stagés)', isCommon: true },
+        { name: '--cached', hasArgument: false, description: 'Alias de --staged', isCommon: false },
+        { name: '[<commit>]', hasArgument: true, description: 'Comparer avec un commit/branche', isCommon: false },
+        { name: '--', hasArgument: true, description: 'Limiter aux chemins spécifiés', isCommon: false },
+      ],
+      synopsis: 'git diff [--staged|--cached] [<commit> [<commit>]] [-- <pathspec>...]',
+      longDescription:
+        'Affiche les différences ligne à ligne. Sans argument : working tree vs index. ' +
+        'Avec --staged/--cached : index vs HEAD. Avec un ou deux commits : compare ces états. ' +
+        'L\'option -- limite la comparaison aux chemins indiqués.',
+      examples: [
+        'git diff',
+        'git diff --staged',
+        'git diff HEAD~1 HEAD',
+        'git diff main feature',
+        'git diff -- src/',
+      ],
+    },
+    {
+      name: 'show',
+      description: 'Afficher un commit (métadonnées + diff)',
+      category: 'Commits',
+      flags: [
+        { name: '[<commit>]', hasArgument: true, description: 'Commit à afficher (défaut : HEAD)', isCommon: false },
+      ],
+      synopsis: 'git show [<commit>]',
+      longDescription:
+        'Affiche les métadonnées d\'un commit (hash, auteur, date, message) suivies du diff ' +
+        'vs son premier parent (ou vs l\'arbre vide pour le commit initial).',
+      examples: [
+        'git show',
+        'git show HEAD',
+        'git show <hash>',
+      ],
+    },
   ],
 
   'Branches': [

@@ -141,11 +141,11 @@ describe('catalog — CA-catalog-05 : groupement par catégorie Commits', () => 
     expect(names).toContain('log');
   });
 
-  it('CA-catalog-05 : commands["Commits"] ne contient que commit et log', () => {
+  it('CA-catalog-05 : la catégorie Commits contient commit, log, diff, show', () => {
     const commits = COMMAND_CATALOG.commands['Commits'];
-    // La spec dit exactement commit + log dans la catégorie Commits
-    const names = commits.map(c => c.name);
-    expect(names.length).toBe(2);
+    // Étendue en B1 (spec 42) : ajout de diff et show à la catégorie Commits.
+    const names = commits.map(c => c.name).sort();
+    expect(names).toEqual(['commit', 'diff', 'log', 'show']);
   });
 });
 

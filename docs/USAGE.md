@@ -3618,6 +3618,36 @@ git push
 
 ---
 
+## Inspecter les différences : `git diff` & `git show` (Axe B1)
+
+### `git diff` — comparer des états
+
+```bash
+git diff                    # working tree vs index (modifs non stagées)
+git diff --staged           # index vs HEAD (modifs stagées) ; --cached = alias
+git diff <commit>           # working tree vs un commit / une branche
+git diff <commit1> <commit2># entre deux commits/branches
+git diff HEAD~1 HEAD        # révisions acceptées (HEAD~n, tags, hash, branches)
+git diff -- <chemin>...     # limiter la comparaison à certains chemins
+```
+
+La sortie suit le format de Git (`diff --git a/… b/…`, `index …`, `@@ … @@`,
+lignes `+`/`-`) et est **colorisée** dans le terminal : vert = ajout, rouge =
+suppression, cyan = en-tête de bloc (`@@`), gris = en-têtes de fichier. Les
+fichiers binaires (contenant un octet nul) affichent `Binary files … differ`.
+
+### `git show` — examiner un commit
+
+```bash
+git show          # HEAD par défaut
+git show <commit> # hash, branche, tag, ou révision (HEAD~n)
+```
+
+Affiche les métadonnées du commit (`commit <hash>`, `Author:`, `Date:`, message)
+puis le diff vs son premier parent (ou vs l'arbre vide pour le commit initial).
+
+---
+
 ## À venir en Phase 10+
 
 Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seront implémentées ultérieurement :

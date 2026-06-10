@@ -24,6 +24,30 @@ function write(text: string): void {
 }
 
 /**
+ * Colorise une ligne de sortie façon visualiseur de diff (git diff / git show) :
+ * vert pour les ajouts, rouge pour les suppressions, cyan pour les en-têtes de
+ * hunk, gris pour les en-têtes de fichier. Les lignes non-diff sont inchangées.
+ */
+function colorizeDiffLine(line: string): string {
+  const RESET = '\x1b[0m';
+  if (
+    line.startsWith('diff --git') ||
+    line.startsWith('index ') ||
+    line.startsWith('new file') ||
+    line.startsWith('deleted file') ||
+    line.startsWith('Binary files') ||
+    line.startsWith('--- ') ||
+    line.startsWith('+++ ')
+  ) {
+    return `\x1b[2m${line}${RESET}`; // gris (en-tête)
+  }
+  if (line.startsWith('@@')) return `\x1b[36m${line}${RESET}`; // cyan (hunk)
+  if (line.startsWith('+')) return `\x1b[32m${line}${RESET}`; // vert (ajout)
+  if (line.startsWith('-')) return `\x1b[31m${line}${RESET}`; // rouge (suppression)
+  return line;
+}
+
+/**
  * Exécute la ligne courante, en gérant le chaînage de commandes :
  * - `;`  : exécute la commande suivante quoi qu'il arrive.
  * - `&&` : exécute la suivante uniquement si la précédente a réussi (exitCode 0).
@@ -50,7 +74,7 @@ function runCurrentLine(): void {
 
     const result = repo.execute(command);
     for (const out of result.output) {
-      write(`${out}\r\n`);
+      write(`${colorizeDiffLine(out)}\r\n`);
     }
     for (const err of result.errors) {
       // Rouge ANSI pour stderr.
