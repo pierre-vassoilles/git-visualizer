@@ -7,6 +7,7 @@ import InteractiveRebaseModal from '@/components/InteractiveRebaseModal.vue';
 import ConflictEditorModal from '@/components/ConflictEditorModal.vue';
 import GuidedTutorialModal from '@/components/GuidedTutorialModal.vue';
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue';
+import CommandPalette from '@/components/CommandPalette.vue';
 import { useRepoStore } from '@/stores/repo';
 import { useTheme } from '@/composables/useTheme';
 
@@ -27,6 +28,7 @@ onMounted(() => {
   <InteractiveRebaseModal />
   <ConflictEditorModal />
   <GuidedTutorialModal />
+  <CommandPalette />
   <div class="layout">
     <header class="topbar">
       <span class="brand">Git Visualizer</span>
