@@ -16,11 +16,11 @@ Ces commandes permettent de gérer les fichiers virtuels. Elles ne font pas part
 
 #### `write` — Créer ou modifier un fichier
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `write <chemin> [contenu]` |
+| Aspect          | Détail                                           |
+| --------------- | ------------------------------------------------ |
+| **Syntaxe**     | `write <chemin> [contenu]`                       |
 | **Description** | Crée ou remplace un fichier dans le working tree |
-| **Options** | Aucune |
+| **Options**     | Aucune                                           |
 
 **Exemples :**
 
@@ -41,11 +41,11 @@ write src/main.ts "console.log('Hello')"
 
 #### `read` — Afficher le contenu d'un fichier
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `read <chemin>` |
+| Aspect          | Détail                                          |
+| --------------- | ----------------------------------------------- |
+| **Syntaxe**     | `read <chemin>`                                 |
 | **Description** | Affiche le contenu d'un fichier du working tree |
-| **Options** | Aucune |
+| **Options**     | Aucune                                          |
 
 **Exemples :**
 
@@ -62,11 +62,11 @@ read README.md
 
 #### `git init` — Initialiser un dépôt
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git init` |
+| Aspect          | Détail                                                 |
+| --------------- | ------------------------------------------------------ |
+| **Syntaxe**     | `git init`                                             |
 | **Description** | Initialise un dépôt Git vierge avec une branche `main` |
-| **Options** | Aucune en Phase 1 |
+| **Options**     | Aucune en Phase 1                                      |
 
 **Exemple :**
 
@@ -81,11 +81,11 @@ git init
 
 #### `git add` — Stager des fichiers
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git add <chemin...>` ou `git add .` |
+| Aspect          | Détail                                                                                        |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| **Syntaxe**     | `git add <chemin...>` ou `git add .`                                                          |
 | **Description** | Enregistre les fichiers du working tree dans l'index (staging area) en vue du prochain commit |
-| **Options** | Aucune en Phase 1 |
+| **Options**     | Aucune en Phase 1                                                                             |
 
 **Exemples :**
 
@@ -101,6 +101,7 @@ git add .
 ```
 
 **Comportement :**
+
 - Calcule le hash SHA-1 de chaque fichier
 - Stocke l'entrée dans l'index (index vide après init)
 - Pas de sortie en cas de succès
@@ -111,11 +112,11 @@ git add .
 
 #### `git status` — Afficher l'état du dépôt
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git status [options]` |
+| Aspect          | Détail                                                           |
+| --------------- | ---------------------------------------------------------------- |
+| **Syntaxe**     | `git status [options]`                                           |
 | **Description** | Affiche l'état du dépôt : fichiers stagés, modifiés, non-trackés |
-| **Options** | `-s` ou `--short` (affichage compact, optionnel en Phase 1) |
+| **Options**     | `-s` ou `--short` (affichage compact, optionnel en Phase 1)      |
 
 **Exemples :**
 
@@ -167,14 +168,14 @@ A  staged.txt
 M  modified.txt
 ```
 
-| Code | Sens |
-|------|------|
-| `??` | Non-tracké |
+| Code | Sens                     |
+| ---- | ------------------------ |
+| `??` | Non-tracké               |
 | `A ` | Ajouté (new file, stagé) |
-| `M ` | Modifié (stagé) |
-| ` M` | Modifié (non-stagé) |
-| `D ` | Supprimé (stagé) |
-| ` D` | Supprimé (non-stagé) |
+| `M ` | Modifié (stagé)          |
+| ` M` | Modifié (non-stagé)      |
+| `D ` | Supprimé (stagé)         |
+| ` D` | Supprimé (non-stagé)     |
 
 **Code de sortie :** 0 (quel que soit l'état)
 
@@ -182,11 +183,11 @@ M  modified.txt
 
 #### `git commit` — Créer un commit
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git commit -m "<message>"` |
+| Aspect          | Détail                                                       |
+| --------------- | ------------------------------------------------------------ |
+| **Syntaxe**     | `git commit -m "<message>"`                                  |
 | **Description** | Crée un commit à partir du contenu de l'index (staging area) |
-| **Options** | `-m <message>` (obligatoire en Phase 1) |
+| **Options**     | `-m <message>` (obligatoire en Phase 1)                      |
 
 **Exemple :**
 
@@ -196,6 +197,7 @@ git commit -m "Initial commit"
 ```
 
 **Comportement :**
+
 1. Crée un arbre (tree) représentant l'état de tous les fichiers stagés
 2. Crée un commit pointant vers ce tree avec le message fourni
 3. Met à jour la branche courante (main) pour pointer vers ce nouveau commit
@@ -207,11 +209,11 @@ git commit -m "Initial commit"
 
 #### `git log` — Afficher l'historique des commits
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git log [options]` |
-| **Description** | Affiche l'historique des commits en remontant de HEAD à la racine |
-| **Options** | `--oneline` (affichage court, optionnel) ; `--graph` (graphique ASCII, optionnel) |
+| Aspect          | Détail                                                                            |
+| --------------- | --------------------------------------------------------------------------------- |
+| **Syntaxe**     | `git log [options]`                                                               |
+| **Description** | Affiche l'historique des commits en remontant de HEAD à la racine                 |
+| **Options**     | `--oneline` (affichage court, optionnel) ; `--graph` (graphique ASCII, optionnel) |
 
 **Exemples :**
 
@@ -334,34 +336,44 @@ Un terminal web pour Git
 ## Erreurs courantes et dépannage
 
 ### Dépôt non initialisé
+
 ```
 fatal: not a git repository (or any of the parent directories): .git
 ```
+
 **Solution :** Exécutez `git init` en premier.
 
 ### Pathspec non trouvé
+
 ```
 fatal: pathspec 'filename.txt' did not match any files
 ```
+
 **Solution :** Vérifiez l'orthographe du chemin. Créez le fichier avec `write` avant d'utiliser `git add`.
 
 ### Rien à committer
+
 ```
 fatal: no changes added to commit
 ```
+
 **Solution :** Utilisez `git add` pour stager des fichiers avant `git commit`.
 
 ### Message vide ou manquant
+
 ```
 fatal: option '-m' is required
 fatal: message cannot be empty
 ```
+
 **Solution :** Fournissez `-m "<message>"` avec un message non-vide.
 
 ### Aucun commit dans l'historique
+
 ```
 fatal: No commits yet
 ```
+
 **Solution :** Créez au moins un commit avec `git add` + `git commit -m "..."`.
 
 ---
@@ -372,11 +384,11 @@ fatal: No commits yet
 
 #### `git branch` — Lister, créer ou supprimer des branches
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git branch [options] [branchname]` |
-| **Description** | Gère les branches du dépôt : liste, crée ou supprime |
-| **Options** | Aucun argument : liste les branches ; `<branchname>` : crée ; `-d <branchname>` : supprime (safe) ; `-D <branchname>` : supprime (force) |
+| Aspect          | Détail                                                                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Syntaxe**     | `git branch [options] [branchname]`                                                                                                      |
+| **Description** | Gère les branches du dépôt : liste, crée ou supprime                                                                                     |
+| **Options**     | Aucun argument : liste les branches ; `<branchname>` : crée ; `-d <branchname>` : supprime (safe) ; `-D <branchname>` : supprime (force) |
 
 **Exemples :**
 
@@ -395,6 +407,7 @@ git branch -D feature
 ```
 
 **Comportement :**
+
 - **Lister** : Affiche toutes les branches, en marquant la courante avec `*`
 - **Créer** : Crée une nouvelle branche pointant vers le commit HEAD courant ; erreur si la branche existe déjà
 - **Supprimer (-d)** : Supprime la branche si elle n'est pas la branche courante ; erreur si elle est courante
@@ -406,11 +419,11 @@ git branch -D feature
 
 #### `git checkout` — Changer de branche ou détacher HEAD
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git checkout [options] <branchname \| commit>` |
-| **Description** | Bascule HEAD vers une branche, crée et bascule, ou détache HEAD sur un commit |
-| **Options** | Aucun argument : bascule vers une branche existante ; `-b <branchname>` : crée et bascule ; `-` : revient à la branche précédente ; `--detach` : détache HEAD (variante) |
+| Aspect          | Détail                                                                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Syntaxe**     | `git checkout [options] <branchname \| commit>`                                                                                                                          |
+| **Description** | Bascule HEAD vers une branche, crée et bascule, ou détache HEAD sur un commit                                                                                            |
+| **Options**     | Aucun argument : bascule vers une branche existante ; `-b <branchname>` : crée et bascule ; `-` : revient à la branche précédente ; `--detach` : détache HEAD (variante) |
 
 **Exemples :**
 
@@ -432,6 +445,7 @@ git checkout --detach abc1234
 ```
 
 **Comportement :**
+
 - **Basculer vers branche** : Met à jour HEAD, l'index et le working tree
 - **Créer et basculer (-b)** : Crée la branche comme `git branch`, puis bascule dessus
 - **Détacher HEAD** : Passe HEAD en mode détaché (pointe directement sur le commit)
@@ -443,11 +457,11 @@ git checkout --detach abc1234
 
 #### `git switch` — Changer de branche (variante moderne de checkout)
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git switch [options] <branchname>` |
-| **Description** | Alternative plus claire et explicite à `checkout` pour basculer entre branches |
-| **Options** | Aucun argument : bascule vers une branche existante ; `-c <branchname>` : crée et bascule ; `-` : revient à la branche précédente ; `--detach <commit>` : détache HEAD |
+| Aspect          | Détail                                                                                                                                                                 |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Syntaxe**     | `git switch [options] <branchname>`                                                                                                                                    |
+| **Description** | Alternative plus claire et explicite à `checkout` pour basculer entre branches                                                                                         |
+| **Options**     | Aucun argument : bascule vers une branche existante ; `-c <branchname>` : crée et bascule ; `-` : revient à la branche précédente ; `--detach <commit>` : détache HEAD |
 
 **Exemples :**
 
@@ -466,6 +480,7 @@ git switch -
 ```
 
 **Comportement :**
+
 - Équivalent à `git checkout`, mais avec des messages plus explicites
 - **-c** : Crée et bascule (équivalent à `checkout -b`)
 - **--detach** : Détache HEAD sur un commit
@@ -476,11 +491,11 @@ git switch -
 
 #### `git restore` — Restaurer des fichiers
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git restore [options] <pathspec...>` |
-| **Description** | Restaure les fichiers du working tree ou de l'index en les obtenant d'une source |
-| **Options** | Aucun : restaure depuis l'index ; `--staged` : retire du staging (index ← HEAD) ; `--source=<commit>` : restaure depuis un commit spécifié |
+| Aspect          | Détail                                                                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Syntaxe**     | `git restore [options] <pathspec...>`                                                                                                      |
+| **Description** | Restaure les fichiers du working tree ou de l'index en les obtenant d'une source                                                           |
+| **Options**     | Aucun : restaure depuis l'index ; `--staged` : retire du staging (index ← HEAD) ; `--source=<commit>` : restaure depuis un commit spécifié |
 
 **Exemples :**
 
@@ -499,6 +514,7 @@ git restore --source=abc1234 file.txt
 ```
 
 **Comportement :**
+
 - **Restore (défaut)** : Écrase le working tree avec le contenu de l'index
 - **Restore --staged** : Remplace l'index avec le contenu de HEAD (retire du staging)
 - **Restore --source** : Restaure depuis un commit spécifié
@@ -511,11 +527,11 @@ git restore --source=abc1234 file.txt
 
 #### `git tag` — Lister, créer ou supprimer des tags
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git tag [options] [tagname [commit]]` |
-| **Description** | Gère les étiquettes nommées (tags) du dépôt |
-| **Options** | Aucun argument : liste les tags ; `<tagname>` : crée un tag sur HEAD ; `<tagname> <commit>` : crée sur un commit spécifié ; `-d <tagname>` : supprime un tag |
+| Aspect          | Détail                                                                                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Syntaxe**     | `git tag [options] [tagname [commit]]`                                                                                                                       |
+| **Description** | Gère les étiquettes nommées (tags) du dépôt                                                                                                                  |
+| **Options**     | Aucun argument : liste les tags ; `<tagname>` : crée un tag sur HEAD ; `<tagname> <commit>` : crée sur un commit spécifié ; `-d <tagname>` : supprime un tag |
 
 **Exemples :**
 
@@ -534,6 +550,7 @@ git tag -d v1.0
 ```
 
 **Comportement :**
+
 - **Lister** : Affiche tous les tags en ordre alphabétique
 - **Créer** : Crée une étiquette légère pointant vers le commit spécifié (ou HEAD)
 - **Supprimer** : Supprime l'étiquette du dépôt
@@ -549,11 +566,13 @@ Quand vous exécutez `git checkout <commit>` (avec un hash de commit), HEAD entr
 ### Comprendre le mode détaché
 
 En mode normal, HEAD pointe sur une branche (ex. `main`), et la branche pointe sur un commit :
+
 ```
 HEAD → refs/heads/main → commit abc123
 ```
 
 En mode détaché, HEAD pointe directement sur le commit :
+
 ```
 HEAD → commit abc123
 ```
@@ -605,6 +624,7 @@ $ git checkout -
 ### Cas particulier : commits en mode détaché
 
 Si vous créez des commits alors que HEAD est détaché, ces commits restent "orphelins" (pas liés à une branche). Vous pouvez :
+
 - Créer une branche pour les conserver : `git checkout -b new-branch`
 - Les abandonner en basculant vers une autre branche
 
@@ -763,7 +783,7 @@ Tous les commits sont sur la même colonne, une seule branche (`main` générale
          ● Commit B (feature)      |
          |                         |
          +----→ Commit A (merge point)
-(ancien) 
+(ancien)
 ```
 
 La `main` est à gauche, `feature` à droite. Ils divergent du commit A. Les deux branches évoluent indépendamment jusqu'à un possible merge.
@@ -897,12 +917,14 @@ Avant de couvrir les commandes de fusion et réécriture, comprenons comment ré
 `HEAD~n` signifie "le commit n générations avant HEAD, en remontant par le 1er parent".
 
 **Formule** :
+
 - `HEAD~0` → HEAD (commit courant)
 - `HEAD~1` → parent direct de HEAD
 - `HEAD~2` → parent du parent
 - `HEAD~n` → n générations en arrière
 
 **Visuel** :
+
 ```
 HEAD → C3
        ↑
@@ -914,6 +936,7 @@ HEAD → C3
 ```
 
 Dans une session :
+
 ```bash
 $ git log --oneline
 abc1234 Commit 3
@@ -928,6 +951,7 @@ $ git show HEAD~2   # Affiche le détail de C1 (ghi9012)
 **Avec les branches** :
 
 La notation `~n` s'applique aussi aux branches et tags :
+
 ```bash
 git show main~1      # 1 commit avant le tip de main
 git show feature~2   # 2 commits avant feature
@@ -937,6 +961,7 @@ git show v1.0~1      # 1 commit avant le tag v1.0
 **Cas spécial : merge commits**
 
 Quand un commit a 2 parents (merge commit), `~n` suit le **1er parent** :
+
 ```
     C1 ← C2 (main/HEAD)
    /
@@ -954,11 +979,11 @@ M~2 → C0 (parent du premier parent)
 
 #### `git merge` — Fusionner deux branches
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git merge [options] <branchname>` |
-| **Description** | Fusionne une branche dans la branche courante. Crée un commit de fusion si nécessaire, ou avance simplement (fast-forward) si possible |
-| **Options Phase 4** | `--no-ff` (force un commit de fusion) ; `-m <message>` (message personnalisé) ; `--abort` (annule un merge en cours) |
+| Aspect              | Détail                                                                                                                                 |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Syntaxe**         | `git merge [options] <branchname>`                                                                                                     |
+| **Description**     | Fusionne une branche dans la branche courante. Crée un commit de fusion si nécessaire, ou avance simplement (fast-forward) si possible |
+| **Options Phase 4** | `--no-ff` (force un commit de fusion) ; `-m <message>` (message personnalisé) ; `--abort` (annule un merge en cours)                   |
 
 ##### Concept : Fast-Forward vs True Merge
 
@@ -1025,6 +1050,7 @@ $ git merge -m "Fuse feature X into main" feature
 Un **conflit** survient quand le même fichier est modifié différemment dans deux branches par rapport à leur ancêtre commun.
 
 **Détection** :
+
 - Si base ≠ HEAD ET base ≠ branch ET HEAD ≠ branch → conflit
 
 **Marqueurs de conflit** :
@@ -1040,6 +1066,7 @@ contenu de la branche à merger (feature)
 ```
 
 Exemple concret :
+
 ```
 config.txt avant merge :
 
@@ -1092,11 +1119,11 @@ Merge aborted.
 
 #### `git reset` — Déplacer HEAD et réinitialiser
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git reset [--soft \| --mixed \| --hard] [<commit>]` |
-| **Description** | Déplace HEAD (et la branche courante) vers un commit donné, et optionnellement réinitialise l'index et le working tree |
-| **Options Phase 4** | `--soft` (HEAD seulement) ; `--mixed` (défaut : HEAD + index) ; `--hard` (HEAD + index + working tree) |
+| Aspect              | Détail                                                                                                                 |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Syntaxe**         | `git reset [--soft \| --mixed \| --hard] [<commit>]`                                                                   |
+| **Description**     | Déplace HEAD (et la branche courante) vers un commit donné, et optionnellement réinitialise l'index et le working tree |
+| **Options Phase 4** | `--soft` (HEAD seulement) ; `--mixed` (défaut : HEAD + index) ; `--hard` (HEAD + index + working tree)                 |
 
 ##### Les trois modes expliqués
 
@@ -1193,10 +1220,10 @@ $ git reset
 
 #### `git revert` — Créer un commit d'annulation
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git revert [options] <commit>` |
-| **Description** | Crée un nouveau commit qui annule les changements d'un commit spécifié |
+| Aspect              | Détail                                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| **Syntaxe**         | `git revert [options] <commit>`                                                           |
+| **Description**     | Crée un nouveau commit qui annule les changements d'un commit spécifié                    |
 | **Options Phase 4** | `-m <parent>` (pour les merge commits, optionnel) ; `--abort` (annule un revert en cours) |
 
 ##### Concept : Inverser les changements
@@ -1244,11 +1271,11 @@ def5678 Commit 1
 
 #### `git cherry-pick` — Appliquer un commit isolé
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git cherry-pick <commit>` |
-| **Description** | Applique les changements d'un commit spécifique sur HEAD, créant un nouveau commit |
-| **Options Phase 4** | `--abort` (annule un cherry-pick en cours) |
+| Aspect              | Détail                                                                             |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| **Syntaxe**         | `git cherry-pick <commit>`                                                         |
+| **Description**     | Applique les changements d'un commit spécifique sur HEAD, créant un nouveau commit |
+| **Options Phase 4** | `--abort` (annule un cherry-pick en cours)                                         |
 
 ##### Concept : Dupliquer un commit
 
@@ -1292,10 +1319,10 @@ CONFLICT (content): Conflict in config.txt
 
 #### `git rebase` — Rejouer des commits sur une nouvelle base
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git rebase [options] <base>` |
-| **Description** | Rejowe tous les commits de la branche courante (absents de `<base>`) au-dessus de `<base>` |
+| Aspect              | Détail                                                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| **Syntaxe**         | `git rebase [options] <base>`                                                                |
+| **Description**     | Rejowe tous les commits de la branche courante (absents de `<base>`) au-dessus de `<base>`   |
 | **Options Phase 4** | `--continue` (continue après résolution de conflits) ; `--abort` (annule un rebase en cours) |
 
 ##### Concept : Linéariser l'historique
@@ -1430,7 +1457,7 @@ $ git status
 On branch main
 You have unmerged paths.
   (fix conflicts and run "git commit")
-	
+
 Unmerged paths:
   (use "git add <file>..." to mark resolution)
 	both modified: config.txt
@@ -1498,29 +1525,30 @@ yz4444 Add develop.txt (nouveau hash, anciennement stu2222)
 
 #### `git rebase -i` — Rejouer des commits avec contrôle total
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git rebase -i <base>` |
-| **Description** | Lance un rebase interactif : affiche une liste des commits à rejouer et permet de les éditer (changer leur ordre, fusionner, renommer, supprimer) avant exécution |
-| **Options Phase 5** | `-i` ou `--interactive` (obligatoire) ; `--continue` / `--abort` pour gérer les conflits |
+| Aspect              | Détail                                                                                                                                                            |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Syntaxe**         | `git rebase -i <base>`                                                                                                                                            |
+| **Description**     | Lance un rebase interactif : affiche une liste des commits à rejouer et permet de les éditer (changer leur ordre, fusionner, renommer, supprimer) avant exécution |
+| **Options Phase 5** | `-i` ou `--interactive` (obligatoire) ; `--continue` / `--abort` pour gérer les conflits                                                                          |
 
 ##### Concepts : Actions et todo list
 
 Lors du rebase interactif, vous êtes présenté avec une **liste de commits à rejouer** (todo list) avec une action pour chacun. Les actions disponibles sont :
 
-| Action | Description | Résultat |
-|--------|-------------|----------|
-| `pick` (p) | Rejouer le commit normalement | Nouveau commit avec le même message et contenu |
-| `reword` (r) | Rejouer et éditer le message du commit | Nouveau commit avec message modifié |
-| `squash` (s) | Fusionner dans le commit précédent | Un seul commit avec les changements des deux, message combiné |
-| `fixup` (f) | Comme squash, mais jetter le message | Un commit sans le message du commit fusionné |
-| `drop` (d) | Supprimer entièrement | Le commit est ignoré, aucun nouveau commit créé |
+| Action       | Description                            | Résultat                                                      |
+| ------------ | -------------------------------------- | ------------------------------------------------------------- |
+| `pick` (p)   | Rejouer le commit normalement          | Nouveau commit avec le même message et contenu                |
+| `reword` (r) | Rejouer et éditer le message du commit | Nouveau commit avec message modifié                           |
+| `squash` (s) | Fusionner dans le commit précédent     | Un seul commit avec les changements des deux, message combiné |
+| `fixup` (f)  | Comme squash, mais jetter le message   | Un commit sans le message du commit fusionné                  |
+| `drop` (d)   | Supprimer entièrement                  | Le commit est ignoré, aucun nouveau commit créé               |
 
 **Réordonnancement** : Vous pouvez aussi réordonner les lignes pour changer l'ordre de rejoue des commits.
 
 ##### Interface dans le terminal web
 
 Contrairement à Git standard (qui ouvre un éditeur texte), le Git Visualizer expose une **modale interactive** où vous pouvez :
+
 - Voir la liste des commits à rejouer
 - Choisir l'action pour chacun via un dropdown
 - Éditer les messages directement (pour `reword`)
@@ -1591,6 +1619,7 @@ CONFLICT (content): Conflict in file.txt
 ```
 
 Vous résolvez comme en Phase 4 :
+
 1. Éditer le fichier en conflit (retirer les marqueurs `<<<<< / ======= / >>>>>`)
 2. Ajouter le fichier : `git add file.txt`
 3. Continuer : `git rebase --continue`
@@ -1603,17 +1632,18 @@ Pour annuler le rebase interactif : `git rebase --abort`
 
 #### `git stash` — Sauvegarder et nettoyer temporairement
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git stash [push \| list \| pop \| apply \| drop] [options]` |
-| **Description** | Sauvegarde les modifications non commitées dans une pile, nettoie le working tree et l'index pour revenir à l'état de HEAD |
-| **Options Phase 5** | `-m <message>` (message personnalisé) ; index optionnel pour pop/apply/drop |
+| Aspect              | Détail                                                                                                                     |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Syntaxe**         | `git stash [push \| list \| pop \| apply \| drop] [options]`                                                               |
+| **Description**     | Sauvegarde les modifications non commitées dans une pile, nettoie le working tree et l'index pour revenir à l'état de HEAD |
+| **Options Phase 5** | `-m <message>` (message personnalisé) ; index optionnel pour pop/apply/drop                                                |
 
 ##### Concept : Ranger les modifications
 
 Le stash est une **pile LIFO** (Last-In-First-Out) de "snapshots" : chaque stash enregistre l'état du working tree et de l'index à un moment donné.
 
 **Cas d'usage** :
+
 - "Je dois basculer de branche rapidement, mais j'ai des modifications. Je les range."
 - "Je veux tester un reset/rebase en toute sécurité ; je stash d'abord."
 - "J'ai fait des changements sur la mauvaise branche ; je les stash et les rejoue ailleurs."
@@ -1768,15 +1798,16 @@ Changes not staged for commit:
 
 #### `git reflog` — Retrouver les commits "perdus"
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git reflog [show] [<ref>]` |
-| **Description** | Affiche un journal chronologique de **tous les mouvements de HEAD** (commits, checkouts, resets, merges, rebases, etc.). Permet de retrouver des commits que vous pensiez "perdus" après un reset ou rebase |
-| **Options Phase 5** | Optionnel : `show` (explicite) ; `<ref>` pour afficher le reflog d'une branche |
+| Aspect              | Détail                                                                                                                                                                                                      |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Syntaxe**         | `git reflog [show] [<ref>]`                                                                                                                                                                                 |
+| **Description**     | Affiche un journal chronologique de **tous les mouvements de HEAD** (commits, checkouts, resets, merges, rebases, etc.). Permet de retrouver des commits que vous pensiez "perdus" après un reset ou rebase |
+| **Options Phase 5** | Optionnel : `show` (explicite) ; `<ref>` pour afficher le reflog d'une branche                                                                                                                              |
 
 ##### Concept : Time travel via reflog
 
 Le reflog enregistre chaque fois que HEAD bouge :
+
 - **Commit** : HEAD avance vers le nouveau commit
 - **Checkout** : HEAD bascule vers une autre branche
 - **Reset** : HEAD revient à un commit antérieur
@@ -1903,9 +1934,9 @@ Pour découvrir les commandes disponibles, utilisez `git help`.
 
 #### `git help` — Afficher l'aide générale
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git help` ou `git --help` ou `git` (sans arguments) |
+| Aspect          | Détail                                                                       |
+| --------------- | ---------------------------------------------------------------------------- |
+| **Syntaxe**     | `git help` ou `git --help` ou `git` (sans arguments)                         |
 | **Description** | Affiche la liste de toutes les commandes disponibles, groupées par catégorie |
 
 **Exemple** :
@@ -2095,6 +2126,7 @@ En fermant la page (ou rafraîchissant), l'historique est conservé dans le **lo
 3. Vous continuez comme si la page n'avait jamais été fermée
 
 **Important** : La persistance utilise le **localStorage du navigateur**, ce qui signifie :
+
 - Les données sont locales (pas de serveur)
 - Elles persistent tant que vous ne videz pas le cache du navigateur
 - Elles ne se synchronisent pas entre appareils
@@ -2109,6 +2141,7 @@ Pour repartir de zéro et nettoyer la sauvegarde, utilisez le bouton **Reset** v
 ```
 
 Après un reset :
+
 1. localStorage est vidé
 2. Le dépôt est réinitialisé (vierge)
 3. Vous commencez une nouvelle session
@@ -2130,6 +2163,7 @@ Vous trouverez les scénarios dans la **barre latérale de gauche** (RefsSidebar
 **Concept** : Workflow de base avec branches.
 
 **Commandes exécutées** :
+
 ```bash
 git init
 write main.txt "Main content"
@@ -2155,6 +2189,7 @@ git merge feature
 **Concept** : Différence entre fast-forward et true merge.
 
 **Commandes exécutées** :
+
 ```bash
 git init
 write main.txt "Main content"
@@ -2180,6 +2215,7 @@ git merge --no-ff hotfix -m "Merge branch hotfix"
 **Concept** : Gestion des conflits de merge.
 
 **Commandes exécutées** (partiellement) :
+
 ```bash
 git init
 write data.txt "Initial data"
@@ -2213,6 +2249,7 @@ git commit -m "C4: Resolve conflict"
 **Concept** : Cherry-pick pour dupliquer des commits, tags pour marquer les releases.
 
 **Commandes exécutées** :
+
 ```bash
 git init
 write main.txt "Main initial"
@@ -2245,6 +2282,7 @@ git tag feature-tip
 **Concept** : Undo et recovery après un reset malheureux.
 
 **Commandes exécutées** :
+
 ```bash
 git init
 write f1.txt "First file"
@@ -2277,6 +2315,7 @@ Charger un scénario **réinitialise le dépôt**. Tout travail antérieur est p
 #### Après le chargement
 
 Une fois un scénario chargé, vous pouvez :
+
 - **Explorer** le graphe : zoom, pan, hover sur les commits
 - **Modifier** : exécuter d'autres commandes pour expérimenter
 - **Recharger** : charger un autre scénario ou reset pour recommencer
@@ -2309,6 +2348,7 @@ Vous pouvez cliquer sur une branche pour la basculer (optionnel ; tapez aussi `g
 Indique où HEAD pointe actuellement.
 
 **Mode symbolique** (normal) :
+
 ```
 HEAD
   symbolic: true
@@ -2316,6 +2356,7 @@ HEAD
 ```
 
 **Mode détaché** (WARNING) :
+
 ```
 HEAD
   detached: true
@@ -2350,7 +2391,7 @@ Si une opération Git est en cours (merge, rebase, cherry-pick), une section **�
   Merging
   Source: feature
   Conflicts: 1 file
-  
+
   [Continue] [Abort]
 ```
 
@@ -2361,11 +2402,12 @@ Si une opération Git est en cours (merge, rebase, cherry-pick), une section **�
   Rebasing
   Base: main
   Progress: 2/3 commits
-  
+
   [Continue] [Abort]
 ```
 
 Les boutons :
+
 - **[Continue]** : poursuit l'opération après résolution de conflits
 - **[Abort]** : annule l'opération et revient à l'état avant
 
@@ -2378,7 +2420,7 @@ Si vous avez des modifications sauvegardées en stash, un compteur s'affiche.
 ```
 Stash
   Count: 2
-  
+
   stash@{0}: WIP on main: abc1234
   stash@{1}: WIP on feature: def5678
 ```
@@ -2396,7 +2438,7 @@ Commandes récentes
   > git add file.txt
   > git commit -m "Test"
   > git init
-  
+
   [Reset History]
 ```
 
@@ -2417,6 +2459,7 @@ Git Visualizer introduit le support des dépôts distants, permettant de cloner 
 ### Concept : Dépôt distant et références de suivi
 
 Un **dépôt distant** (ou "remote") est une version de référence du projet, accessible via un nom symbolique (`origin` par défaut). Chaque remote possède :
+
 - Ses propres branches (ex. `main`, `develop`)
 - Un ensemble d'objets Git (commits, arbres, fichiers)
 - Une branche par défaut (généralement `main`)
@@ -2427,10 +2470,10 @@ Le dépôt local maintient des **références de suivi** (`origin/main`, `origin
 
 #### `git remote` — Lister, ajouter ou supprimer des dépôts distants
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git remote [list]` ou `git remote -v` ou `git remote add <nom> <url>` ou `git remote remove <nom>` |
-| **Description** | Gère les dépôts distants : liste, ajoute ou supprime |
+| Aspect              | Détail                                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **Syntaxe**         | `git remote [list]` ou `git remote -v` ou `git remote add <nom> <url>` ou `git remote remove <nom>`                           |
+| **Description**     | Gère les dépôts distants : liste, ajoute ou supprime                                                                          |
 | **Options Phase 7** | Aucun argument : liste les remotes ; `-v` : avec URLs ; `add <nom> <url>` : ajouter ; `remove <nom>` : supprimer (alias `rm`) |
 
 ##### Lister les remotes
@@ -2481,6 +2524,7 @@ upstream   https://github.com/upstream/project.git (push)
 ```
 
 **Comportement** :
+
 - Crée un nouveau dépôt distant bare (sans working tree)
 - L'URL est stockée cosmétiquement (pas de vérification réseau)
 - Erreur si le nom existe déjà
@@ -2503,6 +2547,7 @@ origin
 ```
 
 **Comportement** :
+
 - Supprime le dépôt distant
 - Supprime aussi les références de suivi associées (`origin/*`)
 - Erreur si le remote n'existe pas
@@ -2515,19 +2560,19 @@ origin
 
 #### `git clone` — Créer une copie locale d'un dépôt distant
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git clone <source>` |
-| **Description** | Initialise un nouveau dépôt local en copiant un dépôt source prédéfini, configure le remote `origin`, et crée une branche locale correspondant à la branche par défaut |
-| **Options Phase 7** | Aucun ; `<source>` est un nom de dépôt prédéfini (pas d'URL) |
+| Aspect              | Détail                                                                                                                                                                 |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Syntaxe**         | `git clone <source>`                                                                                                                                                   |
+| **Description**     | Initialise un nouveau dépôt local en copiant un dépôt source prédéfini, configure le remote `origin`, et crée une branche locale correspondant à la branche par défaut |
+| **Options Phase 7** | Aucun ; `<source>` est un nom de dépôt prédéfini (pas d'URL)                                                                                                           |
 
 ##### Dépôts source prédéfinis
 
 Phase 7 propose un catalogue de dépôts source pour la démonstration :
 
-| Nom | Description | Branches | Commits |
-|-----|-------------|----------|---------|
-| `public-repo` | Dépôt public simple | `main` | 3 commits linéaires (C0 ← C1 ← C2) |
+| Nom           | Description         | Branches          | Commits                               |
+| ------------- | ------------------- | ----------------- | ------------------------------------- |
+| `public-repo` | Dépôt public simple | `main`            | 3 commits linéaires (C0 ← C1 ← C2)    |
 | `collab-repo` | Dépôt avec branches | `main`, `develop` | 5 commits (deux branches divergentes) |
 
 Utilisez l'un de ces noms comme argument à `git clone`.
@@ -2550,6 +2595,7 @@ nothing to commit, working tree clean
 ```
 
 **État après clone** :
+
 - Dépôt local initialisé (`.git`)
 - Remote `origin` configuré et pointant vers `public-repo`
 - Tous les objets (commits, arbres, fichiers) copiés
@@ -2593,6 +2639,7 @@ Your branch is up to date with 'origin/develop'.
 ```
 
 **Comportement** :
+
 1. Initialise un nouveau dépôt
 2. Configure le remote `origin` pointant vers la source
 3. Copie tous les objets du source
@@ -2609,11 +2656,11 @@ Your branch is up to date with 'origin/develop'.
 
 #### `git fetch` — Mettre à jour les références distantes
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git fetch [<remote>] [<branche>]` |
-| **Description** | Récupère les nouveaux commits et mises à jour de branches d'un dépôt distant, met à jour les références de suivi (`origin/*`). **Ne modifie jamais vos branches locales ou HEAD.** |
-| **Options Phase 7** | Optionnel : `<remote>` (défaut : `origin`) ; optionnel : `<branche>` (défaut : toutes les branches) |
+| Aspect              | Détail                                                                                                                                                                             |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Syntaxe**         | `git fetch [<remote>] [<branche>]`                                                                                                                                                 |
+| **Description**     | Récupère les nouveaux commits et mises à jour de branches d'un dépôt distant, met à jour les références de suivi (`origin/*`). **Ne modifie jamais vos branches locales ou HEAD.** |
+| **Options Phase 7** | Optionnel : `<remote>` (défaut : `origin`) ; optionnel : `<branche>` (défaut : toutes les branches)                                                                                |
 
 ##### Concept clé : Fetch ≠ Merge
 
@@ -2647,6 +2694,7 @@ $ git branch -a
 ```
 
 **Comportement** :
+
 1. Vérifie que le remote `origin` existe
 2. Pour chaque branche distante :
    - Récupère le commit tip distant
@@ -2774,24 +2822,30 @@ Your branch is up to date with 'origin/main'.
 ### Erreurs courantes
 
 #### Remote inexistant
+
 ```bash
 $ git fetch nosuchremote
 fatal: No remote named 'nosuchremote'
 ```
+
 **Solution** : Vérifiez le nom avec `git remote` et ajoutez-le si nécessaire.
 
 #### Clone dans un dépôt existant
+
 ```bash
 $ git init && git clone public-repo
 fatal: destination path '.' already exists and is not an empty directory.
 ```
+
 **Solution** : Clone dans un répertoire vide ou créez un répertoire dédié.
 
 #### Branche distante inexistante
+
 ```bash
 $ git fetch origin nosuchbranch
 fatal: Couldn't find remote ref nosuchbranch
 ```
+
 **Solution** : Vérifiez les branches distantes avec `git branch -a`.
 
 ---
@@ -2800,15 +2854,16 @@ fatal: Couldn't find remote ref nosuchbranch
 
 #### `git push` — Envoyer les commits locaux vers le dépôt distant
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git push [<remote>] [<branch>] [-u \| --set-upstream] [--force \| -f]` |
-| **Description** | Envoie les commits locaux d'une branche vers le dépôt distant, met à jour les références de suivi locales, et protège contre les écritures non-fast-forward par défaut |
+| Aspect              | Détail                                                                                                                                                                                                                                              |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Syntaxe**         | `git push [<remote>] [<branch>] [-u \| --set-upstream] [--force \| -f]`                                                                                                                                                                             |
+| **Description**     | Envoie les commits locaux d'une branche vers le dépôt distant, met à jour les références de suivi locales, et protège contre les écritures non-fast-forward par défaut                                                                              |
 | **Options Phase 8** | `<remote>` : nom du distant (défaut : `origin`) ; `<branch>` : branche à pousser (défaut : branche courante ou upstream) ; `-u` / `--set-upstream` : configure l'upstream après le push ; `--force` / `-f` : force le push même si non-fast-forward |
 
 ##### Concept clé : Protection fast-forward
 
 Contrairement à `fetch`, `push` **modifie le distant**. Pour éviter une perte de données accidentelle, Git **refuse** un push si :
+
 - La branche distante a avancé d'une façon incompatible avec votre historique local
 - Vous avez rebasé ou rembobiné votre branche
 
@@ -2819,6 +2874,7 @@ C'est le **non-fast-forward check**. Vous devez résoudre avec un `pull` d'abord
 ##### Exemple 1 : Push simple (fast-forward)
 
 **Situation** :
+
 - Vous avez 2 commits locaux sur `main` que le distant n'a pas
 - Personne d'autre n'a poussé vers `main` distant
 
@@ -2844,6 +2900,7 @@ Your branch is up to date with 'origin/main'.
 ##### Exemple 2 : Push avec `-u` (configuration upstream)
 
 **Situation** :
+
 - Vous avez une branche locale `feature` sans upstream configuré
 - Vous voulez pousser vers le distant ET configurer le suivi
 
@@ -2872,6 +2929,7 @@ Everything up-to-date.
 ##### Exemple 3 : Push rejeté (non-fast-forward)
 
 **Situation** :
+
 - Vous avez rebasé `main` localement
 - Le distant a une version antérieure
 - Quelqu'un d'autre a aussi poussé entre-temps
@@ -2908,6 +2966,7 @@ To <url>
 ##### Exemple 4 : Push sans upstream (erreur)
 
 **Situation** :
+
 - Vous tapez `git push` sans arguments
 - Votre branche courante n'a pas d'upstream configuré
 
@@ -2927,15 +2986,16 @@ $ git push -u origin feature
 
 #### `git pull` — Récupérer et fusionner les changements distants
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git pull [options] [<remote>] [<branch>]` |
-| **Description** | Combinaison de `git fetch` + intégration (merge ou rebase) : récupère les nouveaux commits distants et les fusionne ou rejoue dans votre branche courante |
+| Aspect              | Détail                                                                                                                                                                                              |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Syntaxe**         | `git pull [options] [<remote>] [<branch>]`                                                                                                                                                          |
+| **Description**     | Combinaison de `git fetch` + intégration (merge ou rebase) : récupère les nouveaux commits distants et les fusionne ou rejoue dans votre branche courante                                           |
 | **Options Phase 8** | `[<remote>]` : nom du distant (défaut : origin) ; `[<branch>]` : branche à puller (défaut : branche upstream) ; `--rebase` : utilise rebase au lieu de merge ; `--no-rebase` : force merge (défaut) |
 
 ##### Concept : Fetch + Merge (ou Rebase)
 
 `git pull` est un raccourci pour :
+
 1. `git fetch [<remote>] [<branch>]` — Copie les objets distants, met à jour les références de suivi
 2. Intégration : **merge** (par défaut) ou **rebase** (si `--rebase`)
 
@@ -2946,6 +3006,7 @@ Cela permet de récupérer ET d'intégrer en une seule commande, idéal dans un 
 ##### Exemple 1 : Pull simple (fast-forward merge)
 
 **Situation** :
+
 - Vous avez clonée `main` depuis le distant
 - Le distant a de nouveaux commits
 - Vous n'avez fait aucun commit local
@@ -2973,6 +3034,7 @@ Your branch is up to date with 'origin/main'.
 ##### Exemple 2 : Pull avec merge (branches divergentes)
 
 **Situation** :
+
 - Vous avez 1 commit local sur `main`
 - Le distant a avancé aussi (commits différents)
 - Pas de conflit
@@ -3002,6 +3064,7 @@ def5678 Initial commit
 ##### Exemple 3 : Pull avec conflit
 
 **Situation** :
+
 - Vous et quelqu'un d'autre avez modifié le même fichier
 - Le pull détecte un conflit
 
@@ -3041,6 +3104,7 @@ $ git commit -m "Resolve merge conflict"
 ##### Exemple 4 : Pull avec --rebase (historique linéaire)
 
 **Situation** :
+
 - Vous avez 1 commit local
 - Le distant a avancé
 - Vous préférez une histoire linéaire (pas de merge)
@@ -3066,9 +3130,9 @@ def5678 Initial commit
 
 #### Configurer le suivi : `git branch --set-upstream-to`
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git branch --set-upstream-to=<remote>/<branch> [<branchname>]` (ou `-u` pour court) |
+| Aspect          | Détail                                                                                                                                          |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Syntaxe**     | `git branch --set-upstream-to=<remote>/<branch> [<branchname>]` (ou `-u` pour court)                                                            |
 | **Description** | Configure la relation entre une branche locale et une branche distante, permettant à `git pull`/`git push` de deviner le destination par défaut |
 
 **Exemples** :
@@ -3087,6 +3151,7 @@ $ git branch -vv
 ```
 
 Une fois configurée, vous pouvez :
+
 - `git pull` sans arguments → pull depuis l'upstream
 - `git push` sans arguments → push vers l'upstream
 - `git status` affiche un message de suivi (ahead/behind)
@@ -3095,9 +3160,9 @@ Une fois configurée, vous pouvez :
 
 #### Affichage détaillé : `git branch -vv`
 
-| Aspect | Détail |
-|--------|--------|
-| **Syntaxe** | `git branch -vv` (verbose verbose) |
+| Aspect          | Détail                                                                         |
+| --------------- | ------------------------------------------------------------------------------ |
+| **Syntaxe**     | `git branch -vv` (verbose verbose)                                             |
 | **Description** | Liste les branches avec le commit court, l'upstream, et l'écart (ahead/behind) |
 
 **Exemple** :
@@ -3110,6 +3175,7 @@ $ git branch -vv
 ```
 
 **Colonnes** :
+
 1. `*` : branche courante
 2. Nom de branche
 3. Hash court du commit
@@ -3261,6 +3327,7 @@ Affiche uniquement votre dépôt local avec vos branches, commits et HEAD.
 ```
 
 **Commandes pour explorer** :
+
 - **Scroll** : zoom in/out
 - **Clic droit + drag** : pan (déplacer le graphe)
 - **Hover** : tooltip avec hash complet et message
@@ -3283,11 +3350,13 @@ Affiche le graphe local ET le graphe distant côte à côte. Pratique pour voir 
 ```
 
 **Observation clé** :
+
 - À gauche : votre branche locale `main` avec vos commits
 - À droite : la branche `main` distante (origin/main) avec ses commits
 - **Commits décorés par `[origin/main]`** sur le graphe local (sections 3.2 ci-dessous)
 
 **Interaction** :
+
 - Chaque graphe est zoomable et panning indépendamment
 - Option (optionnelle) : **« Zoom/Pan synchronisés »** pour synchroniser les actions sur les deux
 
@@ -3350,6 +3419,7 @@ C1
 ```
 
 **Format du badge** :
+
 - Couleur : gris clair (différent des branches bleues)
 - Label : `origin/branchname` (ex. `origin/feature`)
 - Présent uniquement si cette branche distante existe
@@ -3359,6 +3429,7 @@ C1
 Les commits qui n'ont pas été poussés (absents de `origin/*`) sont **surlignés** visuellement pour vous avertir.
 
 **Visuel** :
+
 - **Bordure épaissie** ou **halo coloré** autour du nœud
 - Couleur : orange ou accent distinctif
 
@@ -3379,6 +3450,7 @@ Pour pousser ces commits, utilisez `git push` dans le terminal ou le bouton **[P
 En mode **Split** ou **Remote**, les commits présents sur le distant mais absents localement sont **surlignés**.
 
 **Visuel** :
+
 - **Bordure épaissie** ou **halo** distinctif
 - Couleur : bleu ou accent different
 
@@ -3404,7 +3476,7 @@ La **RefsSidebar** (zone gauche) contient maintenant une section **« Distant »
 Distant
   origin
   https://github.com/user/project.git
-  
+
   Upstream (main)
   Branches:
     [*] main
@@ -3413,7 +3485,7 @@ Distant
         ↑ 1 ↓ 0 [origin/feature]
     [ ] develop
         ↑ 0 ↓ 3 (no upstream)
-  
+
   [Fetch]  [Push]  [Pull]
 ```
 
@@ -3445,6 +3517,7 @@ L'URL est cosmétique (pas de vérification réseau réelle).
 ```
 
 **Format** :
+
 - `[*]` ou `[ ]` : indicateur si branche courante
 - `↑N` : N commits à pousser (couleur verte ou neutre)
 - `↓M` : M commits à récupérer (couleur orange/warning)
@@ -3452,6 +3525,7 @@ L'URL est cosmétique (pas de vérification réseau réelle).
 - `(no upstream)` : branche locale sans suivi
 
 **Cas particuliers** :
+
 - Si `↑0` et `↓0` : branche à jour (couleur verte)
 - Si `↑0` et `↓>0` : vous avez du retard (orange)
 - Si `↑>0` et `↓>0` : divergence (branche et upstream ont évolué différemment, orange/warning)
@@ -3504,6 +3578,7 @@ git push
 ```
 
 **État final attendu** :
+
 - Branche locale `main` et `origin/main` pointent le même commit
 - `git branch -vv` affiche : `main ... [origin/main]` (à jour)
 - Graphe : commit local déclaré avec badge `[origin/main]`
@@ -3530,6 +3605,7 @@ git pull --no-rebase
 ```
 
 **État final attendu** :
+
 - Un **commit de merge** à deux parents (local et distant)
 - Graphe affiche une fusion explicite
 - `tracking.main` montre ahead/behind après sync
@@ -3558,6 +3634,7 @@ git push
 ```
 
 **État final attendu** :
+
 - Historique **linéaire** (pas de merge commit)
 - Vos commits rejoués avec nouveaux hashes
 - Graphe : ligne droite sans branchement
@@ -3595,6 +3672,7 @@ git push
 ```
 
 **État final attendu** :
+
 - Dépôt distant contient deux branches : `main` et `develop`
 - Les deux branches locales ont upstreams configurés
 - `git branch -vv` affiche deux lignes synchronisées
@@ -3767,6 +3845,23 @@ git add .             # ajoute tout sauf les ignorés
 
 ---
 
+## Configuration : `git config` (Axe B1)
+
+```bash
+git config user.name "Alice"          # définir l'auteur des commits
+git config user.email "a@example.com"
+git config user.name                  # lire une clé
+git config --list                     # toutes les clés (triées)
+```
+
+`user.name`/`user.email` personnalisent l'auteur — **et donc le hash** des
+commits suivants (déterminisme préservé : rejouer la même séquence redonne les
+mêmes hashes). Défauts : `Author <author@example.com>`. `git init` réinitialise
+la config. Toute clé est acceptée à l'écriture ; une clé inconnue lue renvoie
+`exit 1` sans message.
+
+---
+
 ## À venir en Phase 10+
 
 Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seront implémentées ultérieurement :
@@ -3789,6 +3884,7 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seron
 ### Phases disponibles
 
 **Phase 1 – Commandes Git essentielles :**
+
 - `git init` — Initialiser le dépôt
 - `git add <chemin...>` — Stager des fichiers
 - `git status [-s]` — Afficher l'état du dépôt
@@ -3797,18 +3893,21 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seron
 - Utilitaires : `write` et `read` pour gérer les fichiers virtuels
 
 **Phase 2 – Gestion des branches et tags :**
+
 - `git branch` — Lister, créer ou supprimer des branches
 - `git checkout` / `git switch` — Changer de branche ou détacher HEAD
 - `git restore` — Restaurer des fichiers
 - `git tag` — Créer et gérer des étiquettes
 
 **Phase 3 – Visualisation graphique :**
+
 - **Graphe visuel interactif** : affichage SVG de votre arbre Git
 - **Lecture intuitive** : commits, branches, tags, HEAD sur un diagramme
 - **Interactions** : hover (tooltip), pan (drag), zoom (scroll)
 - **Badges intelligents** : affichage des branches, tags et HEAD sur chaque commit
 
 **Phase 4 – Fusion et réécriture d'historique :**
+
 - **Syntaxe de révision** : `HEAD~n` pour référencer des commits antérieurs
 - `git merge [--no-ff] [-m <message>]` — Fusionner les branches (fast-forward ou true merge)
 - `git reset [--soft | --mixed | --hard]` — Déplacer HEAD et réinitialiser index/working tree
@@ -3818,6 +3917,7 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seron
 - **Gestion simplifiée des conflits** : marqueurs standards, résolution manuelle + `git add` + `git commit`
 
 **Phase 5 – Outils avancés :**
+
 - `git rebase -i <base>` — Rebase interactif avec modale visuelle (pick, reword, squash, fixup, drop, réordonnancement)
 - `git stash [push | list | pop | apply | drop]` — Pile de stash pour ranger/restaurer les modifications
 - `git reflog [show] [<ref>]` — Historique des mouvements de HEAD et des branches
@@ -3825,6 +3925,7 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seron
 - **Résolution de conflits avancée** : gestion des conflits lors du squash et du rebase interactif
 
 **Phase 6 – Finitions et Developer Experience :**
+
 - `git help` / `git help <commande>` — Aide intégrée sur les commandes
 - **Builtin `clear`** : efface l'écran du terminal (comme sous Linux), sans toucher au dépôt
 - **Chaînage de commandes** : `;` enchaîne inconditionnellement, `&&` n'exécute la suivante que si la précédente a réussi. Ex. `git add . && git commit -m "msg"` ou `clear ; git log`. Les séparateurs entre guillemets (`-m "a; b"`) ne sont pas interprétés.
@@ -3834,6 +3935,7 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seron
 - **RefsSidebar enrichie** : affichage de branches, HEAD, tags, opération en cours, stash, commandes récentes, avec boutons d'interaction
 
 **Phase 7 – Dépôts distants :**
+
 - `git remote` — Lister, ajouter ou supprimer des dépôts distants
 - `git remote -v` — Afficher les remotes avec leurs URLs (cosmétiques)
 - `git remote add <nom> <url>` — Configurer un nouveau remote
@@ -3845,6 +3947,7 @@ Les fonctionnalités suivantes ne sont **pas disponibles en Phase 9** mais seron
 - **Concept** : Fetch récupère sans modifier les branches locales ; à fusionner explicitement
 
 **Phase 8 – Push, Pull & Upstream tracking :**
+
 - `git push [<remote>] [<branch>] [-u | --set-upstream] [--force | -f]` — Envoyer les commits locaux vers le distant
 - **Protection fast-forward** : refus du push non-fast-forward (sauf `--force`)
 - **Configuration upstream** : `-u` après un push configure le suivi automatique

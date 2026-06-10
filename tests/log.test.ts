@@ -61,7 +61,7 @@ describe('git log', () => {
       expect(result.output[0]).toMatch(/^commit [0-9a-f]{40}$/);
     });
 
-    it('CA-log-02 : output contient "Author: Unnamed <unnamed@example.com>"', () => {
+    it('CA-log-02 : output contient "Author: Author <author@example.com>"', () => {
       const engine = replay([
         'git init',
         'write file.txt "hello"',
@@ -69,7 +69,7 @@ describe('git log', () => {
         'git commit -m "First commit"',
       ]);
       const result = engine.execute('git log');
-      expect(out(result.output)).toContain('Author: Unnamed <unnamed@example.com>');
+      expect(out(result.output)).toContain('Author: Author <author@example.com>');
     });
 
     it('CA-log-02 : output contient "Date:"', () => {
@@ -378,7 +378,7 @@ describe('git log', () => {
         'git commit -m "Dated commit"',
       ]);
       const result = engine.execute('git log');
-      const dateLine = result.output.find(l => l.startsWith('Date:'));
+      const dateLine = result.output.find((l) => l.startsWith('Date:'));
       expect(dateLine).toBeDefined();
       // Format attendu : "Date:   <weekday> <month> <day> <HH:MM:SS> <year> +0000"
       expect(dateLine).toMatch(/Date:\s+\w{3} \w{3}\s+\d+ \d{2}:\d{2}:\d{2} \d{4} \+0000/);

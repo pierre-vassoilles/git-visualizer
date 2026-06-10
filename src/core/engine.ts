@@ -35,6 +35,12 @@ export interface SnapshotCommit {
   readonly shortHash: string;
   /** Message du commit. */
   readonly message: string;
+  /**
+   * Auteur du commit (`Nom <email>`), issu de la config au moment du commit.
+   * Optionnel pour rester compatible avec les fixtures de layout (graphe) qui
+   * ne renseignent pas ce champ ; le snapshot réel le fournit toujours.
+   */
+  readonly author?: string;
   /** Hashes des parents (tableau vide pour le commit racine). */
   readonly parents: string[];
   /**
@@ -291,6 +297,7 @@ function getAllCommitsTopologicalOrder(
       hash,
       shortHash: shortHash(hash),
       message: commit.message,
+      author: commit.author,
       parents: Object.freeze([...commit.parents]) as string[],
       branches: Object.freeze([...(hashToBranches[hash] ?? [])]) as string[],
       tags: Object.freeze([...(hashToTags[hash] ?? [])]) as string[],
@@ -417,6 +424,7 @@ export class GitEngine {
       hash,
       shortHash: shortHash(hash),
       message: commit.message,
+      author: commit.author,
       parents: Object.freeze([...commit.parents]) as string[],
       branches: Object.freeze([...(hashToBranches[hash] ?? [])]) as string[],
       tags: Object.freeze([...(hashToTags[hash] ?? [])]) as string[],

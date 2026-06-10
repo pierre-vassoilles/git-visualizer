@@ -1,6 +1,6 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
-import { isInitialized, VIRTUAL_PATH } from '../repository';
+import { defaultConfig, isInitialized, VIRTUAL_PATH } from '../repository';
 
 /**
  * git init
@@ -22,14 +22,12 @@ export function cmdInit(repo: Repository): CommandResult {
   repo.objects = {};
   repo.commitCount = 0;
   repo.prevBranch = null;
+  repo.config = defaultConfig();
 
   return ok([`Initialized empty Git repository in ${VIRTUAL_PATH}`]);
 }
 
 /** Message d'erreur standard "dépôt non initialisé". */
 export function notARepo(): CommandResult {
-  return fail(
-    ['fatal: not a git repository (or any of the parent directories): .git'],
-    128,
-  );
+  return fail(['fatal: not a git repository (or any of the parent directories): .git'], 128);
 }

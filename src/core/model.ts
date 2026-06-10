@@ -229,7 +229,7 @@ export interface Repository {
   objects: Record<string, GitObject>;
   refs: {
     heads: Record<string, string>; // branchName → commitHash (or "" for empty branch)
-    tags: Record<string, string>;  // tagName → commitHash
+    tags: Record<string, string>; // tagName → commitHash
     /** Références de suivi distantes : remote → (branchName → hash). Phase 7. */
     remotes?: Record<string, Record<string, string>>;
   };
@@ -256,4 +256,6 @@ export interface Repository {
   remotes?: Record<string, RemoteRepository>;
   /** Upstream pour chaque branche locale (Phase 7) : branchName → { remote, branch }. */
   branchUpstream?: Record<string, { remote: string; branch: string }>;
+  /** Configuration (Axe B1, spec 45) : `user.name`, `user.email`, etc. */
+  config?: Record<string, string>;
 }

@@ -39,6 +39,7 @@ import { cmdDiff } from './commands/diff';
 import { cmdShow } from './commands/show';
 import { cmdRm } from './commands/rm';
 import { cmdMv } from './commands/mv';
+import { cmdConfig } from './commands/config';
 
 // ---------------------------------------------------------------------------
 // Tokenisation
@@ -189,6 +190,9 @@ export function dispatch(repo: Repository, input: string): CommandResult {
 
     case 'mv':
       return cmdMv(repo, rest);
+
+    case 'config':
+      return cmdConfig(repo, rest);
 
     default:
       return fail([`git: '${subcommand}' is not a git command. See 'git --help'.`]);

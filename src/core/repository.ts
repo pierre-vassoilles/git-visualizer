@@ -19,9 +19,27 @@ import type {
 } from './model';
 import { getCommit, getTree, hashBlob, storeBlob, storeCommit, storeTree } from './objectStore';
 
-export const AUTHOR = 'Unnamed <unnamed@example.com>';
+export const DEFAULT_USER_NAME = 'Author';
+export const DEFAULT_USER_EMAIL = 'author@example.com';
+/** Auteur par défaut (rétro-compat). Construit depuis la config par `getAuthor`. */
+export const AUTHOR = `${DEFAULT_USER_NAME} <${DEFAULT_USER_EMAIL}>`;
 export const BASE_TIMESTAMP = 1_000_000_000;
 export const VIRTUAL_PATH = './.git/';
+
+/** Config par défaut d'un dépôt neuf (spec 45). */
+export function defaultConfig(): Record<string, string> {
+  return { 'user.name': DEFAULT_USER_NAME, 'user.email': DEFAULT_USER_EMAIL };
+}
+
+/**
+ * Auteur d'un commit, construit depuis la config (`user.name`/`user.email`).
+ * Entre dans la chaîne de hachage → déterminisme garanti par le rejeu ordonné.
+ */
+export function getAuthor(repo: Repository): string {
+  const name = repo.config?.['user.name'] ?? DEFAULT_USER_NAME;
+  const email = repo.config?.['user.email'] ?? DEFAULT_USER_EMAIL;
+  return `${name} <${email}>`;
+}
 
 // ---------------------------------------------------------------------------
 // Factory
@@ -39,6 +57,7 @@ export function createEmptyRepo(): Repository {
     prevBranch: null,
     remotes: {},
     branchUpstream: {},
+    config: defaultConfig(),
   };
 }
 
@@ -189,7 +208,7 @@ export function createCommit(repo: Repository, options: CommitOptions): string {
   const commitHash = storeCommit(repo, {
     tree: treeHash,
     parents,
-    author: AUTHOR,
+    author: getAuthor(repo),
     date,
     message: options.message,
   });
@@ -906,7 +925,7 @@ export function createCommitWithParents(
   const commitHash = storeCommit(repo, {
     tree: options.treeHash,
     parents: options.parents,
-    author: AUTHOR,
+    author: getAuthor(repo),
     date,
     message: options.message,
   });
