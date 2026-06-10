@@ -9,12 +9,13 @@ import {
   cloneWorkingTree,
   createCommitWithParents,
   currentBranch,
+  findMergeBases,
   getTreeFiles,
   headCommitHash,
   isAncestor,
   isInitialized,
   makeConflictMarkers,
-  mergeBase,
+  mergeBaseFiles,
   resolveCommitish,
   storeBlob,
 } from '../repository';
@@ -152,22 +153,22 @@ function performTrueMerge(
     return fail(['fatal: could not read commit objects']);
   }
 
-  // Trouver la base commune
-  const baseHash = mergeBase(repo, headHash, branchTip);
+  // Trouver les bases communes. En criss-cross (>1 base), `mergeBaseFiles` construit
+  // une base synthétique (stratégie récursive, spec 47) ; sinon l'arbre de l'unique
+  // base. `baseHash` (1ʳᵉ base ou '') ne sert qu'au record `repo.merging` / --abort.
+  const bases = findMergeBases(repo, headHash, branchTip);
+  const baseHash = bases[0] ?? null;
 
   // Obtenir les fichiers des trois arbres
   const headFiles = getTreeFiles(repo, headCommitObj.tree);
   const branchFiles = getTreeFiles(repo, branchCommitObj.tree);
-  const baseFiles = baseHash
-    ? (() => {
-        const bc = getCommit(repo, baseHash);
-        return bc ? getTreeFiles(repo, bc.tree) : {};
-      })()
-    : {};
+  const baseFiles = mergeBaseFiles(repo, headHash, branchTip);
 
   // Fusionner les arbres (3-way merge)
   const mergedFiles: Record<string, string> = {};
   const conflictFiles: Record<string, string> = {}; // path → contenu avec marqueurs
+  // Type de conflit par chemin → message git fidèle (content vs delete/modify).
+  const conflictMessagesByPath: Record<string, string> = {};
 
   // Collecter tous les chemins
   const allPaths = new Set([
@@ -205,22 +206,23 @@ function performTrueMerge(
         // Conflit contenu/contenu
         conflictFiles[path] = makeConflictMarkers(head, branch, branchName);
         mergedFiles[path] = makeConflictMarkers(head, branch, branchName);
+        conflictMessagesByPath[path] = `CONFLICT (content): Merge conflict in ${path}`;
       } else if (head !== undefined && branch === undefined) {
-        // Conflit : modifié dans HEAD, supprimé dans branchTip
+        // delete/modify : modifié chez nous (HEAD), supprimé chez eux (branchTip).
         conflictFiles[path] = makeConflictMarkers(
           head,
           '(deleted in ' + branchName + ')',
           branchName,
         );
         mergedFiles[path] = head; // garder la version HEAD par défaut
+        conflictMessagesByPath[path] =
+          `CONFLICT (delete/modify): ${path} modified by us, deleted by them.`;
       } else if (head === undefined && branch !== undefined) {
-        // Conflit : supprimé dans HEAD, modifié dans branchTip
-        conflictFiles[path] = makeConflictMarkers(
-          '(deleted in HEAD)',
-          branch,
-          branchName,
-        );
+        // delete/modify : supprimé chez nous (HEAD), modifié chez eux (branchTip).
+        conflictFiles[path] = makeConflictMarkers('(deleted in HEAD)', branch, branchName);
         mergedFiles[path] = branch; // garder la version branchTip par défaut
+        conflictMessagesByPath[path] =
+          `CONFLICT (delete/modify): ${path} deleted by us, modified by them.`;
       }
       // Si les deux sont undefined → pas de conflit
     }
@@ -261,7 +263,9 @@ function performTrueMerge(
 
     const conflictMessages = Object.keys(conflictFiles)
       .sort()
-      .map((path) => `CONFLICT (content): Merge conflict in ${path}`);
+      .map(
+        (path) => conflictMessagesByPath[path] ?? `CONFLICT (content): Merge conflict in ${path}`,
+      );
 
     return { output: conflictMessages, errors: [], exitCode: 1 };
   }
@@ -292,7 +296,10 @@ function performTrueMerge(
   // S'assurer que le merging state est nettoyé
   delete repo.merging;
 
-  return ok([`Merge made by the '3-way' merge strategy.`, `  merge commit: ${mergeCommitHash.slice(0, 7)}`]);
+  return ok([
+    `Merge made by the '3-way' merge strategy.`,
+    `  merge commit: ${mergeCommitHash.slice(0, 7)}`,
+  ]);
 }
 
 /** Annule un merge en cours (git merge --abort). */
@@ -318,4 +325,3 @@ function mergeAbort(repo: Repository): CommandResult {
 
   return ok();
 }
-

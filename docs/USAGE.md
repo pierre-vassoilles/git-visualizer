@@ -520,12 +520,12 @@ git restore --staged --source=abc1234 file.txt
 (présent → l'index, absent → le working tree) ; `--source` ne change que la **source**
 des contenus (par défaut : l'index pour le WT, HEAD pour l'index).
 
-| Flags                  | Source  | Cible        |
-| ---------------------- | ------- | ------------ |
-| (aucun)                | index   | working tree |
-| `--source=<commit>`    | commit  | working tree |
-| `--staged`             | HEAD    | index        |
-| `--staged --source=<commit>` | commit | index   |
+| Flags                        | Source | Cible        |
+| ---------------------------- | ------ | ------------ |
+| (aucun)                      | index  | working tree |
+| `--source=<commit>`          | commit | working tree |
+| `--staged`                   | HEAD   | index        |
+| `--staged --source=<commit>` | commit | index        |
 
 **Pathspecs multiples — atomicité :** si l'un des chemins énumérés n'existe pas dans
 la source, la commande échoue (`error: pathspec '<x>' did not match any files`, code 1)
@@ -1024,6 +1024,32 @@ C0 ← ─────────────→ M (merge)
 
 M.parents = [C2, D2]
 ```
+
+##### Bases de fusion multiples (criss-cross)
+
+Quand deux branches ont fusionné l'une dans l'autre par le passé, leur historique
+peut présenter **plusieurs bases de fusion** (ancêtres communs maximaux) — un
+historique dit _criss-cross_. Dans ce cas, le moteur applique une **stratégie
+récursive simplifiée** : il fusionne virtuellement les bases entre elles pour
+produire une **base synthétique** unique, puis effectue le 3-way merge normal avec
+cette base. Conséquence pratique : certaines fusions qui produiraient un conflit
+artificiel avec une base « simple » se résolvent proprement. (Pas de commande
+dédiée ; c'est transparent pour l'utilisateur.)
+
+##### Conflits suppression/modification (delete/modify)
+
+Si un fichier est **supprimé d'un côté** et **modifié de l'autre** (par rapport à la
+base), le merge échoue avec un message distinct du conflit de contenu :
+
+```
+CONFLICT (delete/modify): file.txt modified by us, deleted by them.
+```
+
+(ou `… deleted by us, modified by them.` selon le sens). La version conservée par
+défaut est matérialisée dans le working tree avec des marqueurs ; résolvez avec
+`git add <file>` (garder) ou `git rm <file>` (supprimer), puis `git merge --continue`.
+Cas sans conflit : les deux côtés suppriment le fichier, ou les deux le modifient à
+l'identique.
 
 ##### Exemples
 

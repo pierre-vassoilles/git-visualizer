@@ -667,6 +667,104 @@ export function mergeBase(repo: Repository, a: string, b: string): string | null
   return null;
 }
 
+/** Collecte tous les ancêtres d'un commit (lui-même inclus). */
+function collectAncestors(repo: Repository, start: string): Set<string> {
+  const ancestors = new Set<string>();
+  const queue: string[] = [start];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (ancestors.has(current)) continue;
+    ancestors.add(current);
+    const commit = getCommit(repo, current);
+    if (!commit) continue;
+    for (const parent of commit.parents) queue.push(parent);
+  }
+  return ancestors;
+}
+
+/**
+ * Retourne TOUTES les bases de fusion maximales (ancêtres communs non dominés par
+ * un autre ancêtre commun). Un seul élément dans le cas linéaire ; plusieurs dans
+ * un historique criss-cross. Tri déterministe (hash croissant). Spec 47.
+ */
+export function findMergeBases(repo: Repository, a: string, b: string): string[] {
+  const ancA = collectAncestors(repo, a);
+  const ancB = collectAncestors(repo, b);
+  const common = [...ancA].filter((h) => ancB.has(h));
+  // Maximaux : aucun autre ancêtre commun n'a `c` pour ancêtre (c n'est pas dominé).
+  const maximal = common.filter(
+    (c) => !common.some((other) => other !== c && isAncestor(repo, c, other)),
+  );
+  return maximal.sort();
+}
+
+/**
+ * 3-way merge PUR de tables path→content (pour la base synthétique). Sur conflit,
+ * `ours` l'emporte (déterministe, sans marqueurs) — la base synthétique est interne
+ * et ne doit jamais contenir de marqueurs.
+ */
+function threeWayMergeFiles(
+  base: Record<string, string>,
+  ours: Record<string, string>,
+  theirs: Record<string, string>,
+): Record<string, string> {
+  const merged: Record<string, string> = {};
+  const paths = new Set([...Object.keys(base), ...Object.keys(ours), ...Object.keys(theirs)]);
+  for (const path of paths) {
+    const b = base[path];
+    const o = ours[path];
+    const t = theirs[path];
+    if (o === t) {
+      if (o !== undefined) merged[path] = o;
+    } else if (b === o) {
+      if (t !== undefined) merged[path] = t;
+    } else if (b === t) {
+      if (o !== undefined) merged[path] = o;
+    } else {
+      // Conflit : ours gagne (déterministe), sinon theirs.
+      if (o !== undefined) merged[path] = o;
+      else if (t !== undefined) merged[path] = t;
+    }
+  }
+  return merged;
+}
+
+/**
+ * Calcule la table path→content de la base à utiliser pour fusionner `a` et `b`.
+ * - 0 base : table vide (historiques sans ancêtre commun).
+ * - 1 base : l'arbre de cette base (= comportement Phase 4).
+ * - >1 bases (criss-cross) : **base synthétique** obtenue en fusionnant récursivement
+ *   les bases 2 à 2 (stratégie « recursive » simplifiée, spec 47). Limite de
+ *   profondeur 5 → fallback sur la 1ʳᵉ base.
+ */
+export function mergeBaseFiles(
+  repo: Repository,
+  a: string,
+  b: string,
+  depth = 0,
+): Record<string, string> {
+  const bases = findMergeBases(repo, a, b);
+  if (bases.length === 0) return {};
+
+  const treeOf = (commitHash: string): Record<string, string> => {
+    const c = getCommit(repo, commitHash);
+    return c ? getTreeFiles(repo, c.tree) : {};
+  };
+
+  if (bases.length === 1 || depth > 5) {
+    return treeOf(bases[0]!);
+  }
+
+  // Fusion virtuelle des bases 2 à 2 : la base de chaque paire est calculée
+  // récursivement, puis on empile les arbres.
+  let acc = treeOf(bases[0]!);
+  for (let i = 1; i < bases.length; i++) {
+    const pairBase = mergeBaseFiles(repo, bases[0]!, bases[i]!, depth + 1);
+    acc = threeWayMergeFiles(pairBase, acc, treeOf(bases[i]!));
+  }
+  return acc;
+}
+
 /**
  * Construit un Index à partir d'un hash de tree (inverse de buildTreeFromIndex).
  * Utilisé par reset --mixed/--hard pour réinitialiser l'index.

@@ -48,13 +48,13 @@ xterm (TerminalPanel) → store.execute(cmd) → core/engine.execute()
 
 Chaque phase (et chaque commande Git non triviale) suit un **cycle à 5 étapes**, chaque étape déléguée à un agent voltagent spécialisé via l'outil `Agent` (`subagent_type: "<nom>"`). L'orchestration reste pilotée par l'agent principal : il enchaîne les étapes, relit chaque livrable, et ne passe à la suivante que si la précédente est validée.
 
-| Étape | Agent voltagent | Rôle sur ce projet | Livrable |
-|---|---|---|---|
-| 1. **Specs** | `voltagent-biz:product-manager` | Spécifier la sémantique Git de la fonctionnalité (cas nominaux, flags, erreurs façon git, critères d'acceptation). Le comportement de référence est `git` réel. | `docs/specs/<feature>.md` |
-| 2. **Doc** | `voltagent-biz:technical-writer` | Rédiger/mettre à jour la doc utilisateur (commande, options, exemples) et les notes d'architecture impactées. | maj `docs/`, `CLAUDE.md` |
-| 3. **Dev** | `voltagent-lang:typescript-pro` (moteur `core/`) · `voltagent-lang:vue-expert` (UI Vue 3) | Implémenter dans `core/` (logique) ou dans les composants/store (UI), en respectant la frontière core↔UI. | code |
-| 4. **Tests** | `voltagent-qa-sec:test-automator` | Écrire les tests Vitest depuis les critères d'acceptation de l'étape 1 (cas nominaux + erreurs + bords : HEAD détaché, fast-forward, réécriture d'historique). | `tests/**/*.test.ts` |
-| 5. **QA** | `voltagent-qa-sec:code-reviewer` · `voltagent-qa-sec:architect-reviewer` (décisions d'archi) | Revue : conformité aux specs, respect des conventions, qualité, couverture, régressions. | rapport de revue |
+| Étape        | Agent voltagent                                                                              | Rôle sur ce projet                                                                                                                                              | Livrable                  |
+| ------------ | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| 1. **Specs** | `voltagent-biz:product-manager`                                                              | Spécifier la sémantique Git de la fonctionnalité (cas nominaux, flags, erreurs façon git, critères d'acceptation). Le comportement de référence est `git` réel. | `docs/specs/<feature>.md` |
+| 2. **Doc**   | `voltagent-biz:technical-writer`                                                             | Rédiger/mettre à jour la doc utilisateur (commande, options, exemples) et les notes d'architecture impactées.                                                   | maj `docs/`, `CLAUDE.md`  |
+| 3. **Dev**   | `voltagent-lang:typescript-pro` (moteur `core/`) · `voltagent-lang:vue-expert` (UI Vue 3)    | Implémenter dans `core/` (logique) ou dans les composants/store (UI), en respectant la frontière core↔UI.                                                       | code                      |
+| 4. **Tests** | `voltagent-qa-sec:test-automator`                                                            | Écrire les tests Vitest depuis les critères d'acceptation de l'étape 1 (cas nominaux + erreurs + bords : HEAD détaché, fast-forward, réécriture d'historique).  | `tests/**/*.test.ts`      |
+| 5. **QA**    | `voltagent-qa-sec:code-reviewer` · `voltagent-qa-sec:architect-reviewer` (décisions d'archi) | Revue : conformité aux specs, respect des conventions, qualité, couverture, régressions.                                                                        | rapport de revue          |
 
 ### Règles d'orchestration
 
@@ -152,6 +152,9 @@ Développement par phases (voir la liste de tâches).
 
   Dette B1-restore (non bloquante, revue QA) : pour une cible **index** (Cas 2/4), le glob `.` énumère aussi `repo.workingTree` (un untracked devient un `delete repo.index[path]` no-op — inoffensif mais sémantiquement bancal) ; restauration depuis un commit force `mode:'100644'` (dette B1 `flattenTree` ne remonte pas le mode) ; suppression silencieuse d'un fichier du WT absent du commit source (Cas 3) couverte par un test mais comportement à connaître. La dette Phase 2 « `restore --staged --source` court-circuité », « pathspecs multiples ignorés silencieusement », « `checkout -- <pathspec>` non géré » et « `resolveCommitish` branche vide consomme le nom » est **soldée**.
 
+- **Phase B1 (merge récursif + delete/modify) terminée** (spec `47`, **solde la dette Phase 4** « mergeBase une seule base » et « conflit delete/modify non testable »). Helpers **purs** dans `repository.ts` : `findMergeBases(repo,a,b)` (toutes les bases de fusion **maximales** = ancêtres communs non dominés ; 1 en linéaire, ≥2 en criss-cross ; tri déterministe), `mergeBaseFiles(repo,a,b,depth=0)` (**base synthétique récursive** : 1 base → arbre de la base = comportement Phase 4 ; >1 → fusion virtuelle des bases 2 à 2 via `threeWayMergeFiles`, garde `depth>5`), `threeWayMergeFiles(base,ours,theirs)` (3-way **pur** sur tables path→content, ours gagne sur conflit — réservé à la base interne, jamais au merge utilisateur), `collectAncestors`. **`mergeBase` (1 base) reste INCHANGÉ** (rétrocompat `rebase`). `merge.ts` (`performTrueMerge`) consomme `mergeBaseFiles` pour la base 3-way → criss-cross transparent. **Messages de conflit différenciés** : `CONFLICT (content): Merge conflict in <path>` vs `CONFLICT (delete/modify): <path> modified by us, deleted by them.` / `… deleted by us, modified by them.` (le vrai git dit « modify/delete » ; aligné sur le littéral de la spec). Conflit delete/modify matérialisé par **marqueurs** (Option 1 vs Option 2 recommandée — cohérent avec l'éditeur de conflits B2). Doc `docs/USAGE.md`. 1194 tests verts (`tests/merge-recursive.test.ts` : 9, dont criss-cross de bout en bout démontrant le bénéfice de la base synthétique, et les 4 CA delete/modify en boîte noire via `git rm`).
+
+  Dette B1-merge-recursive (non bloquante, revue QA) : delete/modify utilise des **marqueurs** (Option 1) au lieu de l'annotation « unmerged » (Option 2 recommandée par la spec) ; **historiques sans ancêtre commun** (`unrelated histories`) → le merge procède au lieu de refuser (`fatal: refusing to merge unrelated histories` non émis ; marqué optionnel par la spec) ; `findMergeBases` est O(C²·V) (un `isAncestor` BFS par paire d'ancêtres communs — acceptable sur DAG pédagogique, à optimiser si réutilisé Phase 8 pull) ; garde `depth>5` de `mergeBaseFiles` non exercé par les tests (inatteignable sur dépôts pédagogiques) ; CA-merge-recursive-02/03 couverts par le **bénéfice observable** (boîte noire) plutôt qu'une assertion `findMergeBases` de bout en bout via le moteur réel.
 
 - **Phase B2 (éditeur de conflits) terminée** (Axe B — UX & pédagogie, spec `50`). Helpers **purs** dans `repository.ts` : `parseConflictContent(content): ConflictSection[]` (parse `<<<<<<< ======= >>>>>>>`, multi-sections, ignore le hors-conflit), `buildResolvedContent(ours, theirs, choice, manual?)` (`ours`/`theirs`/`both`/`manual`), `hasConflictMarkers`. Moteur : `GitEngine.readFile(path)` + `writeFile(path, content)` (écriture directe, sans le parsing fragile de la commande `write`). Snapshot : `operationState.filesInConflict: string[]` (fichiers du WT contenant encore des marqueurs, gelé). Store : `readFile`/`getConflictSections`/`resolveConflict(path, choice, manual?)` (orchestration pure : lit → résout via core → `writeFile` → `git add`). **`git merge --continue` implémenté** (route vers `cmdCommit` ; corrige aussi le bouton « Continuer » merge de la sidebar qui échouait). Composant **`ConflictEditorModal.vue`** (overlay racine dans `App.vue`) : liste des fichiers en conflit, panneau 3-way ours/theirs/résultat, boutons Garder ours/theirs/les deux/Éditer, Marquer résolu (→ `resolveConflict`), Continuer (actif quand `filesInConflict` vide), Annuler — **zéro logique git** (tout via le store). Modèle « conflit pleine-page » (la 1ʳᵉ section couvre tout le fichier, cohérent avec `makeConflictMarkers`). 1052 tests verts (`tests/conflict-resolution.test.ts` 15 + `tests/components/ConflictEditorModal.test.ts` 6).
 
@@ -207,6 +210,7 @@ Développement par phases (voir la liste de tâches).
 - `git status -s` cas `AM` (stagé puis remodifié) collapse en `modified` dans le snapshot — à tester/affiner en phase 2+.
 
 Dette Phase 2 (revue QA) — **à traiter en Phase 4** (impactent merge/rebase) :
+
 - `git branch -d` et `-D` sont identiques : la sémantique « branche non mergée » n'est PAS vérifiée. Nécessitera un helper `isAncestor(repo, a, b)` (de toute façon requis pour merge/rebase).
 - `restore --staged --source=<commit>` combinés : la branche `--source` court-circuite `--staged` (modifie le WT au lieu de l'index). Router selon le quadrant `(isStaged, sourceRef)`.
 - `restore` ne valide pas les pathspecs multiples (un chemin inexistant parmi plusieurs est ignoré sans erreur).
@@ -214,26 +218,30 @@ Dette Phase 2 (revue QA) — **à traiter en Phase 4** (impactent merge/rebase) 
 - `resolveCommitish` : une branche vide (`""`) « consomme » le nom et empêche la résolution d'un tag/hash homonyme ; pas de détection d'ambiguïté tag vs hash court.
 
 Dette Phase 3 (revue QA) — non bloquante :
+
 - `GraphView.vue` : rendu non mémoïsé (`getNodeBadges` appelé 2×/badge, `layout.edges.filter` et `getEdgeColor` en `.find()` O(E·N) à chaque render). À précalculer en `computed` (Map couleur/badges) avant d'afficher de gros graphes.
 - Badges typés par comparaison de couleur hex (fragile) → ajouter un champ discriminant `kind: 'head'|'branch'|'tag'`.
 - `getColorForCommit` colore par branche puis par lane (incohérence couleur nœud/arête possible) ; le contrat de type dit « couleur par lane ». À unifier.
 - `LayoutOptions.nodeRadius` et `LayoutInput.head`/`tags` déclarés mais non utilisés par `computeLayout` (surbrillance HEAD faite côté UI).
 
 Dette Phase 4 (revue QA) — **à traiter en Phase 5** (le rebase interactif s'appuie dessus) :
+
 - `rebase` refuse désormais une branche contenant un merge (corrigé) ; pour le rebase interactif, prévoir une vraie gestion ou conserver le refus.
 - **Dédupliquer la logique de replay/diff** : `cmdRebase` et `rebaseContinue` dupliquent ~80 lignes ; `applyDiff`/`makeConflictMarkers` (repository.ts) sont des helpers partiellement morts/divergents (cherry-pick/revert/rebase réimplémentent la boucle inline). Extraire un `replayOneCommit(repo, origCommit, newParent)` avant Phase 5.
 - `mergeBase` renvoie une seule base (pas de criss-cross/recursive) ; conflit delete/modify non testable en boîte noire (pas de `git rm`). À documenter/tester en blanc-box.
 - Champs morts : `headHashBeforeRevert`/`headHashBeforePick` (conservés par symétrie).
 
 Dette Phase 5 (revue QA) — non bloquante :
+
 - `git revert` n'utilise PAS encore `replayCommit` (applique un diff inversé inline) — la dédup voulue par la spec 24 n'est atteinte qu'aux 2/3 ; nécessiterait une option `invert` sur le helper.
 - `git stash list` : format inversé vs git réel (« On » avec message / « WIP on … <short> <subject> » sans) et hash court manquant — cosmétique, à corriger en Phase 6.
 - Création de branche/tag n'écrit pas d'entrée reflog (optionnel selon spec).
 - Plusieurs tests reflog/stash utilisent des assertions `toContain` assez larges.
 
 Dette Phase 6 (revue QA) — non bloquante (les bloquants/medium R4-persistance-conflit et M2-cohérence-storage-scénario ont été corrigés avant commit) :
+
 - `autocomplete.ts` : complétion par **suffixe** (`candidate.slice(prefix.length)`) alors que le filtre est insensible à la casse → une ref en casse mixte (ex. branche `Feature`) complétée depuis `fe` produit `feature` (casse perdue). Edge case rare ; fix propre = remplacer le dernier token entier par le candidat.
-- `RefsSidebar.vue` / `TerminalPanel.vue` (Tab) : **pas de tests auto** (`@vue/test-utils` absent). Relus en revue, mais CA-refs-sidebar-* et l'intégration Tab restent non couverts ; ajouter `@vue/test-utils` en Phase 7 si on veut les automatiser.
+- `RefsSidebar.vue` / `TerminalPanel.vue` (Tab) : **pas de tests auto** (`@vue/test-utils` absent). Relus en revue, mais CA-refs-sidebar-\* et l'intégration Tab restent non couverts ; ajouter `@vue/test-utils` en Phase 7 si on veut les automatiser.
 - `catalog.ts` : champ `version: '1.0'` déclaré mais non consommé (à câbler ou retirer). `add <pathspec>` a `hasArgument:true` (l'exemple de la spec 29 suggérait `false`) — à trancher.
 - `autocomplete.ts` est un **3e tokenizer** du projet (après `parser.tokenize` et le parsing positionnel de `commit -m`), mêmes limites guillemets ; `getCommandNames()` du core non réutilisé (re-tri local). Mutualiser si l'occasion se présente.
 - UX : au rechargement, l'historique ↑/↓ (`history`) est perdu (seul `savedCommands` est reconstruit) — choix assumé. `executeScenario` remonte ses erreurs via `console` (pas via `CommandResult`), acceptable car ids statiques.
