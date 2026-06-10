@@ -3886,19 +3886,31 @@ s'ouvre automatiquement (sans avoir à éditer les marqueurs `<<<<<<<` à la mai
 ## Tutoriels guidés (Axe B2)
 
 À côté des **scénarios** (qui chargent un état d'un coup), les **tutoriels guidés**
-font construire l'état **étape par étape**, avec validation automatique :
+font construire l'état **étape par étape**, avec validation automatique. Le
+curriculum compte **15 tutoriels bilingues (FR/EN)** répartis sur **3 niveaux**.
 
-- Section **« Tutoriels guidés »** dans la barre latérale → bouton **« Commencer »**
-  (réinitialise le dépôt).
-- Une **modale** affiche, pour chaque étape : l'énoncé, un **indice** optionnel,
-  et une **checklist d'objectifs** qui se cochent automatiquement à mesure que
-  vous tapez les bonnes commandes dans le terminal.
-- **« Suivant »** se débloque une fois tous les objectifs atteints ;
-  **« Revenir »**, **« Passer »**, **« Quitter »** sont disponibles.
-- Écran de **récapitulatif** en fin de parcours (indices utilisés, étapes sautées).
+- Un **bouton « Tutoriels »** (barre latérale, ou palette `Ctrl/Cmd+K`) ouvre un
+  **lanceur** qui présente le catalogue groupé par niveau : **Basique / Moyen /
+  Avancé**.
+- Chaque étape affiche : l'énoncé, un **indice** optionnel, une section
+  **« Pourquoi & comment »** (le concept), une section **« Effet sur le graphe »**
+  (la répercussion), une **checklist d'objectifs** auto-validés, et un **bouton
+  « Exécuter »** (optionnel) qui lance la commande de l'étape — sinon tapez-la
+  vous-même dans le terminal.
+- **« Suivant »** se débloque quand les objectifs sont atteints ; **« Revenir »**,
+  **« Passer »**, **« Quitter »** sont disponibles. Écran de **récapitulatif** final.
+- La **progression est persistée** : un tutoriel interrompu reprend au rechargement.
+- Tout le contenu suit la **langue de l'interface** (FR/EN) ; les messages d'erreur
+  Git restent en anglais.
 
-Tutoriels fournis : **Premier commit** (facile), **Créer et fusionner une
-branche** (moyen), **Annuler avec reset & reflog** (moyen).
+Curriculum :
+
+- **Basique** : Premier commit · Zone de staging · Bases des branches · Tags &
+  HEAD détaché · Annuler (restore/reset).
+- **Moyen** : Fast-forward vs `--no-ff` · Conflits de fusion · Rebase · Cloner &
+  pousser (distant) · Fetch & pull.
+- **Avancé** : Rebase interactif · Reset & reflog · Cherry-pick & revert · Stash ·
+  Pull --rebase (collaboration).
 
 > Les objectifs sont des **prédicats purs** du moteur évalués sur le snapshot —
 > aucune logique Git dans l'UI.

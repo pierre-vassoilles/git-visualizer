@@ -229,23 +229,18 @@ describe('progression de tutoriel (store)', () => {
     expect(store.tutorialProgress?.hintsUsedCount).toBe(1);
   });
 
-  it('CA-12 : prédicat complexe (branche feature, mais HEAD sur feature ≠ main)', () => {
+  it('CA-12 : prédicat complexe (HEAD sur feature ≠ main → objectif échoue puis réussit)', () => {
     const store = useRepoStore();
-    store.startTutorial('branching');
-    store.execute('git init');
-    store.execute('write file.txt "v1"');
-    store.execute('git add file.txt');
-    store.execute('git commit -m "Initial"');
+    store.startTutorial('branches-basics');
+    store.executeChain('git init ; write f.txt "x" ; git add f.txt ; git commit -m "C1"');
     store.nextStep(); // create-branch
     store.execute('git branch feature');
     store.nextStep(); // switch-branch
     store.execute('git checkout feature');
     store.nextStep(); // commit-on-branch
-    store.execute('write file.txt "v2"');
-    store.execute('git add file.txt');
-    store.execute('git commit -m "Feature"');
-    store.nextStep(); // switch-main : HEAD sur feature → objectif échoue
-    expect(store.currentStep?.id).toBe('switch-main');
+    store.executeChain('write f.txt "y" ; git add f.txt ; git commit -m "C2"');
+    store.nextStep(); // return-to-main : HEAD encore sur feature → objectif échoue
+    expect(store.currentStep?.id).toBe('return-to-main');
     expect(store.currentStepComplete).toBe(false);
     store.execute('git checkout main');
     expect(store.currentStepComplete).toBe(true);

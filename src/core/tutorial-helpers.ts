@@ -136,6 +136,11 @@ export function noOperationInProgress(): (snap: RepoSnapshot) => boolean {
   return (snap) => !snap.operationState;
 }
 
+/** Une opération est en cours (merge/rebase/… conflictuel) — utile pour les tutos conflit. */
+export function operationInProgress(): (snap: RepoSnapshot) => boolean {
+  return (snap) => !!snap.operationState;
+}
+
 /** Nombre de branches >= n. */
 export function hasBranchCount(n: number): (snap: RepoSnapshot) => boolean {
   return (snap) => Object.keys(snap.branches).length >= n;
