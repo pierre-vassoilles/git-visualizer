@@ -4,6 +4,7 @@ import {
   addReflogEntry,
   headCommitHash,
   isInitialized,
+  isValidBranchName,
   resolveCommitish,
   tagExists,
 } from '../repository';
@@ -11,15 +12,12 @@ import { shortHash } from '../sha1';
 import { notARepo } from './init';
 
 /**
- * Valide un nom de tag.
- * Rejette : vide, commençant par '-', noms réservés.
+ * Valide un nom de tag. git applique `check-ref-format` aux tags comme aux
+ * branches (NAV-19) → on réutilise `isValidBranchName` (même sous-ensemble :
+ * rejette `a..b`, `*.lock`, ` ~^:?*[`, etc.).
  */
 function isValidTagName(name: string): boolean {
-  if (!name || name.trim() === '') return false;
-  if (name.startsWith('-')) return false;
-  const reserved = ['HEAD', 'FETCH_HEAD', 'ORIG_HEAD', 'MERGE_HEAD'];
-  if (reserved.includes(name)) return false;
-  return true;
+  return isValidBranchName(name);
 }
 
 /**

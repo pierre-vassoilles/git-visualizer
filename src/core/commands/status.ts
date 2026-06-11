@@ -149,7 +149,9 @@ function buildLongOutput(
 ): CommandResult {
   const lines: string[] = [];
 
-  lines.push(`On branch ${branch}`);
+  // BAS-09 : en HEAD détaché, `branch` contient déjà « HEAD detached at … » → ne
+  // pas préfixer « On branch ».
+  lines.push(branch.startsWith('HEAD detached') ? branch : `On branch ${branch}`);
 
   // Lignes de suivi upstream (si présentes)
   for (const upLine of upstreamLines) {
@@ -179,6 +181,7 @@ function buildLongOutput(
   if (hasUnstaged) {
     lines.push('Changes not staged for commit:');
     lines.push('  (use "git add <file>..." to update what will be committed)');
+    lines.push('  (use "git restore <file>..." to discard changes in working directory)');
     for (const f of unstagedModified) lines.push(`        modified:   ${f}`);
     for (const f of unstagedDeleted) lines.push(`        deleted:    ${f}`);
     lines.push('');

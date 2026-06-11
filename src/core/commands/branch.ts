@@ -7,6 +7,7 @@ import {
   currentBranch,
   headCommitHash,
   isAncestor,
+  isHeadDetached,
   isInitialized,
   isValidBranchName,
   resolveCommitish,
@@ -192,12 +193,14 @@ function listBranches(repo: Repository): CommandResult {
   const current = currentBranch(repo);
   const names = Object.keys(repo.refs.heads).sort();
 
-  const lines = names.map((name) => {
-    if (name === current) {
-      return `* ${name}`;
-    }
-    return `  ${name}`;
-  });
+  const lines: string[] = [];
+  // NAV-16 : en HEAD détaché, git affiche d'abord `* (HEAD detached at <short>)`.
+  if (isHeadDetached(repo)) {
+    lines.push(`* (HEAD detached at ${shortHash(repo.head.target)})`);
+  }
+  for (const name of names) {
+    lines.push(name === current ? `* ${name}` : `  ${name}`);
+  }
 
   return ok(lines);
 }

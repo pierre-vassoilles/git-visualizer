@@ -14,7 +14,8 @@ export function cmdLog(repo: Repository, flags: string[]): CommandResult {
 
   const headHash = headCommitHash(repo);
   if (!headHash) {
-    return fail(['fatal: No commits yet']);
+    // BAS-15 : git utilise exit 128 pour « pas de commits ».
+    return fail(['fatal: your current branch does not have any commits yet'], 128);
   }
 
   const isOneline = flags.includes('--oneline');

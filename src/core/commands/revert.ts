@@ -180,7 +180,11 @@ export function cmdRevert(repo: Repository, args: string[]): CommandResult {
   }
 
   const hasConflicts = Object.keys(conflictFiles).length > 0;
-  const defaultMessage = `Revert "${targetCommit.message}"\n\nThis reverts commit ${shortHash(targetHash)}.`;
+  // RWR-11 : le sujet quote uniquement la PREMIÈRE ligne du message reverté
+  // (sinon un revert de revert imbrique tout le corps), et le corps cite le hash
+  // COMPLET (comme git), pas le hash court.
+  const revertedSubject = targetCommit.message.split('\n')[0] ?? targetCommit.message;
+  const defaultMessage = `Revert "${revertedSubject}"\n\nThis reverts commit ${targetHash}.`;
 
   if (hasConflicts) {
     // Sauvegarder l'état avant revert pour --abort

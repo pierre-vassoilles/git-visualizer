@@ -35,6 +35,12 @@ export function cmdConfig(repo: Repository, args: string[]): CommandResult {
   const key = args[0]!;
   const value = args[1];
 
+  // CNT-13 : une clé sans section (pas de `.`) est invalide (git : exit 1 en
+  // lecture, exit 2 en écriture).
+  if (!key.includes('.')) {
+    return fail([`error: key does not contain a section: ${key}`], value === undefined ? 1 : 2);
+  }
+
   if (value === undefined) {
     // Lecture
     const v = repo.config[key];

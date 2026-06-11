@@ -210,6 +210,12 @@ function formatFile(file: DiffFile): string[] {
     return out;
   }
 
+  // CNT-10 : sans hunk (ex. création/suppression d'un fichier vide), git n'émet
+  // pas d'en-têtes `---`/`+++` — il s'arrête après la ligne `index`.
+  if (file.hunks.length === 0) {
+    return out;
+  }
+
   out.push(file.status === 'added' ? '--- /dev/null' : `--- a/${file.path}`);
   out.push(file.status === 'deleted' ? '+++ /dev/null' : `+++ b/${file.path}`);
 

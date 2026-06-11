@@ -124,9 +124,9 @@ describe('git log --graph', () => {
     expect(r.errors[0]).toContain('not a git repository');
   });
 
-  it('CA-08 : dépôt vierge → No commits yet', () => {
+  it('CA-08 : dépôt vierge → pas de commits (exit 128)', () => {
     const r = replay(['git init']).execute('git log --graph');
-    expect(r.exitCode).not.toBe(0);
-    expect(r.errors[0]).toContain('No commits yet');
+    expect(r.exitCode).toBe(128);
+    expect(r.errors[0]).toContain('does not have any commits yet');
   });
 });

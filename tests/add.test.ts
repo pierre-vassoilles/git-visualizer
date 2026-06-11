@@ -196,10 +196,10 @@ describe('git add', () => {
   // CA-add-05 : Fichier non trouvé
   // -------------------------------------------------------------------------
   describe('CA-add-05 : fichier non trouvé', () => {
-    it('CA-add-05 : exitCode === 1', () => {
+    it('CA-add-05 : exitCode === 128 (BAS-15)', () => {
       const engine = replay(['git init']);
       const result = engine.execute('git add nonexistent.txt');
-      expect(result.exitCode).toBe(1);
+      expect(result.exitCode).toBe(128);
     });
 
     it('CA-add-05 : errors[0] contient "did not match any files"', () => {
@@ -220,16 +220,17 @@ describe('git add', () => {
   // CA-add-06 : Pathspec vide
   // -------------------------------------------------------------------------
   describe('CA-add-06 : pathspec vide', () => {
-    it('CA-add-06 : exitCode === 1', () => {
+    it('CA-add-06 : exitCode === 0 + hint (BAS-14)', () => {
       const engine = replay(['git init']);
       const result = engine.execute('git add');
-      expect(result.exitCode).toBe(1);
+      // git n'échoue pas : il informe « Nothing specified, nothing added. ».
+      expect(result.exitCode).toBe(0);
     });
 
-    it('CA-add-06 : errors[0] contient "pathspec cannot be empty"', () => {
+    it('CA-add-06 : sortie « Nothing specified, nothing added. »', () => {
       const engine = replay(['git init']);
       const result = engine.execute('git add');
-      expect(result.errors[0]).toContain('pathspec cannot be empty');
+      expect(result.output.join(' ')).toContain('Nothing specified, nothing added');
     });
   });
 

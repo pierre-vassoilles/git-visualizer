@@ -520,7 +520,52 @@ ignored… hint: Use -f »).
   pas un untracked), RWR-12 (`cherry-pick -m <n>` d'un merge), RWR-13
   (`reset <pathspec>` désindexe sans bouger HEAD). Tests : `tests/audit-lot6.test.ts`
   (16 cas) + 7 tests existants corrigés (comportement aligné sur git). 1338 verts.
-- Lot 7 : à venir.
+- **Lot 7 — FAIT** (commit dédié). Passe cosmétique. **Implémenté** : BAS-09
+  (status détaché sans « On branch »), BAS-14 (`git add` sans arg → exit 0 + hint),
+  BAS-15 (exit 128 pour `add`/`log` sans correspondance/commits), BAS-16 (hint
+  `git restore` dans status), NAV-16 (`git branch` ligne `* (HEAD detached at …)`),
+  NAV-19 (`isValidTagName` = `isValidBranchName`), RWR-11 (revert : sujet 1re ligne
+  + hash complet), TLS-12 (action `edit` du rebase -i rejetée), CNT-10 (diff de
+  fichier vide sans `---`/`+++`), CNT-13 (config refuse une clé sans section),
+  CNT-14 (`git diff` rejette les flags inconnus). Tests : `tests/audit-lot7.test.ts`
+  (9 cas) + tests `add`/`log`/`log-graph` existants alignés. 1347 verts.
+
+  **Reportés / documentés comme simplifications assumées** (pure cosmétique de
+  wording, faible valeur pédagogique vs risque/coût) :
+  - **RWR-14** : `reset --mixed` n'affiche pas « Unstaged changes after reset: » ;
+    messages de conflit revert/cherry-pick/rebase « Conflict in » au lieu de
+    « Merge conflict in » + bloc hint ; label de marqueur sans sujet
+    (`>>>>>>> abc1234` vs `abc1234 (c2)`) ; `--abort` sans opération → exit 1 vs
+    128 ; « 3-way » vs « ort ».
+  - **RMT-09** : refspecs `git push <src>:<dst>` / `:<branch>` (delete) non
+    supportés (rejetés explicitement).
+  - **RMT-10** : `git branch -u` n'accepte qu'un upstream `<remote>/<branch>` (pas
+    une branche locale `.`).
+  - **CNT-11** : ligne fantôme de `splitLines` sur un contenu finissant par `\n` et
+    absence du marqueur `\ No newline at end of file` (sans impact : `write` ne
+    produit jamais de `\n` final).
+  - **CNT-15** : littéraux de messages `mv`/`add` partiellement divergents.
+
+  **Divergences ACTÉES (ne seront pas corrigées — choix de conception)** :
+  - **NAV-06** : `branch -d` ne tient pas compte de l'upstream (« merged » =
+    ancêtre de HEAD uniquement).
+  - **NAV-12** : `checkout -` / `switch -` ne reviennent pas sur un épisode HEAD
+    détaché (prevBranch ne stocke que des branches).
+  - **NAV-18** : pas de checkout DWIM d'une branche de suivi distante
+    (`git checkout <name>` quand seul `origin/<name>` existe).
+  - **TLS-13** : `git reflog` d'une branche/tag supprimé fonctionne (feature
+    volontaire spec 61, alors que le vrai git supprime le reflog) — à signaler
+    dans le tutoriel `reset-reflog`.
+
+---
+
+## Conclusion de l'audit (2026-06-11)
+
+Les 7 lots du plan ont été traités (commits `45eb055` → HEAD). Tout le **HIGH** et
+la quasi-totalité du **MEDIUM** sont corrigés ; le **LOW** est soit corrigé soit
+documenté ci-dessus. Total : **1347 tests verts**, build OK. Les comportements de
+réécriture profonds du rebase (RWR-09/TLS-08/TLS-10/TLS-11) et quelques cosmétiques
+restent documentés comme simplifications assumées.
 
 ## Plan de correction (lots priorisés)
 

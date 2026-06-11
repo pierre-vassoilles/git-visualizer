@@ -24,7 +24,8 @@ export function cmdAdd(repo: Repository, args: string[]): CommandResult {
   const pathspecs = args.filter((a) => !a.startsWith('-'));
 
   if (pathspecs.length === 0 && !all) {
-    return fail(['fatal: pathspec cannot be empty'], 1);
+    // BAS-14 : git n'échoue pas, il informe (exit 0) avec un hint.
+    return ok(['Nothing specified, nothing added.', "hint: Maybe you wanted to say 'git add .'?"]);
   }
 
   const ignore = force ? [] : loadIgnorePatterns(repo);
@@ -42,7 +43,8 @@ export function cmdAdd(repo: Repository, args: string[]): CommandResult {
       const prefix = spec.endsWith('/') ? spec : `${spec}/`;
       const matched = [...candidates].filter((p) => p === spec || p.startsWith(prefix));
       if (matched.length === 0) {
-        return fail([`fatal: pathspec '${spec}' did not match any files`], 1);
+        // BAS-15 : exit 128 (cohérent avec `git rm` et le vrai git).
+        return fail([`fatal: pathspec '${spec}' did not match any files`], 128);
       }
       // Pathspec EXACT pointant un fichier ignoré non suivi → erreur (comme git).
       if (!force && spec in repo.workingTree && !(spec in repo.index) && isIgnored(spec, ignore)) {

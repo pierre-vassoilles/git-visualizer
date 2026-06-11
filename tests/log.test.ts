@@ -16,16 +16,16 @@ describe('git log', () => {
   // CA-log-01 : Dépôt vierge, aucun commit
   // -------------------------------------------------------------------------
   describe('CA-log-01 : dépôt vierge, aucun commit', () => {
-    it('CA-log-01 : exitCode === 1', () => {
+    it('CA-log-01 : exitCode === 128 (BAS-15)', () => {
       const engine = replay(['git init']);
       const result = engine.execute('git log');
-      expect(result.exitCode).toBe(1);
+      expect(result.exitCode).toBe(128);
     });
 
-    it('CA-log-01 : errors[0] contient "No commits yet"', () => {
+    it('CA-log-01 : errors[0] contient "does not have any commits yet"', () => {
       const engine = replay(['git init']);
       const result = engine.execute('git log');
-      expect(result.errors[0]).toContain('No commits yet');
+      expect(result.errors[0]).toContain('does not have any commits yet');
     });
 
     it('CA-log-01 : output est vide', () => {
@@ -470,11 +470,11 @@ describe('git log', () => {
   // Cas limite supplémentaire : git log --oneline avec zéro commit
   // -------------------------------------------------------------------------
   describe('CAS LIMITE : git log --oneline sans commit', () => {
-    it('exitCode === 1 et errors contient "No commits yet"', () => {
+    it('exitCode === 128 et errors contient "does not have any commits yet"', () => {
       const engine = replay(['git init']);
       const result = engine.execute('git log --oneline');
-      expect(result.exitCode).toBe(1);
-      expect(result.errors[0]).toContain('No commits yet');
+      expect(result.exitCode).toBe(128);
+      expect(result.errors[0]).toContain('does not have any commits yet');
     });
   });
 });

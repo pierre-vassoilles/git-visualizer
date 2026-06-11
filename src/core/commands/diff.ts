@@ -100,6 +100,15 @@ export function cmdDiff(repo: Repository, args: string[]): CommandResult {
   const head = dashDash === -1 ? args : args.slice(0, dashDash);
 
   const staged = head.includes('--staged') || head.includes('--cached');
+
+  // CNT-14 : rejeter les flags non supportés (plus de silence trompeur sur
+  // --stat/--name-only/-U5…). git utilise le code de sortie 129 pour l'usage.
+  const KNOWN_DIFF_FLAGS = new Set(['--staged', '--cached']);
+  const unknownFlag = head.find((a) => a.startsWith('-') && !KNOWN_DIFF_FLAGS.has(a));
+  if (unknownFlag) {
+    return fail([`error: unknown option '${unknownFlag.replace(/^-+/, '')}'`], 129);
+  }
+
   const positionals = head.filter((a) => !a.startsWith('-'));
 
   let oldSide: DiffSide;

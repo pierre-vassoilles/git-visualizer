@@ -274,7 +274,9 @@ export function executeRebaseInteractive(repo: Repository, todoList: TodoItem[])
   }
 
   // Vérifier les actions valides
-  const validActions = new Set<string>(['pick', 'reword', 'squash', 'fixup', 'drop', 'edit']);
+  // `edit` n'est pas implémenté (s'arrêterait après application) ; on le rejette
+  // au lieu de le traiter silencieusement comme `pick` (TLS-12).
+  const validActions = new Set<string>(['pick', 'reword', 'squash', 'fixup', 'drop']);
   for (const item of todoList) {
     if (!validActions.has(item.action)) {
       return fail([`fatal: unknown action: '${item.action}'`]);
