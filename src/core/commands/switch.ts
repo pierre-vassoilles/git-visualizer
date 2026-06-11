@@ -15,12 +15,13 @@ import {
 } from '../repository';
 import { shortHash } from '../sha1';
 import { notARepo } from './init';
+import { switchConflictResult } from './checkout';
 
 /**
- * git switch <branchname>            — bascule vers une branche
- * git switch -c <branchname>         — crée et bascule vers une nouvelle branche
- * git switch --detach <commit>       — détache HEAD sur un commit
- * git switch -                       — revient à la branche précédente
+ * git switch <branchname>              — bascule vers une branche
+ * git switch -c <name> [<start-point>] — crée et bascule vers une nouvelle branche
+ * git switch [--detach] [<commit>]     — détache HEAD (défaut : HEAD courant)
+ * git switch -                         — revient à la branche précédente
  */
 export function cmdSwitch(repo: Repository, args: string[]): CommandResult {
   if (!isInitialized(repo)) return notARepo();
@@ -30,28 +31,26 @@ export function cmdSwitch(repo: Repository, args: string[]): CommandResult {
     return switchPrevBranch(repo);
   }
 
-  // git switch --detach <commit>
+  // git switch --detach [<commit>] (défaut : HEAD courant)
   if (args.includes('--detach')) {
     const detachIdx = args.indexOf('--detach');
-    const commitRef = args[detachIdx + 1];
-    if (!commitRef) {
-      return fail(['fatal: --detach requires a commit']);
-    }
+    const commitRef = args[detachIdx + 1] ?? 'HEAD';
     return switchDetach(repo, commitRef);
   }
 
-  // git switch -c <branchname>
+  // git switch -c <branchname> [<start-point>]
   if (args.includes('-c')) {
     const cIdx = args.indexOf('-c');
     const branchName = args[cIdx + 1];
     if (!branchName) {
       return fail(['fatal: -c requires a branch name']);
     }
-    return switchCreateBranch(repo, branchName);
+    const startPoint = args[cIdx + 2];
+    return switchCreateBranch(repo, branchName, startPoint);
   }
 
   // git switch <branchname>
-  const branchName = args[0];
+  const branchName = args.filter((a) => !a.startsWith('-'))[0];
   if (!branchName) {
     return fail(['fatal: argument required']);
   }
@@ -69,21 +68,16 @@ function switchToBranch(repo: Repository, branchName: string): CommandResult {
 
   // Idempotent
   if (currentBranchName === branchName && repo.head.symbolic) {
-    return ok();
+    return ok([`Already on '${branchName}'`]);
   }
 
   const targetHash = repo.refs.heads[branchName] ?? null;
   const resolvedTarget = targetHash || null;
 
-  // Vérifier qu'on ne perdra pas de données
-  const problematic = canSwitchWithoutDataLoss(repo, resolvedTarget);
-  if (problematic) {
-    const lines = [
-      'error: Your local changes to the following files would be overwritten by checkout:',
-      ...problematic.map((p) => `\t${p}`),
-      'Please commit your changes or stash them before you switch branches.',
-    ];
-    return fail(lines);
+  // Vérifier qu'on ne perdra pas de données (sémantique two-tree).
+  const conflicts = canSwitchWithoutDataLoss(repo, resolvedTarget);
+  if (conflicts) {
+    return switchConflictResult(conflicts, 'switch');
   }
 
   // Sauvegarder prevBranch
@@ -96,8 +90,8 @@ function switchToBranch(repo: Repository, branchName: string): CommandResult {
   // Mettre à jour HEAD
   repo.head = { symbolic: true, target: `refs/heads/${branchName}` };
 
-  // Restaurer index + working tree
-  applyTreeToRepo(repo, resolvedTarget);
+  // Aligner index + working tree (two-tree depuis l'ancien HEAD).
+  applyTreeToRepo(repo, resolvedTarget, oldHashSwitch || null);
 
   addReflogEntryForHead(repo, {
     oldHash: oldHashSwitch,
@@ -109,8 +103,12 @@ function switchToBranch(repo: Repository, branchName: string): CommandResult {
   return ok([`Switched to branch '${branchName}'`]);
 }
 
-/** Crée une nouvelle branche et bascule dessus. */
-function switchCreateBranch(repo: Repository, branchName: string): CommandResult {
+/** Crée une nouvelle branche (éventuellement depuis `<start-point>`) et bascule dessus. */
+function switchCreateBranch(
+  repo: Repository,
+  branchName: string,
+  startPoint?: string,
+): CommandResult {
   if (!isValidBranchName(branchName)) {
     return fail([`fatal: '${branchName}' is not a valid branch name.`]);
   }
@@ -118,16 +116,42 @@ function switchCreateBranch(repo: Repository, branchName: string): CommandResult
     return fail([`fatal: A branch named '${branchName}' already exists.`]);
   }
 
-  // Créer la branche depuis HEAD courant
-  const headHash = headCommitHash(repo) ?? '';
-  repo.refs.heads[branchName] = headHash;
+  // Point de départ : <start-point> résolu, sinon HEAD courant.
+  let startHash: string;
+  if (startPoint !== undefined) {
+    const resolved = resolveCommitish(repo, startPoint);
+    if (!resolved) {
+      return fail([`fatal: '${startPoint}' is not a valid object name.`], 128);
+    }
+    startHash = resolved;
+  } else {
+    startHash = headCommitHash(repo) ?? '';
+  }
+
+  const oldHash = headCommitHash(repo) ?? '';
+  if (startHash !== oldHash) {
+    const conflicts = canSwitchWithoutDataLoss(repo, startHash || null);
+    if (conflicts) {
+      return switchConflictResult(conflicts, 'switch');
+    }
+  }
 
   const currentBranchName = currentBranch(repo);
   if (repo.head.symbolic && currentBranchName !== null) {
     setPrevBranch(repo, currentBranchName);
   }
 
+  repo.refs.heads[branchName] = startHash;
   repo.head = { symbolic: true, target: `refs/heads/${branchName}` };
+
+  applyTreeToRepo(repo, startHash || null, oldHash || null);
+
+  addReflogEntryForHead(repo, {
+    oldHash,
+    newHash: startHash,
+    action: 'checkout',
+    description: `created and switched to branch '${branchName}'`,
+  });
 
   return ok([`Switched to a new branch '${branchName}'`]);
 }
@@ -139,15 +163,10 @@ function switchDetach(repo: Repository, ref: string): CommandResult {
     return fail([`fatal: reference is not a tree: '${ref}'`]);
   }
 
-  // Vérifier qu'on ne perdra pas de données
-  const problematic = canSwitchWithoutDataLoss(repo, commitHash);
-  if (problematic) {
-    const lines = [
-      'error: Your local changes to the following files would be overwritten by checkout:',
-      ...problematic.map((p) => `\t${p}`),
-      'Please commit your changes or stash them before you switch branches.',
-    ];
-    return fail(lines);
+  // Vérifier qu'on ne perdra pas de données (sémantique two-tree).
+  const conflicts = canSwitchWithoutDataLoss(repo, commitHash);
+  if (conflicts) {
+    return switchConflictResult(conflicts, 'switch');
   }
 
   // Sauvegarder prevBranch si HEAD était symbolique
@@ -158,8 +177,17 @@ function switchDetach(repo: Repository, ref: string): CommandResult {
     }
   }
 
+  const oldHashDetach = headCommitHash(repo) ?? '';
+
   repo.head = { symbolic: false, target: commitHash };
-  applyTreeToRepo(repo, commitHash);
+  applyTreeToRepo(repo, commitHash, oldHashDetach || null);
+
+  addReflogEntryForHead(repo, {
+    oldHash: oldHashDetach,
+    newHash: commitHash,
+    action: 'checkout',
+    description: `detached HEAD at ${shortHash(commitHash)}`,
+  });
 
   const short = shortHash(commitHash);
   return ok([`Switched to detached HEAD state at ${short}`]);

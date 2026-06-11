@@ -12,17 +12,20 @@ import {
   isValidBranchName,
   resolveCommitish,
   setPrevBranch,
+  type SwitchConflicts,
 } from '../repository';
 import { shortHash } from '../sha1';
 import { notARepo } from './init';
 import { cmdRestore } from './restore';
 
 /**
- * git checkout <branchname>          — bascule vers une branche
- * git checkout -b <branchname>       — crée et bascule vers une nouvelle branche
- * git checkout <commit>              — détache HEAD sur un commit
- * git checkout -                     — revient à la branche précédente
- * git checkout --detach <commit>     — détache HEAD de manière explicite
+ * git checkout <branchname>              — bascule vers une branche
+ * git checkout -b <name> [<start-point>] — crée et bascule vers une nouvelle branche
+ * git checkout <commit>                  — détache HEAD sur un commit
+ * git checkout -                         — revient à la branche précédente
+ * git checkout [--detach] [<commit>]     — détache HEAD (défaut : HEAD courant)
+ * git checkout [<ref>] -- <pathspec...>  — restaure des chemins (index+WT)
+ * git checkout <ref> <pathspec...>       — idem sans `--` quand <ref> est résolu
  */
 export function cmdCheckout(repo: Repository, args: string[]): CommandResult {
   if (!isInitialized(repo)) return notARepo();
@@ -32,37 +35,49 @@ export function cmdCheckout(repo: Repository, args: string[]): CommandResult {
     return checkoutPrevBranch(repo);
   }
 
-  // git checkout -- <pathspec...> : alias de `git restore <pathspec...>` (WT ← index, Cas 1).
+  // git checkout [<ref>] -- <pathspec...> : restauration de chemins.
   const dashDashIdx = args.indexOf('--');
   if (dashDashIdx !== -1) {
+    const before = args.slice(0, dashDashIdx).filter((a) => !a.startsWith('-'));
     const pathspecs = args.slice(dashDashIdx + 1);
+    if (before.length > 0) {
+      // `git checkout <ref> -- <path>` : restaure depuis <ref> dans index ET WT.
+      return checkoutPathsFromRef(repo, before[0]!, pathspecs);
+    }
+    // `git checkout -- <path>` : alias de `git restore <path>` (WT ← index).
     return cmdRestore(repo, pathspecs);
   }
 
-  // git checkout --detach <commit>
+  // git checkout --detach [<commit>] (défaut : HEAD courant)
   if (args.includes('--detach')) {
     const detachIdx = args.indexOf('--detach');
-    const commitRef = args[detachIdx + 1];
-    if (!commitRef) {
-      return fail(['fatal: --detach requires a commit']);
-    }
+    const commitRef = args[detachIdx + 1] ?? 'HEAD';
     return checkoutDetach(repo, commitRef);
   }
 
-  // git checkout -b <branchname>
+  // git checkout -b <branchname> [<start-point>]
   if (args.includes('-b')) {
     const bIdx = args.indexOf('-b');
     const branchName = args[bIdx + 1];
     if (!branchName) {
       return fail(['fatal: -b requires a branch name']);
     }
-    return checkoutCreateBranch(repo, branchName);
+    const startPoint = args[bIdx + 2];
+    return checkoutCreateBranch(repo, branchName, startPoint);
   }
 
   // git checkout <ref>
-  const ref = args[0];
+  const positional = args.filter((a) => !a.startsWith('-'));
+  const ref = positional[0];
   if (!ref) {
     return fail(['fatal: argument required']);
+  }
+
+  // `git checkout <ref> <pathspec...>` (sans `--`) : si des chemins suivent un
+  // ref résolu, restauration de chemins (pas une bascule de branche).
+  const extraPaths = positional.slice(1);
+  if (extraPaths.length > 0 && resolveCommitish(repo, ref) !== null) {
+    return checkoutPathsFromRef(repo, ref, extraPaths);
   }
 
   // Déterminer si c'est une branche ou un commit
@@ -79,27 +94,65 @@ export function cmdCheckout(repo: Repository, args: string[]): CommandResult {
   return fail([`error: pathspec '${ref}' did not match any file(s) known to git`]);
 }
 
+/**
+ * Construit le résultat d'échec d'une bascule bloquée par des changements locaux
+ * (changements suivis et/ou fichiers non suivis qui seraient écrasés). Partagé
+ * avec `git switch` (verbe « switch »).
+ */
+export function switchConflictResult(
+  conflicts: SwitchConflicts,
+  verb: 'checkout' | 'switch',
+): CommandResult {
+  const lines: string[] = [];
+  if (conflicts.tracked.length > 0) {
+    lines.push(`error: Your local changes to the following files would be overwritten by ${verb}:`);
+    lines.push(...conflicts.tracked.map((p) => `\t${p}`));
+    lines.push('Please commit your changes or stash them before you switch branches.');
+  }
+  if (conflicts.untracked.length > 0) {
+    lines.push(
+      `error: The following untracked working tree files would be overwritten by ${verb}:`,
+    );
+    lines.push(...conflicts.untracked.map((p) => `\t${p}`));
+    lines.push('Please move or remove them before you switch branches.');
+  }
+  lines.push('Aborting');
+  return fail(lines, 1);
+}
+
+/**
+ * `git checkout <ref> -- <pathspec...>` / `git checkout <ref> <pathspec...>` :
+ * restaure les chemins depuis l'arbre de `<ref>` dans l'index ET le working tree
+ * (équivaut à `git restore --source=<ref> --staged --worktree`). Réutilise
+ * `cmdRestore` (validation atomique des pathspecs incluse).
+ */
+function checkoutPathsFromRef(repo: Repository, ref: string, pathspecs: string[]): CommandResult {
+  if (pathspecs.length === 0) {
+    return fail(['fatal: pathspec cannot be empty']);
+  }
+  // Index ← <ref> (valide les pathspecs ; rien n'est écrit si l'un est introuvable).
+  const idxResult = cmdRestore(repo, ['--staged', `--source=${ref}`, ...pathspecs]);
+  if (idxResult.exitCode !== 0) return idxResult;
+  // Working tree ← <ref>.
+  return cmdRestore(repo, [`--source=${ref}`, ...pathspecs]);
+}
+
 /** Bascule vers une branche existante. */
 function checkoutBranch(repo: Repository, branchName: string): CommandResult {
   const currentBranchName = currentBranch(repo);
 
   // Idempotent : déjà sur cette branche
   if (currentBranchName === branchName && repo.head.symbolic) {
-    return ok(); // silencieux
+    return ok([`Already on '${branchName}'`]);
   }
 
   const targetHash = repo.refs.heads[branchName] ?? null;
   const resolvedTarget = targetHash || null;
 
-  // Vérifier qu'on ne perdra pas de données
-  const problematic = canSwitchWithoutDataLoss(repo, resolvedTarget);
-  if (problematic) {
-    const lines = [
-      'error: Your local changes to the following files would be overwritten by checkout:',
-      ...problematic.map((p) => `\t${p}`),
-      'Please commit your changes or stash them before you switch branches.',
-    ];
-    return fail(lines);
+  // Vérifier qu'on ne perdra pas de données (sémantique two-tree).
+  const conflicts = canSwitchWithoutDataLoss(repo, resolvedTarget);
+  if (conflicts) {
+    return switchConflictResult(conflicts, 'checkout');
   }
 
   // Sauvegarder prevBranch : uniquement si HEAD était sur une branche symbolique
@@ -113,8 +166,8 @@ function checkoutBranch(repo: Repository, branchName: string): CommandResult {
   // Mettre à jour HEAD
   repo.head = { symbolic: true, target: `refs/heads/${branchName}` };
 
-  // Restaurer index + working tree depuis l'arbre du commit cible
-  applyTreeToRepo(repo, resolvedTarget);
+  // Aligner index + working tree (two-tree depuis l'ancien HEAD vers la cible).
+  applyTreeToRepo(repo, resolvedTarget, oldHash || null);
 
   addReflogEntryForHead(repo, {
     oldHash,
@@ -126,8 +179,12 @@ function checkoutBranch(repo: Repository, branchName: string): CommandResult {
   return ok([`Switched to branch '${branchName}'`]);
 }
 
-/** Crée une nouvelle branche et bascule dessus. */
-function checkoutCreateBranch(repo: Repository, branchName: string): CommandResult {
+/** Crée une nouvelle branche (éventuellement depuis `<start-point>`) et bascule dessus. */
+function checkoutCreateBranch(
+  repo: Repository,
+  branchName: string,
+  startPoint?: string,
+): CommandResult {
   if (!isValidBranchName(branchName)) {
     return fail([`fatal: '${branchName}' is not a valid branch name.`]);
   }
@@ -135,19 +192,45 @@ function checkoutCreateBranch(repo: Repository, branchName: string): CommandResu
     return fail([`fatal: A branch named '${branchName}' already exists.`]);
   }
 
-  // Créer la branche depuis HEAD courant
-  const headHash = headCommitHash(repo) ?? '';
-  repo.refs.heads[branchName] = headHash;
+  // Point de départ : <start-point> résolu, sinon HEAD courant.
+  let startHash: string;
+  if (startPoint !== undefined) {
+    const resolved = resolveCommitish(repo, startPoint);
+    if (!resolved) {
+      return fail([`fatal: '${startPoint}' is not a valid object name.`], 128);
+    }
+    startHash = resolved;
+  } else {
+    startHash = headCommitHash(repo) ?? '';
+  }
 
-  // Basculer vers la nouvelle branche
+  // Si l'arbre change (start-point ≠ HEAD), refuser une perte de données.
+  const oldHash = headCommitHash(repo) ?? '';
+  if (startHash !== oldHash) {
+    const conflicts = canSwitchWithoutDataLoss(repo, startHash || null);
+    if (conflicts) {
+      return switchConflictResult(conflicts, 'checkout');
+    }
+  }
+
   const currentBranchName = currentBranch(repo);
   if (repo.head.symbolic && currentBranchName !== null) {
     setPrevBranch(repo, currentBranchName);
   }
 
+  repo.refs.heads[branchName] = startHash;
   repo.head = { symbolic: true, target: `refs/heads/${branchName}` };
 
-  // Pas besoin de restaurer index/WT : la nouvelle branche pointe sur le même commit
+  // Aligner index/WT si le start-point déplace l'arbre (no-op si == HEAD).
+  applyTreeToRepo(repo, startHash || null, oldHash || null);
+
+  addReflogEntryForHead(repo, {
+    oldHash,
+    newHash: startHash,
+    action: 'checkout',
+    description: `created and switched to branch '${branchName}'`,
+  });
+
   return ok([`Switched to a new branch '${branchName}'`]);
 }
 
@@ -158,15 +241,10 @@ function checkoutDetach(repo: Repository, ref: string): CommandResult {
     return fail([`fatal: reference is not a tree: '${ref}'`]);
   }
 
-  // Vérifier qu'on ne perdra pas de données
-  const problematic = canSwitchWithoutDataLoss(repo, commitHash);
-  if (problematic) {
-    const lines = [
-      'error: Your local changes to the following files would be overwritten by checkout:',
-      ...problematic.map((p) => `\t${p}`),
-      'Please commit your changes or stash them before you switch branches.',
-    ];
-    return fail(lines);
+  // Vérifier qu'on ne perdra pas de données (sémantique two-tree).
+  const conflicts = canSwitchWithoutDataLoss(repo, commitHash);
+  if (conflicts) {
+    return switchConflictResult(conflicts, 'checkout');
   }
 
   // Sauvegarder prevBranch si HEAD était sur une branche symbolique
@@ -182,8 +260,8 @@ function checkoutDetach(repo: Repository, ref: string): CommandResult {
   // Mettre à jour HEAD
   repo.head = { symbolic: false, target: commitHash };
 
-  // Restaurer index + working tree
-  applyTreeToRepo(repo, commitHash);
+  // Aligner index + working tree (two-tree depuis l'ancien HEAD).
+  applyTreeToRepo(repo, commitHash, oldHashDetach || null);
 
   addReflogEntryForHead(repo, {
     oldHash: oldHashDetach,

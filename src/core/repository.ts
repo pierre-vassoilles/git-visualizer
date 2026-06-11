@@ -519,114 +519,160 @@ export function resolveCommitish(repo: Repository, ref: string): string | null {
 }
 
 /**
- * Vérifie si on peut basculer vers un commit cible sans perdre de données.
- *
- * Retourne null si ok, ou un tableau de chemins problématiques.
- *
- * La règle : un fichier du working tree a des modifications non stagées
- * (WT ≠ index) ET ce fichier sera différent dans le commit cible.
- * Dans ce cas, le checkout écraserait les modifications.
+ * Décision two-tree par chemin lors d'une bascule de HEAD (source → cible) :
+ *  - `carry`              : la source et la cible ont le même contenu pour ce
+ *    chemin → on conserve l'état local tel quel (modifs stagées/non stagées,
+ *    suppressions, fichiers non suivis tous préservés) ;
+ *  - `apply`              : la cible diffère et l'état local est « propre » (ou
+ *    une suppression non stagée que git restaure) → on aligne index+WT sur la
+ *    cible (`blob` undefined = suppression) ;
+ *  - `conflict`           : un changement local suivi serait écrasé → refus ;
+ *  - `conflict-untracked` : un fichier non suivi entrerait en collision → refus.
+ */
+type SwitchAction =
+  | { kind: 'carry' }
+  | { kind: 'apply'; blob: string | undefined }
+  | { kind: 'conflict' }
+  | { kind: 'conflict-untracked' };
+
+function treeFilesOf(repo: Repository, commitHash: string | null): Record<string, string> {
+  if (!commitHash) return {};
+  const commit = getCommit(repo, commitHash);
+  return commit ? flattenTree(repo, commit.tree) : {};
+}
+
+/**
+ * Classe chaque chemin pour une bascule `sourceHash → targetHash` selon la
+ * sémantique two-tree de git (`git read-tree -m -u` simplifié à notre modèle où
+ * l'index est un snapshot complet). Voir {@link SwitchAction}.
+ */
+function classifySwitch(
+  repo: Repository,
+  sourceHash: string | null,
+  targetHash: string | null,
+): Map<string, SwitchAction> {
+  const sFiles = treeFilesOf(repo, sourceHash);
+  const tFiles = treeFilesOf(repo, targetHash);
+  const paths = new Set<string>([
+    ...Object.keys(sFiles),
+    ...Object.keys(tFiles),
+    ...Object.keys(repo.index),
+    ...Object.keys(repo.workingTree),
+  ]);
+
+  const result = new Map<string, SwitchAction>();
+  for (const path of paths) {
+    const sBlob = sFiles[path];
+    const tBlob = tFiles[path];
+    const iBlob = repo.index[path]?.blobHash;
+    const wtEntry = repo.workingTree[path];
+    const wBlob = wtEntry ? hashBlob(wtEntry.content) : undefined;
+
+    // S === T : rien à appliquer → on conserve l'état local (carry).
+    if (sBlob === tBlob) {
+      result.set(path, { kind: 'carry' });
+      continue;
+    }
+
+    // La cible diffère de la source pour ce chemin : le checkout doit l'aligner.
+    // Changement indexé (index ≠ source) = précieux.
+    if (iBlob !== sBlob) {
+      // Déjà indexé sur la cible → pas de perte, on garde (carry).
+      result.set(path, iBlob === tBlob ? { kind: 'carry' } : { kind: 'conflict' });
+      continue;
+    }
+
+    // index === source. État du working tree ?
+    if (wBlob === iBlob) {
+      // WT propre (== index == source) → on applique la cible.
+      result.set(path, { kind: 'apply', blob: tBlob });
+      continue;
+    }
+    if (wBlob === undefined) {
+      // Suppression non stagée → git restaure la version cible (pas de refus).
+      result.set(path, { kind: 'apply', blob: tBlob });
+      continue;
+    }
+    if (wBlob === tBlob) {
+      // Le WT correspond déjà à la cible → application sans perte.
+      result.set(path, { kind: 'apply', blob: tBlob });
+      continue;
+    }
+    // Modification non stagée qui diffère de la cible → serait écrasée.
+    result.set(path, iBlob === undefined ? { kind: 'conflict-untracked' } : { kind: 'conflict' });
+  }
+  return result;
+}
+
+/** Conflits bloquant une bascule de HEAD, séparés par nature (pour le message). */
+export interface SwitchConflicts {
+  /** Changements locaux suivis qui seraient écrasés. */
+  tracked: string[];
+  /** Fichiers non suivis qui seraient écrasés. */
+  untracked: string[];
+}
+
+/**
+ * Vérifie qu'on peut basculer du commit courant (HEAD) vers `targetCommitHash`
+ * sans perdre de données, selon la sémantique two-tree (cf. {@link classifySwitch}).
+ * Retourne `null` si la bascule est sûre, sinon les chemins en conflit séparés
+ * en suivis / non suivis. Doit être appelé AVANT de déplacer HEAD (la source est
+ * le HEAD courant).
  */
 export function canSwitchWithoutDataLoss(
   repo: Repository,
   targetCommitHash: string | null,
-): string[] | null {
-  // Construire la map du working tree cible
-  const targetFiles: Record<string, string> = {}; // path → blobHash
-  if (targetCommitHash) {
-    const commit = getCommit(repo, targetCommitHash);
-    if (commit) {
-      Object.assign(targetFiles, flattenTree(repo, commit.tree));
-    }
+): SwitchConflicts | null {
+  const sourceHash = headCommitHash(repo);
+  const actions = classifySwitch(repo, sourceHash, targetCommitHash);
+  const tracked: string[] = [];
+  const untracked: string[] = [];
+  for (const [path, action] of actions) {
+    if (action.kind === 'conflict') tracked.push(path);
+    else if (action.kind === 'conflict-untracked') untracked.push(path);
   }
-
-  const problematic: string[] = [];
-
-  // Vérifier chaque fichier du working tree
-  for (const [path, wtEntry] of Object.entries(repo.workingTree)) {
-    const indexEntry = repo.index[path];
-
-    // Pas dans l'index → fichier non tracké, pas de risque
-    if (!indexEntry) continue;
-
-    // Vérifier si le WT est différent de l'index (modification non stagée)
-    const wtHash = hashBlob(wtEntry.content);
-    if (wtHash === indexEntry.blobHash) continue; // pas de modif non stagée
-
-    // WT modifié non stagé : vérifier si le target a une version différente
-    const targetHash = targetFiles[path];
-    if (targetHash === undefined) {
-      // Fichier absent du target → sera supprimé, perte potentielle
-      problematic.push(path);
-    } else if (targetHash !== wtHash) {
-      // Target a un contenu différent → serait écrasé
-      problematic.push(path);
-    }
-  }
-
-  return problematic.length > 0 ? problematic.sort() : null;
+  if (tracked.length === 0 && untracked.length === 0) return null;
+  return { tracked: tracked.sort(), untracked: untracked.sort() };
 }
 
 /**
- * Applique l'arbre d'un commit (ou null pour un arbre vide)
- * à l'index et au working tree du dépôt, lors d'une bascule de HEAD.
+ * Applique une bascule de HEAD `sourceHash → commitHash` à l'index et au working
+ * tree selon la sémantique two-tree : les chemins inchangés entre les deux arbres
+ * conservent l'état local (modifs stagées/non stagées, suppressions, fichiers non
+ * suivis) ; les autres sont alignés sur la cible. À appeler APRÈS avoir vérifié
+ * `canSwitchWithoutDataLoss` (les conflits sont alors traités en `apply`/`carry`
+ * sans perte, mais le refus a déjà eu lieu côté commande).
  *
- * L'index est intégralement remplacé par l'arbre cible (snapshot complet).
- * Le working tree est aligné sur l'arbre cible MAIS les fichiers non trackés
- * (présents dans le working tree, absents de l'index courant) sont PRÉSERVÉS,
- * comme le fait le vrai Git — sauf s'ils entrent en collision avec un fichier
- * de l'arbre cible (ce cas devrait être bloqué en amont par la garde de
- * sécurité avant la bascule).
+ * `sourceHash` par défaut `null` (arbre source vide) reproduit l'ancien
+ * comportement « tout réécrire depuis la cible » — utilisé par `git clone` sur un
+ * dépôt vierge.
  */
-export function applyTreeToRepo(repo: Repository, commitHash: string | null): void {
-  const newFiles: Record<string, string> = {}; // path → blobHash
-
-  if (commitHash) {
-    const commit = getCommit(repo, commitHash);
-    if (commit) {
-      Object.assign(newFiles, flattenTree(repo, commit.tree));
-    }
-  }
-
-  // Capturer les fichiers non trackés AVANT de réécrire l'index :
-  // un fichier présent dans le working tree mais absent de l'index courant.
-  const untracked: WorkingTree = {};
-  for (const [path, entry] of Object.entries(repo.workingTree)) {
-    if (!(path in repo.index)) {
-      untracked[path] = entry;
-    }
-  }
-
-  // Reconstruire l'index depuis l'arbre cible
-  repo.index = {};
-  for (const [path, blobHash] of Object.entries(newFiles)) {
-    const obj = repo.objects[blobHash];
-    if (obj && obj.type === 'blob') {
-      repo.index[path] = {
-        blobHash,
-        content: (obj as Blob).content,
-        mode: '100644',
-      };
-    }
-  }
-
-  // Reconstruire le working tree depuis l'arbre cible
-  repo.workingTree = {};
-  for (const [path, blobHash] of Object.entries(newFiles)) {
-    const obj = repo.objects[blobHash];
-    if (obj && obj.type === 'blob') {
-      repo.workingTree[path] = {
-        content: (obj as Blob).content,
-        mode: '100644',
-      };
-    }
-  }
-
-  // Réintégrer les fichiers non trackés qui n'entrent pas en collision
-  // avec l'arbre cible (préservation, fidèle à Git).
-  for (const [path, entry] of Object.entries(untracked)) {
-    if (!(path in newFiles)) {
-      repo.workingTree[path] = entry;
+export function applyTreeToRepo(
+  repo: Repository,
+  commitHash: string | null,
+  sourceHash: string | null = null,
+): void {
+  const actions = classifySwitch(repo, sourceHash, commitHash);
+  for (const [path, action] of actions) {
+    if (action.kind === 'carry') continue; // état local conservé
+    // 'apply' et (par sécurité) les conflits : on aligne sur la cible.
+    if (
+      action.kind === 'apply' ||
+      action.kind === 'conflict' ||
+      action.kind === 'conflict-untracked'
+    ) {
+      const blob = action.kind === 'apply' ? action.blob : treeFilesOf(repo, commitHash)[path];
+      if (blob === undefined) {
+        delete repo.index[path];
+        delete repo.workingTree[path];
+      } else {
+        const obj = repo.objects[blob];
+        if (obj && obj.type === 'blob') {
+          const content = (obj as Blob).content;
+          repo.index[path] = { blobHash: blob, content, mode: '100644' };
+          repo.workingTree[path] = { content, mode: '100644' };
+        }
+      }
     }
   }
 }

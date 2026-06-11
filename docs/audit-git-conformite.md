@@ -457,7 +457,18 @@ ignored… hint: Use -f »).
   changement non commité avant merge/rebase/cherry-pick/revert, là où git réel
   tolère parfois les fichiers non concernés) — choix pédagogique « commit/stash
   d'abord » endossé par l'audit.
-- Lots 2 à 7 : à venir.
+- **Lot 2 — FAIT** (commit dédié). Sémantique **two-tree** de checkout/switch :
+  classifieur partagé `classifySwitch` (carry / apply / conflict / conflict-untracked)
+  consommé par `canSwitchWithoutDataLoss` (retourne désormais `{tracked, untracked}`)
+  et `applyTreeToRepo(repo, target, source)`. NAV-01/02/03/07 (changements indexés
+  & non indexés portés ; untracked en collision refusé), NAV-04/13
+  (`checkout <ref> -- <path>` / `<ref> <path>` → restauration index+WT via cmdRestore),
+  NAV-05 (`checkout -b`/`switch -c <start-point>`), NAV-11 (`--detach` sans arg = HEAD),
+  NAV-15 (reflog `checkout -b`/`switch -c`/`switch --detach`). Bonus NAV-17 (« Already
+  on '<branch>' »). Tests : `tests/audit-lot2.test.ts` (10 cas). 1300 verts.
+  NAV-07 (carry d'une suppression non stagée) non testé en boîte noire (pas de
+  primitive de suppression WT-only) — couvert par le même classifieur.
+- Lots 3 à 7 : à venir.
 
 ## Plan de correction (lots priorisés)
 
