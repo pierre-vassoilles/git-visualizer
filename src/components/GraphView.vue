@@ -7,10 +7,12 @@ import type { Badge } from '@/graph/types';
 import type { RepoSnapshot } from '@/core/engine';
 import { useGraphAnimations } from '@/composables/useGraphAnimations';
 import { useTheme } from '@/composables/useTheme';
+import { useTerminalBus } from '@/composables/useTerminalBus';
 import { useI18n } from '@/i18n';
 
 const repo = useRepoStore();
 const { t } = useI18n();
+const { runInTerminal } = useTerminalBus();
 const { effectiveTheme } = useTheme();
 
 // ---------------------------------------------------------------------------
@@ -479,32 +481,32 @@ function runMenuAction(action: string): void {
   const short = menu.hash.slice(0, 7);
   switch (action) {
     case 'checkout':
-      repo.execute(`git checkout ${short}`);
+      runInTerminal(`git checkout ${short}`);
       break;
     case 'reset-soft':
       if (confirm(t('ctx.confirmResetSoft'))) {
-        repo.execute(`git reset --soft ${short}`);
+        runInTerminal(`git reset --soft ${short}`);
       }
       break;
     case 'reset-mixed':
       if (confirm(t('ctx.confirmResetMixed'))) {
-        repo.execute(`git reset --mixed ${short}`);
+        runInTerminal(`git reset --mixed ${short}`);
       }
       break;
     case 'reset-hard':
       if (confirm(t('ctx.confirmResetHard'))) {
-        repo.execute(`git reset --hard ${short}`);
+        runInTerminal(`git reset --hard ${short}`);
       }
       break;
     case 'revert':
-      repo.execute(`git revert ${short}`);
+      runInTerminal(`git revert ${short}`);
       break;
     case 'cherry-pick':
-      repo.execute(`git cherry-pick ${short}`);
+      runInTerminal(`git cherry-pick ${short}`);
       break;
     case 'tag': {
       const name = prompt(t('ctx.promptTagName'));
-      if (name && name.trim()) repo.execute(`git tag ${name.trim()} ${short}`);
+      if (name && name.trim()) runInTerminal(`git tag ${name.trim()} ${short}`);
       break;
     }
     case 'copy-hash':

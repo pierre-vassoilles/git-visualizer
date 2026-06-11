@@ -8,6 +8,14 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import GraphView from '@/components/GraphView.vue';
 import { useRepoStore } from '@/stores/repo';
+import { useTerminalBus } from '@/composables/useTerminalBus';
+
+/** Dernière commande émise vers le terminal (les actions du menu contextuel
+ *  passent désormais par le bus terminal, pas par store.execute directement). */
+function lastTerminalCommand(): string | null {
+  const r = useTerminalBus().request.value;
+  return r && r.kind === 'exec' ? r.command : null;
+}
 
 function setup() {
   const pinia = createPinia();
@@ -65,13 +73,13 @@ describe('GraphView — menu contextuel (spec 53)', () => {
 
   it('CA-05 : Checkout (détaché) → git checkout <short>', async () => {
     const { wrapper, store } = setup();
-    const spy = vi.spyOn(store, 'execute');
     await wrapper.vm.$nextTick();
     const root = rootHash(store);
     await rightClick(wrapper, root);
     const item = wrapper.findAll('.ctx-item').find((i) => i.text().includes('Checkout'))!;
     await item.trigger('click');
-    expect(spy).toHaveBeenCalledWith(`git checkout ${root.slice(0, 7)}`);
+    // L'action émet la commande vers le terminal (exécutée par TerminalPanel).
+    expect(lastTerminalCommand()).toBe(`git checkout ${root.slice(0, 7)}`);
   });
 
   it('CA-06 : Checkout absent si le nœud est HEAD', async () => {
@@ -92,25 +100,26 @@ describe('GraphView — menu contextuel (spec 53)', () => {
 
   it("CA-08 : Reset --hard demande confirmation (déclin → pas d'exécution)", async () => {
     const { wrapper, store } = setup();
-    const spy = vi.spyOn(store, 'execute');
     vi.spyOn(window, 'confirm').mockReturnValue(false);
     await wrapper.vm.$nextTick();
+    // Émission précédente sur le bus (s'il y en a une) : on vérifie qu'aucune
+    // nouvelle commande reset --hard n'est émise après le déclin.
+    const before = lastTerminalCommand();
     await rightClick(wrapper, rootHash(store));
     const item = wrapper.find('.ctx-item.danger');
     await item.trigger('click');
     expect(window.confirm).toHaveBeenCalled();
-    expect(spy).not.toHaveBeenCalledWith(expect.stringContaining('reset --hard'));
+    expect(lastTerminalCommand()).toBe(before);
   });
 
   it('CA-08 : Reset --hard confirmé → git reset --hard <short>', async () => {
     const { wrapper, store } = setup();
-    const spy = vi.spyOn(store, 'execute');
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     await wrapper.vm.$nextTick();
     const root = rootHash(store);
     await rightClick(wrapper, root);
     await wrapper.find('.ctx-item.danger').trigger('click');
-    expect(spy).toHaveBeenCalledWith(`git reset --hard ${root.slice(0, 7)}`);
+    expect(lastTerminalCommand()).toBe(`git reset --hard ${root.slice(0, 7)}`);
   });
 
   it('CA-13 : Copier le hash → navigator.clipboard.writeText(hash complet)', async () => {

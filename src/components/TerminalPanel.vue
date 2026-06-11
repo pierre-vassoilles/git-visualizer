@@ -4,7 +4,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { useRepoStore } from '@/stores/repo';
-import { useTerminalBus } from '@/composables/useTerminalBus';
+import { useTerminalBus, type ReplayEntry } from '@/composables/useTerminalBus';
 import { autocomplete, replaceLastToken } from '@/utils/autocomplete';
 import { splitCommandChain } from '@/utils/shell';
 
@@ -100,14 +100,51 @@ function runCurrentLine(): void {
  * l'exécute via le même chemin que `runCurrentLine` → écho et sortie visibles.
  */
 function runExternalLine(line: string): void {
-  // Efface une éventuelle saisie partielle.
+  eraseCurrent();
+  write(line);
+  executeLine(line);
+}
+
+/** Efface l'éventuelle saisie partielle (curseur ramené au prompt). */
+function eraseCurrent(): void {
   while (current.length > 0) {
     current = current.slice(0, -1);
     write('\b \b');
   }
   histIndex = -1;
-  write(line);
-  executeLine(line);
+}
+
+/**
+ * Efface l'écran et réaffiche un prompt vierge (demande `clear` du bus :
+ * nouveau départ après un reset ou le démarrage d'un tutoriel).
+ */
+function clearScreen(): void {
+  eraseCurrent();
+  write(CLEAR_SCREEN);
+  write(PROMPT);
+}
+
+/**
+ * Affiche une séquence DÉJÀ exécutée (commande + sortie) sans la ré-exécuter
+ * (demande `replay` du bus : scénarios pédagogiques rejoués côté store). Rend
+ * chaque commande comme si elle avait été tapée : prompt + commande + sortie.
+ */
+function renderReplay(entries: readonly ReplayEntry[], clear: boolean): void {
+  eraseCurrent();
+  if (clear) {
+    write(CLEAR_SCREEN);
+    write(PROMPT);
+  }
+  for (const { command, result } of entries) {
+    write(`${command}\r\n`);
+    for (const out of result.output) {
+      write(`${colorizeDiffLine(out)}\r\n`);
+    }
+    for (const err of result.errors) {
+      write(`\x1b[31m${err}\x1b[0m\r\n`);
+    }
+    write(PROMPT);
+  }
 }
 
 function replaceLine(next: string): void {
@@ -218,10 +255,22 @@ onMounted(() => {
   term.onData(onData);
   window.addEventListener('resize', onResize);
 
-  // Commandes poussées depuis l'UI (bouton « Exécuter » des tutoriels) :
-  // on les exécute dans le terminal une fois xterm prêt.
+  // Demandes poussées depuis l'UI (menu contextuel du graphe, sidebar, palette,
+  // scénarios, bouton « Exécuter » des tutoriels) : rendues dans le terminal une
+  // fois xterm prêt, pour que toute commande auto-exécutée soit visible.
   watch(request, (r) => {
-    if (r && term) runExternalLine(r.command);
+    if (!r || !term) return;
+    switch (r.kind) {
+      case 'exec':
+        runExternalLine(r.command);
+        break;
+      case 'replay':
+        renderReplay(r.entries, r.clear);
+        break;
+      case 'clear':
+        clearScreen();
+        break;
+    }
   });
 });
 

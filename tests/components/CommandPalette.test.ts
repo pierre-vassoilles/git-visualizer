@@ -7,6 +7,14 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import CommandPalette from '@/components/CommandPalette.vue';
 import { useRepoStore } from '@/stores/repo';
+import { useTerminalBus } from '@/composables/useTerminalBus';
+
+/** Dernière commande émise vers le terminal (les commandes git de la palette
+ *  passent désormais par le bus terminal, pas par store.execute directement). */
+function lastTerminalCommand(): string | null {
+  const r = useTerminalBus().request.value;
+  return r && r.kind === 'exec' ? r.command : null;
+}
 
 function mountPalette() {
   const pinia = createPinia();
@@ -63,28 +71,26 @@ describe('CommandPalette', () => {
     expect(labels.some((l) => l === 'git commit')).toBe(true);
   });
 
-  it('Entrée exécute l’item sélectionné via le store', async () => {
-    const { wrapper, store } = mountPalette();
-    const spy = vi.spyOn(store, 'execute');
+  it('Entrée exécute l’item sélectionné (émis au terminal)', async () => {
+    const { wrapper } = mountPalette();
     ctrlK();
     await wrapper.vm.$nextTick();
     await wrapper.find('.palette-input').setValue('git init');
     await wrapper.vm.$nextTick();
     await wrapper.find('.palette-input').trigger('keydown', { key: 'Enter' });
-    expect(spy).toHaveBeenCalled();
+    expect(lastTerminalCommand()).toBe('git init');
     // La palette se ferme après exécution.
     expect(wrapper.find('.palette').exists()).toBe(false);
   });
 
-  it('clic sur un item l’exécute', async () => {
-    const { wrapper, store } = mountPalette();
-    const spy = vi.spyOn(store, 'execute');
+  it('clic sur un item l’exécute (émis au terminal)', async () => {
+    const { wrapper } = mountPalette();
     ctrlK();
     await wrapper.vm.$nextTick();
     await wrapper.find('.palette-input').setValue('git status');
     await wrapper.vm.$nextTick();
     const item = wrapper.findAll('.palette-item').find((i) => i.text().includes('git status'))!;
     await item.trigger('click');
-    expect(spy).toHaveBeenCalledWith('git status');
+    expect(lastTerminalCommand()).toBe('git status');
   });
 });

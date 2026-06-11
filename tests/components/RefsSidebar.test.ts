@@ -11,6 +11,14 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import RefsSidebar from '@/components/RefsSidebar.vue';
 import { useRepoStore } from '@/stores/repo';
+import { useTerminalBus } from '@/composables/useTerminalBus';
+
+/** Dernière commande émise vers le terminal (les actions de la sidebar passent
+ *  désormais par le bus terminal, pas par store.execute directement). */
+function lastTerminalCommand(): string | null {
+  const r = useTerminalBus().request.value;
+  return r && r.kind === 'exec' ? r.command : null;
+}
 
 function mountSidebar() {
   const pinia = createPinia();
@@ -170,12 +178,12 @@ describe('RefsSidebar — refs cliquables (spec 53)', () => {
   }
 
   it('CA-clickable-01 : clic sur une branche → checkout', async () => {
-    const { wrapper, store } = repoWithBranchAndTag();
+    const { wrapper } = repoWithBranchAndTag();
     await wrapper.vm.$nextTick();
     const featureLi = wrapper.findAll('.item-row').find((li) => li.text().includes('feature'))!;
     await featureLi.trigger('click');
-    expect(store.snapshot.head.type).toBe('branch');
-    expect(store.snapshot.head.type === 'branch' && store.snapshot.head.name).toBe('feature');
+    // Le clic émet la commande vers le terminal (exécutée par TerminalPanel).
+    expect(lastTerminalCommand()).toBe('git checkout feature');
   });
 
   it('CA-clickable-02 : clic sur la branche courante → no-op', async () => {
@@ -194,8 +202,10 @@ describe('RefsSidebar — refs cliquables (spec 53)', () => {
     const tagLi = wrapper
       .findAll('.item-row.clickable')
       .find((li) => li.text().includes('v1') && li.text().includes('⬡'))!;
+    const tagShort = store.snapshot.tags['v1']!.slice(0, 7);
     await tagLi.trigger('click');
-    expect(store.snapshot.head.type).toBe('detached');
+    // Clic sur un tag → checkout du commit pointé (HEAD détaché) émis au terminal.
+    expect(lastTerminalCommand()).toBe(`git checkout ${tagShort}`);
   });
 });
 

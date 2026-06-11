@@ -2,13 +2,15 @@
 /**
  * Palette de commandes (spec 57). Ctrl/Cmd+K pour ouvrir.
  *
- * Aucune logique Git : recherche déléguée à `searchPaletteItems` (pur), et
- * exécution via le store (execute / executeScenario / startTutorial) ou les
- * actions UI (thème, reset).
+ * Aucune logique Git : recherche déléguée à `searchPaletteItems` (pur). Les
+ * commandes git sont jouées DANS le terminal (via `useTerminalBus`) pour rester
+ * visibles ; les scénarios/tutoriels passent par le store et les actions UI
+ * (thème, reset) restent locales.
  */
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRepoStore } from '@/stores/repo';
 import { useTheme } from '@/composables/useTheme';
+import { useTerminalBus } from '@/composables/useTerminalBus';
 import { getAllScenarios } from '@/constants/scenarios';
 import { getAllTutorials } from '@/constants/tutorials';
 import { localize } from '@/core/tutorial-helpers';
@@ -18,6 +20,7 @@ import { useI18n } from '@/i18n';
 const repo = useRepoStore();
 const { effectiveTheme, setTheme } = useTheme();
 const { t, locale } = useI18n();
+const { runInTerminal } = useTerminalBus();
 
 const open = ref(false);
 const query = ref('');
@@ -66,7 +69,7 @@ function closePalette(): void {
 function runItem(item: PaletteItem): void {
   switch (item.kind) {
     case 'command':
-      repo.execute(item.command);
+      runInTerminal(item.command);
       break;
     case 'scenario':
       repo.executeScenario(item.scenarioId);

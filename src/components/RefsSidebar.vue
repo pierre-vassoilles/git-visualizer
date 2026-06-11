@@ -6,6 +6,7 @@ import { useI18n } from '@/i18n';
 import type { MessageKey } from '@/i18n/messages';
 import { localize } from '@/core/tutorial-helpers';
 import { useTutorialLauncher } from '@/composables/useTutorialLauncher';
+import { useTerminalBus } from '@/composables/useTerminalBus';
 import {
   serializeExportedSession,
   exportFilename,
@@ -15,6 +16,7 @@ import {
 const repo = useRepoStore();
 const { t, locale } = useI18n();
 const { openTutorialLauncher } = useTutorialLauncher();
+const { runInTerminal } = useTerminalBus();
 
 // ---------------------------------------------------------------------------
 // Branches
@@ -35,14 +37,14 @@ function branchShortHash(name: string): string {
 /** Clic sur une branche → checkout (no-op si déjà courante). */
 function checkoutBranch(name: string): void {
   if (isCurrentBranch(name)) return;
-  repo.execute(`git checkout ${name}`);
+  runInTerminal(`git checkout ${name}`);
 }
 
 /** Clic sur un tag → checkout du commit pointé (HEAD détaché). */
 function checkoutTag(name: string): void {
   const hash = repo.snapshot.tags[name];
   if (!hash) return;
-  repo.execute(`git checkout ${hash.slice(0, 7)}`);
+  runInTerminal(`git checkout ${hash.slice(0, 7)}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -109,14 +111,14 @@ function onContinue(): void {
   const op = operationState.value;
   if (!op) return;
   const cmd = continueCmd(op.type);
-  if (cmd) repo.execute(cmd);
+  if (cmd) runInTerminal(cmd);
 }
 
 function onAbort(): void {
   const op = operationState.value;
   if (!op) return;
   const cmd = abortCmd(op.type);
-  if (cmd) repo.execute(cmd);
+  if (cmd) runInTerminal(cmd);
 }
 
 // ---------------------------------------------------------------------------
@@ -267,7 +269,7 @@ function syncColor(branch: string): 'synced' | 'ahead' | 'behind' | 'diverged' {
 }
 
 function onFetch(): void {
-  repo.execute('git fetch');
+  runInTerminal('git fetch');
 }
 
 function onPush(): void {
@@ -276,7 +278,7 @@ function onPush(): void {
     alert(t('sidebar.detachedPushAlert'));
     return;
   }
-  repo.execute(`git push`);
+  runInTerminal(`git push`);
 }
 
 function onPull(): void {
@@ -285,7 +287,7 @@ function onPull(): void {
     alert(t('sidebar.detachedPullAlert'));
     return;
   }
-  repo.execute(`git pull`);
+  runInTerminal(`git pull`);
 }
 
 // ---------------------------------------------------------------------------

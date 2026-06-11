@@ -18,6 +18,7 @@ import { splitCommandChain } from '@/utils/shell';
 import { buildExportedSession, type ExportedSession } from '@/utils/export-import';
 import { encodeSession, checkSessionSize, type SessionSize } from '@/utils/share';
 import { getScenarioById } from '@/constants/scenarios';
+import { useTerminalBus, type ReplayEntry } from '@/composables/useTerminalBus';
 import { parseConflictContent, buildResolvedContent } from '@/core/repository';
 import { getTutorialById } from '@/constants/tutorials';
 import type { Tutorial, TutorialStep, LocalizedText } from '@/core/tutorial-helpers';
@@ -38,6 +39,11 @@ export const useRepoStore = defineStore('repo', () => {
   // Le moteur n'est pas réactif en lui-même (objet mutable lourd) :
   // shallowRef + snapshots réactifs explicites.
   const engine = shallowRef(new GitEngine());
+
+  // Pont vers le terminal xterm : permet de rendre visibles les commandes
+  // auto-exécutées (scénarios) et d'effacer l'écran lors d'un nouveau départ
+  // (reset, démarrage de tutoriel). Le terminal reste seul à écrire dans xterm.
+  const { replayInTerminal, clearTerminal } = useTerminalBus();
 
   const log = ref<LogEntry[]>([]);
   const history = ref<string[]>([]);
@@ -225,6 +231,7 @@ export const useRepoStore = defineStore('repo', () => {
   function resetStorage(): void {
     clearHistory();
     reset();
+    clearTerminal();
   }
 
   /**
@@ -250,6 +257,10 @@ export const useRepoStore = defineStore('repo', () => {
     reset();
 
     const replayed: string[] = [];
+    // Entrées (commande + résultat) rejouées telles quelles dans le terminal pour
+    // que la séquence du scénario soit visible (écho + sortie git), comme si
+    // l'utilisateur l'avait tapée.
+    const terminalEntries: ReplayEntry[] = [];
     for (const cmd of scenario.commands) {
       const result = engine.value.execute(cmd);
       const op = engine.value.snapshot().operationState;
@@ -261,12 +272,17 @@ export const useRepoStore = defineStore('repo', () => {
       }
       // On journalise dans le log (pas dans history)
       log.value.push({ id: nextId++, command: cmd, result });
+      terminalEntries.push({ command: cmd, result });
     }
 
     commandHistory.value = replayed;
     currentIndex.value = replayed.length;
     saveHistory(replayed, replayed.length);
     snapshot.value = engine.value.snapshot();
+
+    // Affiche la séquence dans le terminal (efface l'écran au préalable : le
+    // scénario repart d'un dépôt vierge).
+    replayInTerminal(terminalEntries, true);
   }
 
   /**
@@ -442,6 +458,7 @@ export const useRepoStore = defineStore('repo', () => {
     // Dépôt neuf + purge de la session précédente (comme executeScenario).
     clearHistory();
     reset();
+    clearTerminal();
     tutorialProgress.value = {
       tutorialId: id,
       currentStepIndex: 0,
