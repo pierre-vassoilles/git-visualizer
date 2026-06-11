@@ -55,13 +55,14 @@ describe('CA-stash-01 : Stash simple', () => {
     // stashCount = 1
     expect(snap.stashCount).toBe(1);
 
-    // Working tree restauré : a.txt = "v1", b.txt absent
+    // Working tree restauré : a.txt = "v1" (la modif suivie a été stashée).
     const aTxt = snap.files.find((f) => f.path === 'a.txt');
     expect(aTxt?.status).toBe('clean');
 
-    // b.txt ne doit plus être présent (non tracké, nettoyé par le stash)
+    // b.txt (non suivi) est PRÉSERVÉ : `git stash` (sans -u) ne stashe pas les
+    // fichiers non suivis et ne les retire pas du working tree (TLS-01).
     const bTxt = snap.files.find((f) => f.path === 'b.txt');
-    expect(bTxt).toBeUndefined();
+    expect(bTxt?.status).toBe('untracked');
   });
 });
 
@@ -360,8 +361,9 @@ describe("CA-stash-12 : Pop stash d'une autre branche", () => {
       'git add a.txt',
       'git commit -m "C1"',
       'git branch feature',
-      // Modification sur main → stash
+      // Modification SUIVIE sur main (b.txt stagé) → stash
       'write b.txt "stashed"',
+      'git add b.txt',
       'git stash push -m "Stashed on main"',
       // Passer sur feature
       'git checkout feature',

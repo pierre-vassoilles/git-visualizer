@@ -488,7 +488,18 @@ ignored… hint: Use -f »).
     `ORIG_HEAD`). À signaler dans le tutoriel `reset-reflog`.
   - **TLS-11** : squash/fixup créent un commit intermédiaire orphelin visible dans
     le graphe (`allCommits` affiche les orphelins par design).
-- Lots 4 à 7 : à venir.
+- **Lot 4 — FAIT** (commit dédié). Refonte **diff-based** du stash. TLS-01
+  (`git stash` ne stashe plus les fichiers non suivis et ne les retire pas du WT ;
+  untracked-only → « No local changes to save »), TLS-02/04 (application par diff
+  stash-vs-headHash : ne touche que les chemins modifiés par le stash → plus de
+  faux conflits, suppressions rejouées), TLS-03 (pop/apply restaurent en NON
+  stagé, index aligné sur HEAD ; `--index` non géré), TLS-05 (HEAD non-né → erreur).
+  TLS-06 (conflit de pop) traité au **minimum** : index aligné sur HEAD → `git
+  status` montre les fichiers en conflit (pas d'`operationState` « stashing »
+  dédié pour la modale, à ajouter si besoin). `hasChanges` réutilise
+  `hasUncommittedChanges`. Tests : `tests/audit-lot4.test.ts` (6 cas) + 2 tests
+  stash existants corrigés (untracked préservé). 1313 verts.
+- Lots 5 à 7 : à venir.
 
 ## Plan de correction (lots priorisés)
 
