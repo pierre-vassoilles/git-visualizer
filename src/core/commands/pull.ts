@@ -24,10 +24,16 @@ export function cmdPull(repo: Repository, args: string[]): CommandResult {
   const rebaseFlag = args.includes('--rebase');
   // --no-rebase force le merge (annule un éventuel flag --rebase, mais on ne gère pas la config)
 
-  // Filtrer les flags connus
-  const posArgs = args
-    .filter((a) => a !== '--rebase' && a !== '--no-rebase')
-    .filter((a) => !a.startsWith('-'));
+  // Whitelist des flags supportés : tout autre token en `-` est une erreur (ne
+  // jamais avaler un flag inconnu, ex. `--ff-only` qui changerait la sémantique).
+  const KNOWN_PULL_FLAGS = new Set(['--rebase', '--no-rebase']);
+  const unknownFlag = args.find((a) => a.startsWith('-') && !KNOWN_PULL_FLAGS.has(a));
+  if (unknownFlag) {
+    return fail([`error: unknown option '${unknownFlag.replace(/^-+/, '')}'`], 129);
+  }
+
+  // Filtrer les positionnels (remote / branche)
+  const posArgs = args.filter((a) => !a.startsWith('-'));
 
   let remoteName: string;
   let remoteBranch: string;

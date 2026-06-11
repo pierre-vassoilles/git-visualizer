@@ -97,14 +97,40 @@ describe('git rm', () => {
     expect(wtHas(engine, 'file.txt')).toBe(true);
   });
 
-  it('CA-rm-mv-15 : changements stagés différents de HEAD → refus (exit 1)', () => {
+  it('CA-rm-mv-15 : changements stagés (WT == index ≠ HEAD) → refus (exit 1)', () => {
+    // file.txt committé "hello", puis "v2" stagé (WT == index ≠ HEAD). git refuse
+    // avec « changes staged in the index » (et non « different from both » : le WT
+    // n'a pas de modif non indexée en plus).
     const engine = repoWithFile();
     engine.execute('write file.txt "v2"');
     engine.execute('git add file.txt');
     const r = engine.execute('git rm file.txt');
     expect(r.exitCode).toBe(1);
-    expect(r.errors.join(' ')).toContain('staged content');
+    expect(r.errors.join(' ')).toContain('changes staged in the index');
     expect(wtHas(engine, 'file.txt')).toBe(true);
+  });
+
+  it('CA-rm-mv-15bis : staged ≠ HEAD ET WT ≠ index → « different from both » (exit 1)', () => {
+    // file.txt "hello" committé, "v2" stagé, puis "v3" non indexé au WT.
+    const engine = repoWithFile();
+    engine.execute('write file.txt "v2"');
+    engine.execute('git add file.txt');
+    engine.execute('write file.txt "v3"');
+    const r = engine.execute('git rm file.txt');
+    expect(r.exitCode).toBe(1);
+    expect(r.errors.join(' ')).toContain('staged content different from both');
+    expect(wtHas(engine, 'file.txt')).toBe(true);
+  });
+
+  it('CA-rm-mv-15ter : fichier neuf stagé (jamais commité) → refus (exit 1)', () => {
+    // newfile stagé mais absent de HEAD : git refuse (perte du blob indexé).
+    const engine = repoWithFile();
+    engine.execute('write newfile.txt "new"');
+    engine.execute('git add newfile.txt');
+    const r = engine.execute('git rm newfile.txt');
+    expect(r.exitCode).toBe(1);
+    expect(r.errors.join(' ')).toContain('changes staged in the index');
+    expect(wtHas(engine, 'newfile.txt')).toBe(true);
   });
 
   it('CA-rm-mv-16 : dépôt non initialisé → 128', () => {

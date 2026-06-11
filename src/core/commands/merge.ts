@@ -23,6 +23,7 @@ import { getCommit } from '../objectStore';
 import { buildTreeFromIndex } from '../repository';
 import { notARepo } from './init';
 import { cmdCommit } from './commit';
+import { refuseIfDirty, refuseIfOperationInProgress } from './guards';
 
 /**
  * git merge [--no-ff] [-m <message>] <branchname>
@@ -51,6 +52,10 @@ export function cmdMerge(repo: Repository, args: string[]): CommandResult {
       'Please, commit your changes before you merge again.',
     ]);
   }
+
+  // Refuser si une AUTRE opération de séquencement est en cours.
+  const opGuard = refuseIfOperationInProgress(repo);
+  if (opGuard) return opGuard;
 
   // Parser les options
   const noFf = args.includes('--no-ff');
@@ -85,10 +90,16 @@ export function cmdMerge(repo: Repository, args: string[]): CommandResult {
     return fail(['fatal: no commits yet; cannot merge']);
   }
 
-  // Cas : Already up to date
-  if (branchTip === headHash) {
+  // Cas : Already up to date — soit le tip == HEAD, soit le tip est un ANCÊTRE
+  // de HEAD (déjà fusionné). Dans les deux cas git ne crée rien, même --no-ff.
+  if (branchTip === headHash || isAncestor(repo, branchTip, headHash)) {
     return ok(['Already up to date.']);
   }
+
+  // Refuser si des changements non commités seraient écrasés (avant FF ou merge,
+  // mais après « up to date » qui ne touche à rien). git merge : exit 2.
+  const dirtyGuard = refuseIfDirty(repo, 'merge', 2);
+  if (dirtyGuard) return dirtyGuard;
 
   // Fast-forward possible : HEAD est ancêtre de branchTip
   if (!noFf && isAncestor(repo, headHash, branchTip)) {

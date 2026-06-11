@@ -78,6 +78,14 @@ export function cmdReset(repo: Repository, args: string[]): CommandResult {
     description: `${mode} ${commitRef}`,
   });
 
+  // Comme le vrai git, `git reset` (tous modes) abandonne une opération en
+  // cours : il supprime MERGE_HEAD / CHERRY_PICK_HEAD / REVERT_HEAD. Sans ça,
+  // un `git commit` ultérieur depuis un état propre finaliserait à tort un merge
+  // (commit à 2 parents fantôme).
+  delete repo.merging;
+  delete repo.cherryPicking;
+  delete repo.reverting;
+
   // Mode --mixed ou --hard : réinitialiser l'index
   if (mode === 'mixed' || mode === 'hard') {
     repo.index = buildIndexFromTree(repo, targetCommit.tree);

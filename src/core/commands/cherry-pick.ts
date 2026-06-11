@@ -5,8 +5,8 @@ import {
   cloneIndex,
   cloneWorkingTree,
   currentBranch,
+  hasConflictMarkers,
   headCommitHash,
-  isAncestor,
   isInitialized,
   replayCommit,
   replayCommitContinue,
@@ -15,6 +15,7 @@ import {
 import { getCommit } from '../objectStore';
 import { shortHash } from '../sha1';
 import { notARepo } from './init';
+import { refuseIfDirty, refuseIfOperationInProgress } from './guards';
 
 /**
  * git cherry-pick [--abort] <commit>
@@ -41,6 +42,10 @@ export function cmdCherryPick(repo: Repository, args: string[]): CommandResult {
       'Please commit the pending changes before you cherry-pick again.',
     ]);
   }
+
+  // Refuser si une AUTRE opération de séquencement est en cours.
+  const opGuard = refuseIfOperationInProgress(repo);
+  if (opGuard) return opGuard;
 
   // Trouver le commitish
   const filteredArgs = args.filter((a) => !a.startsWith('-'));
@@ -79,10 +84,13 @@ export function cmdCherryPick(repo: Repository, args: string[]): CommandResult {
     return fail(['fatal: no commits yet; cannot cherry-pick']);
   }
 
-  // Refuser si le commit est déjà un ancêtre de HEAD (déjà appliqué)
-  if (isAncestor(repo, targetHash, headHash)) {
-    return fail([`error: commit ${shortHash(targetHash)} is already included in HEAD.`]);
-  }
+  // Refuser si des changements non commités seraient écrasés.
+  const dirtyGuard = refuseIfDirty(repo, 'cherry-pick');
+  if (dirtyGuard) return dirtyGuard;
+
+  // Note : git N'INTERDIT PAS de cherry-pick un ancêtre de HEAD. Le cas usuel
+  // « revert d'un commit puis cherry-pick de l'original pour le réappliquer »
+  // doit fonctionner ; un résultat réellement vide est traité ci-dessous.
 
   // Sauvegarder l'état avant cherry-pick pour --abort
   const indexBeforePick = cloneIndex(repo.index);
@@ -95,6 +103,20 @@ export function cmdCherryPick(repo: Repository, args: string[]): CommandResult {
     newParentHash: headHash,
     label: commitRef,
   });
+
+  if (result.empty) {
+    // Résultat vide (changements déjà présents). Comme git, on refuse au lieu de
+    // créer un commit vide ; l'état/WT sont restaurés (pas de --skip ici).
+    repo.index = indexBeforePick;
+    repo.workingTree = workingTreeBeforePick;
+    return fail(
+      [
+        'The previous cherry-pick is now empty, possibly due to conflict resolution.',
+        "If you wish to commit it anyway, use 'git commit --allow-empty'.",
+      ],
+      1,
+    );
+  }
 
   if (!result.newHash) {
     // Conflit : sauvegarder l'état
@@ -134,6 +156,18 @@ function cherryPickContinue(repo: Repository): CommandResult {
   }
 
   const { originalMessage, headHashBeforePick } = repo.cherryPicking;
+
+  // Ne jamais finaliser tant que des marqueurs de conflit subsistent.
+  if (Object.values(repo.workingTree).some((e) => hasConflictMarkers(e.content))) {
+    return fail(
+      [
+        'error: Committing is not possible because you have unmerged files.',
+        "hint: Fix them up in the work tree, and then use 'git add/rm <file>'",
+        'fatal: Exiting because of an unresolved conflict.',
+      ],
+      1,
+    );
+  }
 
   const headHash = headCommitHash(repo);
   if (!headHash) {

@@ -13,12 +13,15 @@ export function cmdInit(repo: Repository): CommandResult {
     return ok([`Reinitialized existing Git repository in ${VIRTUAL_PATH}`]);
   }
 
-  // Initialiser : créer la branche main (sans commit)
+  // Initialiser : créer la branche main (sans commit).
+  // Comme le vrai Git, `init` ne touche JAMAIS aux fichiers déjà présents dans
+  // le répertoire : on préserve `repo.workingTree` (les fichiers écrits avant
+  // `git init` survivent). `index`/`objects` sont vides avant init (seul `write`
+  // est disponible, et il n'écrit que le working tree).
   repo.refs.heads['main'] = '';
   repo.refs.tags = {};
   repo.head = { symbolic: true, target: 'refs/heads/main' };
   repo.index = {};
-  repo.workingTree = {};
   repo.objects = {};
   repo.commitCount = 0;
   repo.prevBranch = null;

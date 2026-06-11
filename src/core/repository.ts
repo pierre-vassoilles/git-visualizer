@@ -105,6 +105,50 @@ export function headCommit(repo: Repository): Commit | null {
   return getCommit(repo, hash) ?? null;
 }
 
+/** Une opération de séquencement en cours (merge/rebase/cherry-pick/revert). */
+export type OperationKind = 'merge' | 'rebase' | 'cherry-pick' | 'revert';
+
+/**
+ * Renvoie l'opération de séquencement en cours, ou null. Sert à refuser le
+ * démarrage d'une nouvelle opération tant qu'une autre n'est pas finalisée ou
+ * annulée (comme le vrai git).
+ */
+export function getOperationInProgress(repo: Repository): OperationKind | null {
+  if (repo.merging) return 'merge';
+  if (repo.rebasing) return 'rebase';
+  if (repo.cherryPicking) return 'cherry-pick';
+  if (repo.reverting) return 'revert';
+  return null;
+}
+
+/**
+ * Liste triée des chemins SUIVIS avec des changements non commités : index ≠
+ * arbre de HEAD (changements indexés), ou working tree ≠ index / fichier suivi
+ * supprimé du working tree (changements non indexés). Les fichiers non suivis
+ * (untracked) ne comptent PAS (ils ne bloquent pas une opération chez git, sauf
+ * collision — traitée séparément au checkout).
+ */
+export function listUncommittedPaths(repo: Repository): string[] {
+  const paths = new Set<string>();
+  const head = headCommit(repo);
+  const headFiles = head ? getTreeFiles(repo, head.tree) : {};
+  // Indexé vs HEAD.
+  for (const p of new Set([...Object.keys(repo.index), ...Object.keys(headFiles)])) {
+    if ((repo.index[p]?.content ?? undefined) !== headFiles[p]) paths.add(p);
+  }
+  // Non indexé : index vs working tree (fichiers suivis).
+  for (const [p, entry] of Object.entries(repo.index)) {
+    const wt = repo.workingTree[p];
+    if (!wt || wt.content !== entry.content) paths.add(p);
+  }
+  return [...paths].sort();
+}
+
+/** Renvoie true si le dépôt a des changements non commités (cf. listUncommittedPaths). */
+export function hasUncommittedChanges(repo: Repository): boolean {
+  return listUncommittedPaths(repo).length > 0;
+}
+
 // ---------------------------------------------------------------------------
 // Construction du tree depuis l'index
 // ---------------------------------------------------------------------------
@@ -213,10 +257,13 @@ export function createCommit(repo: Repository, options: CommitOptions): string {
     message: options.message,
   });
 
-  // Mettre à jour la branche
+  // Mettre à jour la branche courante, ou faire avancer HEAD si détaché (comme
+  // le vrai git : committer en HEAD détaché déplace HEAD sur le nouveau commit).
   const branch = currentBranch(repo);
   if (branch !== null) {
     repo.refs.heads[branch] = commitHash;
+  } else {
+    repo.head = { symbolic: false, target: commitHash };
   }
 
   // L'index n'est PAS vidé : il reste aligné sur l'arbre du commit (comme Git).
@@ -1143,10 +1190,16 @@ export interface ReplayCommitOptions {
 }
 
 export interface ReplayCommitResult {
-  /** Hash du commit rejoué (créé), ou null si conflit. */
+  /** Hash du commit rejoué (créé), ou null si conflit OU résultat vide. */
   newHash: string | null;
   /** Fichiers en conflit avec marqueurs (si conflit). */
   conflicts: Record<string, string>;
+  /**
+   * true si le replay est VIDE (l'arbre résultant est identique à celui du
+   * nouveau parent : changements déjà présents en amont). Aucun commit n'est
+   * créé. Le rebase saute ce commit ; le cherry-pick s'arrête (« now empty »).
+   */
+  empty?: boolean;
   /** État à préserver pour continuer après résolution (si conflit). */
   resumeState?: {
     /** Message du commit à créer après résolution. */
@@ -1232,8 +1285,13 @@ export function replayCommit(repo: Repository, options: ReplayCommitOptions): Re
     };
   }
 
-  // Pas de conflit : créer le commit
+  // Pas de conflit : si l'arbre résultant est identique à celui du nouveau
+  // parent, le commit rejoué serait vide (rien à appliquer) → on ne crée rien.
   const treeHash = buildTreeFromIndex(repo, repo.index);
+  if (treeHash === newParentCommit.tree) {
+    return { newHash: null, conflicts: {}, empty: true };
+  }
+
   const newCommitHash = createCommitWithParents(repo, {
     message: origCommit.message,
     treeHash,

@@ -20,6 +20,8 @@ import {
 import { getCommit } from '../objectStore';
 import { shortHash } from '../sha1';
 import { notARepo } from './init';
+import { cmdCommit } from './commit';
+import { refuseIfDirty, refuseIfOperationInProgress } from './guards';
 
 /**
  * git revert [--abort] [-m <parent>] <commit>
@@ -34,6 +36,14 @@ export function cmdRevert(repo: Repository, args: string[]): CommandResult {
     return revertAbort(repo);
   }
 
+  // git revert --continue : finalise le revert en cours (= git commit).
+  if (args.includes('--continue')) {
+    if (!repo.reverting) {
+      return fail(['fatal: There is no revert in progress (REVERT_HEAD missing).'], 128);
+    }
+    return cmdCommit(repo, []);
+  }
+
   // Vérifier qu'on n'est pas déjà en revert
   if (repo.reverting) {
     return fail([
@@ -41,6 +51,13 @@ export function cmdRevert(repo: Repository, args: string[]): CommandResult {
       'Please commit the pending changes before you revert again.',
     ]);
   }
+
+  // Refuser si une AUTRE opération de séquencement est en cours, ou si des
+  // changements non commités seraient écrasés.
+  const opGuard = refuseIfOperationInProgress(repo);
+  if (opGuard) return opGuard;
+  const dirtyGuard = refuseIfDirty(repo, 'revert');
+  if (dirtyGuard) return dirtyGuard;
 
   // Parser -m <parent>
   let parentNumber: number | null = null;

@@ -30,10 +30,17 @@ export function cmdPush(repo: Repository, args: string[]): CommandResult {
   const force = args.includes('--force') || args.includes('-f');
   const setUpstream = args.includes('-u') || args.includes('--set-upstream');
 
+  // Whitelist des flags supportés : tout autre token en `-` est une erreur (ne
+  // jamais avaler silencieusement un flag inconnu, ex. `--delete` inverserait
+  // l'intention). git rejette les options inconnues (exit 129).
+  const KNOWN_PUSH_FLAGS = new Set(['--force', '-f', '-u', '--set-upstream']);
+  const unknownFlag = args.find((a) => a.startsWith('-') && !KNOWN_PUSH_FLAGS.has(a));
+  if (unknownFlag) {
+    return fail([`error: unknown option '${unknownFlag.replace(/^-+/, '')}'`], 129);
+  }
+
   // Filtrer les args non-flags (remote et branch positionnels)
-  const posArgs = args
-    .filter((a) => !a.startsWith('-') || !['--force', '-f', '-u', '--set-upstream'].includes(a))
-    .filter((a) => !a.startsWith('-'));
+  const posArgs = args.filter((a) => !a.startsWith('-'));
 
   let remoteName: string;
   let localBranch: string;

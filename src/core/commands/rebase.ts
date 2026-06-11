@@ -11,6 +11,7 @@ import {
   currentBranch,
   getCommitsToReplay,
   getTreeFiles,
+  hasConflictMarkers,
   headCommitHash,
   isAncestor,
   isInitialized,
@@ -21,6 +22,7 @@ import {
 } from '../repository';
 import { getCommit } from '../objectStore';
 import { notARepo } from './init';
+import { refuseIfDirty, refuseIfOperationInProgress } from './guards';
 
 /**
  * git rebase [-i] [--abort | --continue] <base>
@@ -48,6 +50,13 @@ export function cmdRebase(repo: Repository, args: string[]): CommandResult {
       'Please, commit your changes and try again.',
     ]);
   }
+
+  // Refuser si une AUTRE opération de séquencement est en cours, ou si des
+  // changements non commités seraient écrasés (git rebase : exit 1).
+  const opGuard = refuseIfOperationInProgress(repo);
+  if (opGuard) return opGuard;
+  const dirtyGuard = refuseIfDirty(repo, 'rebase');
+  if (dirtyGuard) return dirtyGuard;
 
   // Détecter -i / --interactive
   const interactive = args.includes('-i') || args.includes('--interactive');
@@ -163,6 +172,7 @@ export function cmdRebase(repo: Repository, args: string[]): CommandResult {
   // Rejouer les commits un par un (non-interactif)
   let currentNewParent = baseHash;
   const replayed: string[] = [];
+  const skipped: string[] = [];
 
   for (let i = 0; i < commitsToReplay.length; i++) {
     const { hash: origHash, commit: origCommit } = commitsToReplay[i]!;
@@ -173,6 +183,12 @@ export function cmdRebase(repo: Repository, args: string[]): CommandResult {
       newParentHash: currentNewParent,
       label: origHash.slice(0, 7),
     });
+
+    if (result.empty) {
+      // Commit déjà présent en amont → sauté (comme le vrai git).
+      skipped.push(origHash);
+      continue;
+    }
 
     if (!result.newHash) {
       repo.rebasing = {
@@ -205,6 +221,24 @@ export function cmdRebase(repo: Repository, args: string[]): CommandResult {
     currentNewParent = result.newHash;
   }
 
+  // Si AUCUN commit n'a été rejoué (tous sautés car déjà en amont), la branche
+  // doit pointer sur la base et index/WT s'aligner dessus (git « reset » sur base).
+  if (replayed.length === 0) {
+    const branch = currentBranch(repo);
+    if (branch !== null) {
+      repo.refs.heads[branch] = baseHash;
+    } else {
+      repo.head = { symbolic: false, target: baseHash };
+    }
+    const baseCommit = getCommit(repo, baseHash);
+    if (baseCommit) {
+      const files = getTreeFiles(repo, baseCommit.tree);
+      repo.index = buildIndexFromFiles(repo, files);
+      repo.workingTree = buildWorkingTreeFromFiles(repo, files);
+    }
+    currentNewParent = baseHash;
+  }
+
   addReflogEntryForHead(repo, {
     oldHash: headHash,
     newHash: currentNewParent,
@@ -214,7 +248,10 @@ export function cmdRebase(repo: Repository, args: string[]): CommandResult {
 
   const branch = currentBranch(repo);
   const branchLabel = branch ?? 'HEAD';
-  return ok([`Successfully rebased and updated ${branchLabel}.`]);
+  const warnings = skipped.map(
+    (h) => `warning: skipped previously applied commit ${h.slice(0, 7)}`,
+  );
+  return ok([...warnings, `Successfully rebased and updated ${branchLabel}.`]);
 }
 
 /**
@@ -419,6 +456,11 @@ function runInteractiveTodoList(
       label: item.commitHash.slice(0, 7),
     });
 
+    if (result.empty) {
+      // Commit vide après replay → sauté (comme git), parent inchangé.
+      continue;
+    }
+
     if (!result.newHash) {
       repo.rebasing = {
         base,
@@ -452,6 +494,25 @@ function runInteractiveTodoList(
     lastCommitHash = result.newHash;
     lastCommitMessage = commitToReplay.message;
     currentNewParent = result.newHash;
+  }
+
+  // Cas « tout droppé / vidé » : aucun commit créé → la branche doit pointer sur
+  // la base (git reset la branche sur la base) et index/WT s'aligner dessus.
+  // Sans ça, la branche resterait sur son ancien tip (succès mensonger).
+  if (lastCommitHash === null) {
+    const dropBranch = currentBranch(repo);
+    if (dropBranch !== null) {
+      repo.refs.heads[dropBranch] = base;
+    } else {
+      repo.head = { symbolic: false, target: base };
+    }
+    const baseCommit = getCommit(repo, base);
+    if (baseCommit) {
+      const files = getTreeFiles(repo, baseCommit.tree);
+      repo.index = buildIndexFromFiles(repo, files);
+      repo.workingTree = buildWorkingTreeFromFiles(repo, files);
+    }
+    currentNewParent = base;
   }
 
   // Tout traité avec succès
@@ -505,6 +566,15 @@ function rebaseContinue(repo: Repository): CommandResult {
     return fail([
       'fatal: Interactive rebase in progress; cannot continue without submitting todo list.',
     ]);
+  }
+
+  // Ne jamais reprendre tant que des marqueurs de conflit subsistent (on ne crée
+  // jamais un commit contenant <<<<<<< ======= >>>>>>>).
+  if (Object.values(repo.workingTree).some((e) => hasConflictMarkers(e.content))) {
+    return fail(
+      ['error: you must edit all merge conflicts and then mark them as resolved using git add'],
+      1,
+    );
   }
 
   const { toReplay, replayed, currentCommitMessage } = rebasing;

@@ -9,6 +9,7 @@ import {
   hasConflictMarkers,
   headCommit,
   headCommitHash,
+  isHeadDetached,
   isInitialized,
 } from '../repository';
 import { shortHash } from '../sha1';
@@ -32,6 +33,12 @@ export function cmdCommit(repo: Repository, args: string[]): CommandResult {
     return finalizeCherryPickCommit(repo, args);
   }
 
+  // Cas spécial : --amend → réécrit le commit de tête (mêmes parents, nouvel
+  // arbre/message), au lieu de créer un commit supplémentaire.
+  if (args.includes('--amend')) {
+    return amendCommit(repo, args);
+  }
+
   // Chercher le flag -m
   const mIndex = args.indexOf('-m');
 
@@ -51,6 +58,22 @@ export function cmdCommit(repo: Repository, args: string[]): CommandResult {
     message = rawMessage;
   }
 
+  // Finalisation d'un revert en cours : ne jamais committer de marqueurs de
+  // conflit non résolus (comme finalizeMergeCommit / finalizeCherryPickCommit).
+  if (
+    repo.reverting &&
+    Object.values(repo.workingTree).some((e) => hasConflictMarkers(e.content))
+  ) {
+    return fail(
+      [
+        'error: Committing is not possible because you have unmerged files.',
+        "hint: Fix them up in the work tree, and then use 'git add/rm <file>'",
+        'fatal: Exiting because of an unresolved conflict.',
+      ],
+      1,
+    );
+  }
+
   // Vérifier qu'il y a bien quelque chose à committer : l'index (snapshot
   // complet) doit différer de l'arbre de HEAD. Sans HEAD (premier commit),
   // il suffit que l'index soit non vide.
@@ -62,12 +85,9 @@ export function cmdCommit(repo: Repository, args: string[]): CommandResult {
     return fail(['fatal: no changes added to commit']);
   }
 
-  const branch = currentBranch(repo) ?? 'HEAD';
-  const isRoot = !repo.refs.heads[branch];
-
   const headHashBeforeCommit = headCommitHash(repo) ?? '';
+  const isRoot = headHashBeforeCommit === '';
   const commitHash = createCommit(repo, { message });
-  const short = shortHash(commitHash);
 
   // Reflog
   addReflogEntryForHead(repo, {
@@ -82,10 +102,80 @@ export function cmdCommit(repo: Repository, args: string[]): CommandResult {
     delete repo.reverting;
   }
 
-  const rootLabel = isRoot ? ` (root-commit)` : '';
-  const headline = `[${branch}${rootLabel} ${short}] ${message}`;
+  return ok([commitHeadline(repo, commitHash, message, isRoot)]);
+}
 
-  return ok([headline]);
+/**
+ * Construit la ligne d'en-tête d'un commit (`[<label>[ (root-commit)] <short>] <msg>`).
+ * En HEAD détaché, le label est `detached HEAD` (comme le vrai git) ; sinon le
+ * nom de la branche courante.
+ */
+function commitHeadline(
+  repo: Repository,
+  commitHash: string,
+  message: string,
+  isRoot: boolean,
+): string {
+  const label = isHeadDetached(repo) ? 'detached HEAD' : (currentBranch(repo) ?? 'HEAD');
+  const rootLabel = isRoot ? ' (root-commit)' : '';
+  return `[${label}${rootLabel} ${shortHash(commitHash)}] ${message}`;
+}
+
+/**
+ * git commit --amend [-m <msg>]
+ *
+ * Réécrit le commit de tête : nouveau commit avec les MÊMES parents que HEAD,
+ * l'arbre de l'index courant, et le message `-m` (sinon le message d'origine).
+ * Déplace la ref de branche (ou HEAD détaché) sur le nouveau commit ; l'ancien
+ * devient inaccessible (mais reste dans les objets / le reflog).
+ */
+function amendCommit(repo: Repository, args: string[]): CommandResult {
+  const head = headCommit(repo);
+  const headHash = headCommitHash(repo);
+  if (!head || !headHash) {
+    return fail(['fatal: You have nothing to amend.']);
+  }
+
+  // Message : -m si fourni, sinon le message du commit réécrit.
+  const mIndex = args.indexOf('-m');
+  let message: string;
+  if (mIndex === -1) {
+    message = head.message;
+  } else {
+    const raw = args[mIndex + 1];
+    if (raw === undefined || raw === '') {
+      return fail(['fatal: message cannot be empty']);
+    }
+    message = raw;
+  }
+
+  // Ne jamais réécrire un commit contenant des marqueurs de conflit non résolus.
+  if (Object.values(repo.workingTree).some((e) => hasConflictMarkers(e.content))) {
+    return fail(
+      [
+        'error: Committing is not possible because you have unmerged files.',
+        "hint: Fix them up in the work tree, and then use 'git add/rm <file>'",
+        'fatal: Exiting because of an unresolved conflict.',
+      ],
+      1,
+    );
+  }
+
+  const treeHash = buildTreeFromIndex(repo, repo.index);
+  const newHash = createCommitWithParents(repo, {
+    message,
+    treeHash,
+    parents: head.parents,
+  });
+
+  addReflogEntryForHead(repo, {
+    oldHash: headHash,
+    newHash,
+    action: 'commit',
+    description: `(amend) ${message.split('\n')[0] ?? message}`,
+  });
+
+  return ok([commitHeadline(repo, newHash, message, head.parents.length === 0)]);
 }
 
 /**

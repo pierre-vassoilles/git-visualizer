@@ -155,9 +155,11 @@ describe('CA-cherry-pick-03 : résolution de conflit et commit', () => {
 // CA-cherry-pick-04 : Commit déjà appliqué (ancêtre)
 // ---------------------------------------------------------------------------
 
-describe('CA-cherry-pick-04 : commit déjà appliqué', () => {
-  it('CA-cherry-pick-04 : exitCode 1, error "already included in HEAD"', () => {
-    // C0 ← C1 (main/HEAD), cherry-pick de C1 sur HEAD
+describe('CA-cherry-pick-04 : commit déjà appliqué (résultat vide)', () => {
+  it('CA-cherry-pick-04 : cherry-pick de HEAD → résultat vide, exit 1 « now empty »', () => {
+    // C0 ← C1 (main/HEAD), cherry-pick de C1 (== HEAD) : le patch est déjà
+    // appliqué → résultat vide. git N'INTERDIT PAS (pas de « already included »),
+    // il refuse de créer un commit vide.
     const engine = replay([
       'git init',
       'write a.txt "v0"',
@@ -174,7 +176,7 @@ describe('CA-cherry-pick-04 : commit déjà appliqué', () => {
     const result = engine.execute(`git cherry-pick ${c1Hash}`);
 
     expect(result.exitCode).toBe(1);
-    expect(result.errors.some((e) => e.includes('already included in HEAD'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('now empty'))).toBe(true);
   });
 });
 
@@ -304,13 +306,11 @@ describe('CA-cherry-pick-07 : git cherry-pick --abort', () => {
 // ---------------------------------------------------------------------------
 
 describe('CA-cherry-pick-08 : cherry-pick via HEAD~n', () => {
-  it('CA-cherry-pick-08 : git cherry-pick HEAD~1 applique les changements de C1', () => {
-    // C0 ← C1 (a.txt="v1") ← C2 (b.txt="v2"), HEAD sur C2
-    // cherry-pick HEAD~1 (=C1) applique les changements de C1 sur C2
-    // Mais C1 est un ancêtre de HEAD → "already included"
-    // Spec : "commit déjà appliqué → refusé"
-    // Pour que ça marche, créer une situation où HEAD~1 n'est pas ancêtre
-    // On part d'un HEAD détaché, cherry-pick d'un commit non-ancêtre
+  it('CA-cherry-pick-08 : git cherry-pick HEAD~1 (patch ne s’applique plus) → conflit', () => {
+    // C0(a=v0) ← C1(a=v1) ← C2(a=v2), HEAD sur C2.
+    // cherry-pick HEAD~1 (=C1) rejoue le patch v0→v1 sur C2 (a=v2) : le patch ne
+    // s'applique plus proprement → conflit (et NON « already included », règle
+    // inexistante chez git).
     const engine = replay([
       'git init',
       'write a.txt "v0"',
@@ -324,10 +324,9 @@ describe('CA-cherry-pick-08 : cherry-pick via HEAD~n', () => {
       'git commit -m "C2"',
     ]);
 
-    // C1 est ancêtre de HEAD (C2) → cherry-pick refusé
     const result = engine.execute('git cherry-pick HEAD~1');
     expect(result.exitCode).toBe(1);
-    expect(result.errors.some((e) => e.includes('already included in HEAD'))).toBe(true);
+    expect(result.output.some((l) => l.includes('CONFLICT'))).toBe(true);
   });
 
   it("CA-cherry-pick-08 bis : cherry-pick d'un commit d'une autre branche via hash", () => {

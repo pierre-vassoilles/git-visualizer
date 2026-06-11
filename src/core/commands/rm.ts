@@ -52,15 +52,25 @@ export function cmdRm(repo: Repository, args: string[]): CommandResult {
   }
 
   // Validation préalable (atomicité : rien n'est supprimé si une cible échoue).
-  if (!cached && !force) {
+  // Matrice de refus fidèle à git, distinguant trois états par fichier :
+  //   - staged  = blob d'index ≠ blob de HEAD (modif indexée OU fichier neuf non
+  //               encore commité — headBlob undefined) ;
+  //   - localMod= fichier présent au WT dont le contenu ≠ blob d'index (modif non
+  //               indexée).
+  // `git rm` (index+WT) refuse staged seul, localMod seul, ou les deux, avec des
+  // messages/hints distincts. `git rm --cached` ne refuse que le cas « les deux »
+  // (le blob indexé, distinct du WT ET de HEAD, serait perdu). `-f` force tout.
+  if (!force) {
     for (const path of targets) {
       const idx = repo.index[path];
       const wt = repo.workingTree[path];
       const headBlob = headFiles[path];
+      if (idx === undefined) continue;
 
-      const stagedDifferent =
-        headBlob !== undefined && idx !== undefined && idx.blobHash !== headBlob;
-      if (stagedDifferent) {
+      const staged = idx.blobHash !== headBlob;
+      const localMod = wt !== undefined && hashBlob(wt.content) !== idx.blobHash;
+
+      if (staged && localMod) {
         return fail(
           [
             'error: the following file has staged content different from both the file and the HEAD:',
@@ -70,10 +80,20 @@ export function cmdRm(repo: Repository, args: string[]): CommandResult {
           1,
         );
       }
+      // Les autres refus ne s'appliquent pas à `--cached` (le WT est conservé).
+      if (cached) continue;
 
-      const wtModified =
-        wt !== undefined && idx !== undefined && hashBlob(wt.content) !== idx.blobHash;
-      if (wtModified) {
+      if (staged) {
+        return fail(
+          [
+            'error: the following file has changes staged in the index:',
+            `    ${path}`,
+            '(use --cached to keep the file, or -f to force removal)',
+          ],
+          1,
+        );
+      }
+      if (localMod) {
         return fail(
           [
             'error: the following file has local modifications:',
