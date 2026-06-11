@@ -9,11 +9,13 @@
  */
 import { computed, ref, watch } from 'vue';
 import { useRepoStore } from '@/stores/repo';
+import { useTerminalBus } from '@/composables/useTerminalBus';
 import { localize } from '@/core/tutorial-helpers';
 import type { LocalizedText } from '@/core/tutorial-helpers';
 import { useI18n } from '@/i18n';
 
 const repo = useRepoStore();
+const { runInTerminal } = useTerminalBus();
 const { t, locale } = useI18n();
 
 /** Résout un LocalizedText dans la locale courante. */
@@ -26,6 +28,7 @@ const tutorial = computed(() => repo.currentTutorial);
 const step = computed(() => repo.currentStep);
 const objectives = computed(() => repo.tutorialObjectives);
 const stepComplete = computed(() => repo.currentStepComplete);
+const stepExecuted = computed(() => repo.currentStepExecuted);
 const completed = computed(() => repo.tutorialCompleted);
 
 // Affichage local de l'indice.
@@ -51,7 +54,11 @@ function onHint(): void {
 }
 function onExecute(): void {
   const cmd = step.value?.command;
-  if (cmd) repo.executeChain(cmd);
+  if (!cmd || stepExecuted.value) return;
+  // Exécute la commande DANS le terminal (écho + sortie visibles), pas en
+  // silence via le store. Puis verrouille le bouton : on ne rejoue pas l'étape.
+  runInTerminal(cmd);
+  repo.markStepExecuted();
 }
 function onNext(): void {
   repo.nextStep();
@@ -115,7 +122,7 @@ function onRestart(): void {
 
         <!-- Bouton Exécuter (si la commande est définie sur l'étape) -->
         <div v-if="step.command" class="execute-row">
-          <button class="btn btn-execute" @click="onExecute">
+          <button class="btn btn-execute" :disabled="stepExecuted" @click="onExecute">
             ▶ {{ t('tutorial.executeButton') }}
           </button>
           <code class="execute-cmd">{{ step.command }}</code>
@@ -178,7 +185,10 @@ function onRestart(): void {
 .tuto-overlay {
   position: fixed;
   inset: 0;
-  background: var(--overlay-bg, rgba(0, 0, 0, 0.45));
+  /* Pas de fond assombri ni de capture d'événements : l'apprenant doit pouvoir
+     taper dans le terminal pendant que la modale flotte (coin haut-droit). */
+  background: transparent;
+  pointer-events: none;
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
@@ -186,6 +196,8 @@ function onRestart(): void {
   padding: 16px;
 }
 .tuto-modal {
+  /* Seule la modale capture les clics (l'overlay les laisse passer). */
+  pointer-events: auto;
   background: var(--surface-bg, #fff);
   color: var(--surface-fg, #24292e);
   border-radius: 8px;

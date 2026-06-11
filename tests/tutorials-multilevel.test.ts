@@ -100,3 +100,27 @@ describe('persistance de progression (spec 62, C4)', () => {
     expect(localStorage.getItem('git-visualizer:tutorial')).toBeNull();
   });
 });
+
+describe('verrou de ré-exécution (bouton « Exécuter »)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setActivePinia(createPinia());
+  });
+
+  it('markStepExecuted verrouille l’étape courante, par étape', () => {
+    const store = useRepoStore();
+    store.startTutorial('first-commit');
+
+    // Étape 0 non encore exécutée.
+    expect(store.currentStepExecuted).toBe(false);
+    store.markStepExecuted();
+    expect(store.currentStepExecuted).toBe(true);
+    // Idempotent : pas de doublon dans executedSteps.
+    store.markStepExecuted();
+    expect(store.tutorialProgress?.executedSteps.length).toBe(1);
+
+    // L'étape suivante repart déverrouillée.
+    store.nextStep();
+    expect(store.currentStepExecuted).toBe(false);
+  });
+});

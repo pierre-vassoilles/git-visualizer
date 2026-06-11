@@ -368,6 +368,8 @@ export const useRepoStore = defineStore('repo', () => {
     currentStepIndex: number; // peut valoir steps.length → tutoriel terminé
     completedSteps: string[];
     skippedSteps: string[];
+    /** Étapes dont la commande a été lancée via le bouton « Exécuter ». */
+    executedSteps: string[];
     hintUsed: boolean;
     hintsUsedCount: number;
   }
@@ -413,6 +415,15 @@ export const useRepoStore = defineStore('repo', () => {
     () => tutorialObjectives.value.length > 0 && tutorialObjectives.value.every((o) => o.passed),
   );
 
+  /** L'étape courante a-t-elle déjà été lancée via le bouton « Exécuter » ?
+   *  Sert à griser le bouton pour empêcher une ré-exécution (seul « Suivant »
+   *  reste possible). */
+  const currentStepExecuted = computed(() => {
+    const p = tutorialProgress.value;
+    const step = currentStep.value;
+    return !!(p && step && p.executedSteps.includes(step.id));
+  });
+
   /**
    * PHASE B2 (spec 62, C4) : persiste la position du tutoriel en cours
    * (`{tutorialId, currentStepIndex}`) — clé localStorage dédiée, distincte de la
@@ -436,10 +447,23 @@ export const useRepoStore = defineStore('repo', () => {
       currentStepIndex: 0,
       completedSteps: [],
       skippedSteps: [],
+      executedSteps: [],
       hintUsed: false,
       hintsUsedCount: 0,
     };
     persistTutorialProgress();
+  }
+
+  /**
+   * PHASE B2 : marque l'étape courante comme lancée via le bouton « Exécuter »
+   * (la commande est exécutée dans le terminal via `useTerminalBus`, pas ici).
+   * Empêche une seconde exécution depuis le tutoriel.
+   */
+  function markStepExecuted(): void {
+    const p = tutorialProgress.value;
+    const step = currentStep.value;
+    if (!p || !step) return;
+    if (!p.executedSteps.includes(step.id)) p.executedSteps.push(step.id);
   }
 
   function nextStep(): void {
@@ -505,6 +529,7 @@ export const useRepoStore = defineStore('repo', () => {
       currentStepIndex: idx,
       completedSteps: [],
       skippedSteps: [],
+      executedSteps: [],
       hintUsed: false,
       hintsUsedCount: 0,
     };
@@ -599,7 +624,9 @@ export const useRepoStore = defineStore('repo', () => {
     tutorialCompleted,
     tutorialObjectives,
     currentStepComplete,
+    currentStepExecuted,
     startTutorial,
+    markStepExecuted,
     nextStep,
     previousStep,
     skipStep,

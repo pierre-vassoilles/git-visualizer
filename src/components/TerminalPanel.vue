@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { useRepoStore } from '@/stores/repo';
+import { useTerminalBus } from '@/composables/useTerminalBus';
 import { autocomplete, replaceLastToken } from '@/utils/autocomplete';
 import { splitCommandChain } from '@/utils/shell';
 
@@ -11,6 +12,7 @@ import { splitCommandChain } from '@/utils/shell';
 const CLEAR_SCREEN = '\x1b[2J\x1b[3J\x1b[H';
 
 const repo = useRepoStore();
+const { request } = useTerminalBus();
 const host = ref<HTMLDivElement | null>(null);
 
 const PROMPT = '\x1b[32mgit-playground\x1b[0m $ ';
@@ -53,10 +55,7 @@ function colorizeDiffLine(line: string): string {
  * - `&&` : exécute la suivante uniquement si la précédente a réussi (exitCode 0).
  * Le builtin `clear` (effacement de l'écran) est traité ici, côté terminal.
  */
-function runCurrentLine(): void {
-  const line = current;
-  current = '';
-  histIndex = -1;
+function executeLine(line: string): void {
   write('\r\n');
 
   let lastOk = true;
@@ -85,6 +84,30 @@ function runCurrentLine(): void {
 
   // Réécrit le prompt sans saut de ligne superflu.
   write(PROMPT);
+}
+
+function runCurrentLine(): void {
+  const line = current;
+  current = '';
+  histIndex = -1;
+  executeLine(line);
+}
+
+/**
+ * Exécute une commande poussée depuis l'UI (ex. bouton « Exécuter » d'un
+ * tutoriel, via `useTerminalBus`). On efface ce que l'utilisateur tapait, on
+ * affiche la commande après le prompt (comme s'il l'avait saisie), puis on
+ * l'exécute via le même chemin que `runCurrentLine` → écho et sortie visibles.
+ */
+function runExternalLine(line: string): void {
+  // Efface une éventuelle saisie partielle.
+  while (current.length > 0) {
+    current = current.slice(0, -1);
+    write('\b \b');
+  }
+  histIndex = -1;
+  write(line);
+  executeLine(line);
 }
 
 function replaceLine(next: string): void {
@@ -194,6 +217,12 @@ onMounted(() => {
 
   term.onData(onData);
   window.addEventListener('resize', onResize);
+
+  // Commandes poussées depuis l'UI (bouton « Exécuter » des tutoriels) :
+  // on les exécute dans le terminal une fois xterm prêt.
+  watch(request, (r) => {
+    if (r && term) runExternalLine(r.command);
+  });
 });
 
 onBeforeUnmount(() => {
