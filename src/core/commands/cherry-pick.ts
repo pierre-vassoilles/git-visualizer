@@ -47,9 +47,20 @@ export function cmdCherryPick(repo: Repository, args: string[]): CommandResult {
   const opGuard = refuseIfOperationInProgress(repo);
   if (opGuard) return opGuard;
 
-  // Trouver le commitish
-  const filteredArgs = args.filter((a) => !a.startsWith('-'));
-  const commitRef = filteredArgs[0];
+  // Parser -m <n> (mainline pour cherry-pick d'un commit de fusion) et le commitish.
+  let mainline: number | null = null;
+  const positionals: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (a === '-m' || a === '--mainline') {
+      const n = parseInt(args[i + 1] ?? '', 10);
+      if (!Number.isNaN(n)) mainline = n;
+      i++;
+    } else if (!a.startsWith('-')) {
+      positionals.push(a);
+    }
+  }
+  const commitRef = positionals[0];
 
   if (!commitRef) {
     return fail(['fatal: no commit specified']);
@@ -72,10 +83,21 @@ export function cmdCherryPick(repo: Repository, args: string[]): CommandResult {
     );
   }
 
-  // Refuser les merge commits
+  // Commit de fusion : exige -m <n> (sélection de la mainline), comme git.
+  let baseParentHash: string | null | undefined;
   if (targetCommit.parents.length >= 2) {
+    if (mainline === null) {
+      return fail([
+        `error: commit ${shortHash(targetHash)} is a merge but no -m option was given.`,
+      ]);
+    }
+    baseParentHash = targetCommit.parents[mainline - 1] ?? null;
+    if (!baseParentHash) {
+      return fail([`error: commit ${shortHash(targetHash)} does not have parent ${mainline}`]);
+    }
+  } else if (mainline !== null) {
     return fail([
-      `error: commit ${shortHash(targetHash)} is a merge commit; use -m <parent> to specify which parent.`,
+      `error: mainline was specified but commit ${shortHash(targetHash)} is not a merge.`,
     ]);
   }
 
@@ -102,6 +124,7 @@ export function cmdCherryPick(repo: Repository, args: string[]): CommandResult {
     origHash: targetHash,
     newParentHash: headHash,
     label: commitRef,
+    ...(baseParentHash !== undefined ? { baseParentHash } : {}),
   });
 
   if (result.empty) {

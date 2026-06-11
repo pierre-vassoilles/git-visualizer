@@ -98,13 +98,15 @@ describe('undo/redo applicatif (spec 60)', () => {
     store.undo(); // currentIndex = 2 (après "write f1.txt")
     expect(store.canRedo).toBe(true);
 
-    store.execute('git branch fix'); // commande réussie → tronque le futur
+    // Commande réussie à l'index 2 (HEAD non-né → on stage f1.txt plutôt que de
+    // créer une branche, refusée avant le 1er commit — NAV-08) → tronque le futur.
+    store.execute('git add f1.txt');
 
     // currentIndex avance, redo tronqué
     expect(store.canRedo).toBe(false);
-    // la timeline ne contient plus "git add"/"git commit" d'origine après l'index 2
+    // la timeline ne contient plus "git commit" d'origine après l'index 2
     expect(store.savedCommands).not.toContain('git commit -m "C1"');
-    expect(store.savedCommands).toContain('git branch fix');
+    expect(store.savedCommands).toContain('git add f1.txt');
   });
 
   it('CA-undo-08 : rejeu déterministe (snapshot identique avant undo / après redo)', () => {

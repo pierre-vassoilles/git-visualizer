@@ -166,7 +166,12 @@ export function cmdBranch(repo: Repository, args: string[]): CommandResult {
     }
     targetHash = resolved;
   } else {
-    targetHash = headCommitHash(repo) ?? '';
+    const headHash = headCommitHash(repo);
+    // NAV-08 : sur un HEAD non-né, git refuse (pas d'objet valide à pointer).
+    if (!headHash) {
+      return fail([`fatal: Not a valid object name: '${currentBranch(repo) ?? 'HEAD'}'.`], 128);
+    }
+    targetHash = headHash;
   }
   repo.refs.heads[branchName] = targetHash;
 

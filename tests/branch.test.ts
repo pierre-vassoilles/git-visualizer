@@ -112,19 +112,16 @@ describe('git branch — CA-branch-03 : créer une branche depuis HEAD', () => {
 // ---------------------------------------------------------------------------
 
 describe('git branch — CA-branch-04 : créer une branche sur dépôt vierge', () => {
-  it('CA-branch-04 : branche créée vide ("") sans commit', () => {
+  it('CA-branch-04 : créer une branche sur un HEAD non-né échoue (NAV-08)', () => {
     const engine = replay(['git init']);
     const result = engine.execute('git branch feature');
 
-    expect(result.exitCode).toBe(0);
-    expect(result.output).toEqual([]);
+    // git refuse : pas d'objet valide à pointer avant le premier commit.
+    expect(result.exitCode).toBe(128);
+    expect(result.errors.join(' ')).toContain('Not a valid object name');
 
     const snap = engine.snapshot();
-    // feature existe et est vide
-    expect('feature' in snap.branches).toBe(true);
-    expect(snap.branches['feature']).toBe('');
-    // main inchangé (vide)
-    expect(snap.branches['main']).toBe('');
+    expect('feature' in snap.branches).toBe(false);
   });
 });
 

@@ -37,6 +37,11 @@ export function cmdRm(repo: Repository, args: string[]): CommandResult {
       return fail([`fatal: pathspec '${spec}' did not match any files`], 128);
     }
     if (recursive) {
+      // CNT-12 : `.` (ou `./`) = tout l'index.
+      if (spec === '.' || spec === './') {
+        targets.push(...Object.keys(repo.index));
+        continue;
+      }
       const prefix = spec.endsWith('/') ? spec : `${spec}/`;
       const matched = Object.keys(repo.index).filter((p) => p === spec || p.startsWith(prefix));
       if (matched.length === 0) {
@@ -45,6 +50,11 @@ export function cmdRm(repo: Repository, args: string[]): CommandResult {
       targets.push(...matched);
     } else {
       if (!(spec in repo.index)) {
+        // CNT-04 : un répertoire (préfixe d'entrées d'index) sans -r → message dédié.
+        const prefix = spec.endsWith('/') ? spec : `${spec}/`;
+        if (Object.keys(repo.index).some((p) => p.startsWith(prefix))) {
+          return fail([`fatal: not removing '${spec}' recursively without -r`], 128);
+        }
         return fail([`fatal: pathspec '${spec}' did not match any files`], 128);
       }
       targets.push(spec);

@@ -297,13 +297,11 @@ describe('HEAD détaché — invariants modèle (spec 09)', () => {
     }
   });
 
-  it('snapshot.branches inclut les branches vides', () => {
+  it('snapshot.branches inclut la branche par défaut vide (HEAD non-né)', () => {
+    // Après `git init`, main existe mais est vide ("") : le snapshot doit
+    // l'inclure. (Créer une autre branche avant le 1er commit est refusé — NAV-08.)
     const engine = replay(['git init']);
-    engine.execute('git branch feature');
-
     const snap = engine.snapshot();
-    expect('feature' in snap.branches).toBe(true);
-    expect(snap.branches['feature']).toBe('');
     expect('main' in snap.branches).toBe(true);
     expect(snap.branches['main']).toBe('');
   });

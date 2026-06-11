@@ -225,24 +225,17 @@ describe('git restore — CA-restore-05 : restaurer depuis un commit', () => {
 // ---------------------------------------------------------------------------
 
 describe('git restore — CA-restore-06 : fichier absent du commit source → suppression du WT', () => {
-  it('CA-restore-06 : fichier supprimé du WT si absent du commit source', () => {
+  it('CA-restore-06 : restore --source ne supprime PAS un fichier non suivi (NAV-14)', () => {
     const { engine, c1 } = engineWithTwoCommits();
-    // Ajouter un fichier dans le WT uniquement (non committé)
+    // Fichier présent dans le WT uniquement (non suivi : jamais `git add`).
     engine.execute('write newfile.txt "extra"');
 
-    // c1 n'a que file.txt, pas newfile.txt
+    // git réel : pathspec d'un fichier non suivi → erreur, fichier préservé
+    // (et NON suppression silencieuse — contrairement à l'ancienne spec 46).
     const result = engine.execute(`git restore --source=${c1} newfile.txt`);
-
-    expect(result.exitCode).toBe(0);
-
-    // newfile.txt doit avoir été supprimé du working tree
-    const snap = engine.snapshot();
-    // Le fichier ne doit plus apparaître comme présent dans le WT
-    // (il peut apparaître comme absent / deleted)
-    const fileEntry = snap.files.find((f) => f.path === 'newfile.txt');
-    // Soit le fichier a disparu du WT (absent du snapshot), soit il est supprimé
-    // La spec dit : "workingTree['newfile.txt'] est supprimé"
-    expect(fileEntry === undefined || fileEntry.status === 'deleted').toBe(true);
+    expect(result.exitCode).toBe(1);
+    expect(result.errors.join(' ')).toContain('did not match');
+    expect(engine.execute('read newfile.txt').output[0]).toBe('extra');
   });
 });
 
@@ -316,7 +309,7 @@ describe('git restore — cas limites', () => {
     expect(f?.status).toBe('clean');
   });
 
-  it('--staged sur dépôt vierge enlève le fichier de l index', () => {
+  it('--staged sur dépôt vierge échoue (NAV-09)', () => {
     const engine = replay(['git init']);
     engine.execute('write f.txt "hello"');
     engine.execute('git add f.txt');
@@ -324,12 +317,13 @@ describe('git restore — cas limites', () => {
     const snapBefore = engine.snapshot();
     expect(snapBefore.indexPaths).toContain('f.txt');
 
-    // Dépôt vierge (aucun commit) : restore --staged doit supprimer de l'index
+    // HEAD non-né : `restore --staged` échoue (le bon geste est `git rm --cached`).
     const result = engine.execute('git restore --staged f.txt');
-    expect(result.exitCode).toBe(0);
+    expect(result.exitCode).toBe(128);
+    expect(result.errors.join(' ')).toContain('could not resolve HEAD');
 
-    const snapAfter = engine.snapshot();
-    expect(snapAfter.indexPaths).not.toContain('f.txt');
+    // L'index est inchangé.
+    expect(engine.snapshot().indexPaths).toContain('f.txt');
   });
 
   it('dépôt non initialisé retourne exitCode 128', () => {

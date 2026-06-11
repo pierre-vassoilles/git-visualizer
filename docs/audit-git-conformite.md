@@ -508,7 +508,19 @@ ignored… hint: Use -f »).
   RMT-07 (`git fetch` no-op silencieux), RMT-08 (`git fetch --all` + rejet des
   flags inconnus), RMT-11 (`@` = HEAD, `@{n}` nu = reflog de la branche courante).
   Tests : `tests/audit-lot5.test.ts` (9 cas). 1322 verts.
-- Lots 6 à 7 : à venir.
+- **Lot 6 — FAIT** (commit dédié). Complétude des commandes de contenu. BAS-05
+  (`commit -a`/`-am`), BAS-10 (positionnels après `-m` → pathspec error), BAS-06
+  (`add <répertoire>`), BAS-07 (`add` stage une suppression), BAS-08 (`add -A`),
+  CNT-04 (`rm <dir>` sans `-r` → « not removing recursively »), CNT-12 (`rm -r .`),
+  CNT-05 (`diff <path>` repli pathspec), CNT-06 (`diff --staged <commit>`), CNT-07
+  (`mv` refuse d'écraser un untracked sans `-f`), CNT-08 (`mv <dir> <dir2>`), CNT-09
+  (`mv` >2 positionnels → destination répertoire requise), NAV-08 (`branch` sur
+  HEAD non-né → refus), NAV-09 (`restore --staged` HEAD non-né → erreur), NAV-10
+  (resolver préfère le tag à la branche), NAV-14 (`restore --source` ne supprime
+  pas un untracked), RWR-12 (`cherry-pick -m <n>` d'un merge), RWR-13
+  (`reset <pathspec>` désindexe sans bouger HEAD). Tests : `tests/audit-lot6.test.ts`
+  (16 cas) + 7 tests existants corrigés (comportement aligné sur git). 1338 verts.
+- Lot 7 : à venir.
 
 ## Plan de correction (lots priorisés)
 

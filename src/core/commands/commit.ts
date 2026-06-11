@@ -11,6 +11,7 @@ import {
   headCommitHash,
   isHeadDetached,
   isInitialized,
+  storeBlob,
 } from '../repository';
 import { shortHash } from '../sha1';
 import { notARepo } from './init';
@@ -39,23 +40,64 @@ export function cmdCommit(repo: Repository, args: string[]): CommandResult {
     return amendCommit(repo, args);
   }
 
-  // Chercher le flag -m
-  const mIndex = args.indexOf('-m');
+  // Parser les flags : -m/--message (avec sa valeur), -a/--all, et les formes
+  // courtes combinées (-am, -ma). Les positionnels restants sont des pathspecs.
+  let messageArg: string | undefined;
+  let autoStage = false;
+  const positionals: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (a === '-m' || a === '--message') {
+      messageArg = args[i + 1];
+      i++;
+    } else if (a === '-a' || a === '--all') {
+      autoStage = true;
+    } else if (/^-[am]+$/.test(a)) {
+      // Flags courts combinés parmi a/m (ex: -am, -ma).
+      if (a.includes('a')) autoStage = true;
+      if (a.includes('m')) {
+        messageArg = args[i + 1];
+        i++;
+      }
+    } else if (a.startsWith('-')) {
+      // Autre flag (ex: --amend déjà traité) : ignoré ici.
+    } else {
+      positionals.push(a);
+    }
+  }
 
-  // En cas de revert en cours, le message peut être optionnel (utiliser le message par défaut)
+  // BAS-10 : un positionnel restant est un pathspec (commit partiel non supporté) ;
+  // git refuse plutôt que d'avaler le mot dans le message.
+  if (positionals.length > 0) {
+    return fail([`error: pathspec '${positionals[0]}' did not match any file(s) known to git`], 1);
+  }
+
+  // BAS-05 : `-a` stage automatiquement les modifications/suppressions des
+  // fichiers SUIVIS (comme `git add -u`) avant de committer (pas les untracked).
+  if (autoStage) {
+    for (const path of Object.keys(repo.index)) {
+      const wt = repo.workingTree[path];
+      if (!wt) {
+        delete repo.index[path];
+      } else {
+        const blobHash = storeBlob(repo, wt.content);
+        repo.index[path] = { blobHash, content: wt.content, mode: wt.mode };
+      }
+    }
+  }
+
+  // En cas de revert en cours, le message peut être optionnel (message par défaut).
   let message: string;
-  if (mIndex === -1) {
+  if (messageArg === undefined) {
     if (repo.reverting) {
       message = repo.reverting.defaultMessage;
     } else {
       return fail(["fatal: option '-m' is required"]);
     }
+  } else if (messageArg === '') {
+    return fail(['fatal: message cannot be empty']);
   } else {
-    const rawMessage = args[mIndex + 1];
-    if (rawMessage === undefined || rawMessage === '') {
-      return fail(['fatal: message cannot be empty']);
-    }
-    message = rawMessage;
+    message = messageArg;
   }
 
   // Finalisation d'un revert en cours : ne jamais committer de marqueurs de

@@ -60,6 +60,21 @@ function commitSide(repo: Repository, commitHash: string): DiffSide {
 // Filtrage par pathspec
 // ---------------------------------------------------------------------------
 
+/** Un chemin est-il connu (working tree, index, ou arbre de HEAD), exact ou répertoire ? */
+function isKnownPath(repo: Repository, spec: string): boolean {
+  const prefix = spec.endsWith('/') ? spec : `${spec}/`;
+  const known = new Set<string>([...Object.keys(repo.workingTree), ...Object.keys(repo.index)]);
+  const headHash = headCommitHash(repo);
+  if (headHash) {
+    const commit = getCommit(repo, headHash);
+    if (commit) for (const p of Object.keys(flattenTree(repo, commit.tree))) known.add(p);
+  }
+  for (const p of known) {
+    if (p === spec || p.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
 function matchesPathspec(path: string, specs: string[]): boolean {
   if (specs.length === 0) return true;
   return specs.some((spec) => {
@@ -81,7 +96,7 @@ export function cmdDiff(repo: Repository, args: string[]): CommandResult {
 
   // Séparer les pathspecs (après `--`) des autres arguments.
   const dashDash = args.indexOf('--');
-  const pathspecs = dashDash === -1 ? [] : args.slice(dashDash + 1);
+  let pathspecs = dashDash === -1 ? [] : args.slice(dashDash + 1);
   const head = dashDash === -1 ? args : args.slice(0, dashDash);
 
   const staged = head.includes('--staged') || head.includes('--cached');
@@ -91,28 +106,44 @@ export function cmdDiff(repo: Repository, args: string[]): CommandResult {
   let newSide: DiffSide;
 
   if (staged) {
-    // index vs HEAD
-    const headHash = headCommitHash(repo);
-    oldSide = headHash ? commitSide(repo, headHash) : {};
+    // index vs <commit> (défaut HEAD). CNT-06 : `--staged <commit>` compare le
+    // commit donné à l'index, au lieu d'ignorer le positionnel.
+    if (positionals.length >= 1) {
+      const r = resolveCommitish(repo, positionals[0]!);
+      if (!r) return unknownRevision(positionals[0]!);
+      oldSide = commitSide(repo, r);
+    } else {
+      const headHash = headCommitHash(repo);
+      oldSide = headHash ? commitSide(repo, headHash) : {};
+    }
     newSide = indexSide(repo);
   } else if (positionals.length === 0) {
     // working tree vs index
     oldSide = indexSide(repo);
     newSide = workingTreeSide(repo);
-  } else if (positionals.length === 1) {
-    // working tree vs <commit>
-    const resolved = resolveCommitish(repo, positionals[0]!);
-    if (!resolved) return unknownRevision(positionals[0]!);
-    oldSide = commitSide(repo, resolved);
-    newSide = workingTreeSide(repo);
   } else {
-    // <commit1> vs <commit2>
     const r1 = resolveCommitish(repo, positionals[0]!);
-    if (!r1) return unknownRevision(positionals[0]!);
-    const r2 = resolveCommitish(repo, positionals[1]!);
-    if (!r2) return unknownRevision(positionals[1]!);
-    oldSide = commitSide(repo, r1);
-    newSide = commitSide(repo, r2);
+    if (r1 === null) {
+      // CNT-05 : le 1er positionnel n'est pas une révision → repli pathspec
+      // (diff working tree vs index restreint à ces chemins), si ce sont bien
+      // des chemins connus.
+      if (!positionals.every((p) => isKnownPath(repo, p))) {
+        return unknownRevision(positionals[0]!);
+      }
+      oldSide = indexSide(repo);
+      newSide = workingTreeSide(repo);
+      pathspecs = [...pathspecs, ...positionals];
+    } else if (positionals.length === 1) {
+      // working tree vs <commit>
+      oldSide = commitSide(repo, r1);
+      newSide = workingTreeSide(repo);
+    } else {
+      // <commit1> vs <commit2>
+      const r2 = resolveCommitish(repo, positionals[1]!);
+      if (!r2) return unknownRevision(positionals[1]!);
+      oldSide = commitSide(repo, r1);
+      newSide = commitSide(repo, r2);
+    }
   }
 
   const result = diffSides(oldSide, newSide);

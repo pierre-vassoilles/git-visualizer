@@ -65,11 +65,12 @@ function restoreToWorkingTree(
   pathspecs: string[],
   commitFiles: Record<string, string> | null,
 ): CommandResult {
-  // Un chemin est "connu" s'il existe dans la source ; pour une source commit,
-  // un chemin présent dans le WT mais absent du commit est aussi valide (il sera
-  // supprimé du WT, comme le vrai git).
+  // Un chemin est "connu" s'il existe dans la source. Pour une source commit, un
+  // chemin SUIVI (dans l'index) absent du commit est aussi valide (il sera
+  // supprimé du WT, comme le vrai git) — mais PAS un fichier non suivi (NAV-14 :
+  // `git restore --source=… <untracked>` ne doit pas supprimer l'untracked).
   const inSource = (p: string): boolean =>
-    commitFiles ? p in commitFiles || p in repo.workingTree : p in repo.index;
+    commitFiles ? p in commitFiles || p in repo.index : p in repo.index;
 
   const { paths, error } = expandAndValidate(repo, pathspecs, inSource, commitFiles);
   if (error) return error;
@@ -110,12 +111,15 @@ function restoreToIndex(
   if (commitFiles) {
     sourceFiles = commitFiles;
   } else {
-    sourceFiles = {};
     const headHash = headCommitHash(repo);
-    if (headHash) {
-      const commit = getCommit(repo, headHash);
-      if (commit) Object.assign(sourceFiles, flattenTree(repo, commit.tree));
+    // NAV-09 : `git restore --staged` sans --source sur un HEAD non-né échoue
+    // (le bon geste pré-commit est `git rm --cached`).
+    if (!headHash) {
+      return fail(['fatal: could not resolve HEAD'], 128);
     }
+    sourceFiles = {};
+    const commit = getCommit(repo, headHash);
+    if (commit) Object.assign(sourceFiles, flattenTree(repo, commit.tree));
   }
 
   // Un chemin est valide s'il existe dans la source OU dans l'index : un fichier

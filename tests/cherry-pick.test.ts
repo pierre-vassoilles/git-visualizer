@@ -210,7 +210,7 @@ describe("CA-cherry-pick-05 : cherry-pick d'un merge commit refusé", () => {
     const result = engine.execute(`git cherry-pick ${mergeCommit!.hash}`);
 
     expect(result.exitCode).toBe(1);
-    expect(result.errors.some((e) => e.includes('is a merge commit'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('is a merge but no -m'))).toBe(true);
   });
 });
 

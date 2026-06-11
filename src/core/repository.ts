@@ -484,17 +484,19 @@ export function resolveCommitish(repo: Repository, ref: string): string | null {
     return headCommitHash(repo);
   }
 
-  // 2. Branche — une branche vide ("") est ignorée (traitée comme inexistante)
-  //    pour ne pas court-circuiter un tag/hash court homonyme (spec 46).
+  // 2. Tag AVANT branche (NAV-10) : gitrevisions résout `refs/tags` avant
+  //    `refs/heads`. Le checkout, qui préfère légitimement la branche, a son
+  //    propre fast-path (branchExists) et n'est pas affecté.
+  if (tagExists(repo, ref)) {
+    return repo.refs.tags[ref]!;
+  }
+
+  // 3. Branche — une branche vide ("") est ignorée (traitée comme inexistante)
+  //    pour ne pas court-circuiter un hash court homonyme (spec 46).
   if (branchExists(repo, ref)) {
     const h = repo.refs.heads[ref]!;
     if (h) return h;
-    // branche vide → tomber sur tag / hash court ci-dessous
-  }
-
-  // 3. Tag
-  if (tagExists(repo, ref)) {
-    return repo.refs.tags[ref]!;
+    // branche vide → tomber sur hash court ci-dessous
   }
 
   // 4. Ref de suivi distant : <remote>/<branch>
@@ -1243,6 +1245,12 @@ export interface ReplayCommitOptions {
   newParentHash: string;
   /** Label pour les marqueurs de conflit (ex: shortHash du commit original). */
   label: string;
+  /**
+   * Parent du commit original à utiliser comme BASE du diff. Par défaut le 1er
+   * parent ; pour un cherry-pick `-m <n>` d'un commit de fusion, c'est le parent
+   * `n` (mainline). `null` → arbre vide (commit racine).
+   */
+  baseParentHash?: string | null;
 }
 
 export interface ReplayCommitResult {
@@ -1282,8 +1290,10 @@ export interface ReplayContinueOptions {
 export function replayCommit(repo: Repository, options: ReplayCommitOptions): ReplayCommitResult {
   const { origCommit, origHash: _origHash, newParentHash, label } = options;
 
-  // 1. Calculer le diff du commit original
-  const parentHash = origCommit.parents[0] ?? null;
+  // 1. Calculer le diff du commit original par rapport à sa BASE (par défaut le
+  //    1er parent ; sinon le parent mainline fourni, pour cherry-pick -m).
+  const parentHash =
+    options.baseParentHash !== undefined ? options.baseParentHash : (origCommit.parents[0] ?? null);
   const parentTreeHash = parentHash ? (getCommit(repo, parentHash)?.tree ?? null) : null;
   const diff = computeTreeDiff(repo, parentTreeHash, origCommit.tree);
 
