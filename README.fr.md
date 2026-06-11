@@ -114,6 +114,30 @@ git merge feature
 
 …et regardez le graphe se mettre à jour après chaque commande.
 
+## Docker
+
+Une configuration Docker clé en main est fournie (build multi-stage → Nginx
+servant la SPA statique). Tous les réglages sont paramétrés dans `.env`.
+
+```bash
+cp .env.example .env       # ajuster les valeurs au besoin
+docker compose up -d       # → http://localhost:8080
+```
+
+Mode développement (serveur Vite avec hot-reload, sources montées en volume) :
+
+```bash
+docker compose --profile dev up   # → http://localhost:5173
+```
+
+Variables `.env` principales : `HOST_PORT` (port public, défaut `8080`),
+`DEV_HOST_PORT`/`DEV_PORT` (port Vite, `5173`), `NODE_VERSION`/`NGINX_VERSION`
+(versions des images de base), `IMAGE_NAME`/`IMAGE_TAG`/`CONTAINER_NAME`,
+`RESTART_POLICY`.
+
+Les fichiers Docker sont dans `docker/` (`Dockerfile`, `nginx.conf`), avec le
+`docker-compose.yml` à la racine du dépôt.
+
 ## Scripts
 
 ```bash

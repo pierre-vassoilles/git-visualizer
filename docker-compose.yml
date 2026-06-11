@@ -1,0 +1,48 @@
+# Docker Compose — git-visualizer
+#
+# Démarrage rapide (production, build statique servi par Nginx) :
+#   cp .env.example .env      # ajuster les valeurs au besoin
+#   docker compose up -d      # → http://localhost:8080
+#
+# Mode développement (Vite + hot-reload) :
+#   docker compose --profile dev up
+#                             # → http://localhost:5173
+#
+# Toutes les valeurs ci-dessous sont surchargées par le fichier .env.
+
+services:
+  # ─── Production : image buildée + Nginx ───────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: runtime
+      args:
+        NODE_VERSION: ${NODE_VERSION:-22}
+        NGINX_VERSION: ${NGINX_VERSION:-1.27}
+    image: ${IMAGE_NAME:-git-visualizer}:${IMAGE_TAG:-latest}
+    container_name: ${CONTAINER_NAME:-git-visualizer}
+    ports:
+      - "${HOST_PORT:-8080}:80"
+    restart: ${RESTART_POLICY:-unless-stopped}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ─── Développement : serveur Vite avec hot-reload ─────────────────
+  # Activé uniquement avec : docker compose --profile dev up
+  dev:
+    profiles: ["dev"]
+    image: node:${NODE_VERSION:-22}-alpine
+    container_name: ${CONTAINER_NAME:-git-visualizer}-dev
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port ${DEV_PORT:-5173}"
+    ports:
+      - "${DEV_HOST_PORT:-5173}:${DEV_PORT:-5173}"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    restart: ${RESTART_POLICY:-unless-stopped}
