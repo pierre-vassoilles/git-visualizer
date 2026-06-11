@@ -5,6 +5,9 @@
 import { describe, it, expect } from 'vitest';
 import { replay } from './helpers';
 import { fuzzyScore, searchPaletteItems, type PaletteContext } from '@/utils/commandPalette';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n(); // locale par défaut FR
 
 function ctxFrom(engine: ReturnType<typeof replay>, history: string[] = []): PaletteContext {
   return {
@@ -34,7 +37,7 @@ describe('fuzzyScore', () => {
 
 describe('searchPaletteItems', () => {
   it('requête vide → sections Commandes / Scénarios / Tutoriels / Actions', () => {
-    const items = searchPaletteItems('', ctxFrom(replay(['git init'])));
+    const items = searchPaletteItems('', ctxFrom(replay(['git init'])), 50, t);
     const sections = new Set(items.map((i) => i.section));
     expect(sections.has('Commandes')).toBe(true);
     expect(sections.has('Scénarios')).toBe(true);
@@ -44,19 +47,24 @@ describe('searchPaletteItems', () => {
   });
 
   it('requête vide → commandes récentes en tête', () => {
-    const items = searchPaletteItems('', ctxFrom(replay(['git init']), ['git status', 'git log']));
+    const items = searchPaletteItems(
+      '',
+      ctxFrom(replay(['git init']), ['git status', 'git log']),
+      50,
+      t,
+    );
     expect(items[0]!.section).toBe('Récentes');
     expect(items.some((i) => i.label === 'git log')).toBe(true);
   });
 
   it('requête "commit" → filtre flou, items pertinents', () => {
-    const items = searchPaletteItems('commit', ctxFrom(replay(['git init'])));
+    const items = searchPaletteItems('commit', ctxFrom(replay(['git init'])), 50, t);
     expect(items.length).toBeGreaterThan(0);
     expect(items.some((i) => i.kind === 'command' && i.command === 'git commit')).toBe(true);
   });
 
   it('requête sans correspondance → vide', () => {
-    const items = searchPaletteItems('zzzqqq', ctxFrom(replay(['git init'])));
+    const items = searchPaletteItems('zzzqqq', ctxFrom(replay(['git init'])), 50, t);
     expect(items.length).toBe(0);
   });
 
@@ -76,14 +84,14 @@ describe('searchPaletteItems', () => {
       'git commit -m "main"',
       'git merge feature',
     ]);
-    const items = searchPaletteItems('', ctxFrom(engine));
+    const items = searchPaletteItems('', ctxFrom(engine), 50, t);
     const labels = items.map((i) => i.label);
     expect(labels).toContain('git merge --continue');
     expect(labels).toContain('git merge --abort');
   });
 
   it('action UI de bascule de thème présente', () => {
-    const items = searchPaletteItems('thème', ctxFrom(replay(['git init'])));
+    const items = searchPaletteItems('thème', ctxFrom(replay(['git init'])), 50, t);
     expect(items.some((i) => i.kind === 'ui' && i.uiAction === 'toggle-theme')).toBe(true);
   });
 });

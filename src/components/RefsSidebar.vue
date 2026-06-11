@@ -521,6 +521,22 @@ function onOpenTutorialLauncher(): void {
     </section>
 
     <!-- ================================================================
+         Tutoriels guidés (spec 62) — lanceur + tutoriel en cours
+    ================================================================ -->
+    <section>
+      <h2>{{ t('sidebar.tutorials') }}</h2>
+      <!-- Tutoriel en cours : affiche le titre et donne accès -->
+      <div v-if="repo.currentTutorial" class="current-tuto-box">
+        <span class="current-tuto-label">
+          {{ localize(repo.currentTutorial.title, locale) }}
+        </span>
+      </div>
+      <button class="btn btn-tutorial" @click="onOpenTutorialLauncher">
+        {{ t('sidebar.openTutorials') }}
+      </button>
+    </section>
+
+    <!-- ================================================================
          Scénarios
     ================================================================ -->
     <section>
@@ -539,22 +555,6 @@ function onOpenTutorialLauncher(): void {
           </button>
         </li>
       </ul>
-    </section>
-
-    <!-- ================================================================
-         Tutoriels guidés (spec 62) — lanceur + tutoriel en cours
-    ================================================================ -->
-    <section>
-      <h2>{{ t('sidebar.tutorials') }}</h2>
-      <!-- Tutoriel en cours : affiche le titre et donne accès -->
-      <div v-if="repo.currentTutorial" class="current-tuto-box">
-        <span class="current-tuto-label">
-          {{ localize(repo.currentTutorial.title, locale) }}
-        </span>
-      </div>
-      <button class="btn btn-tutorial" @click="onOpenTutorialLauncher">
-        {{ t('sidebar.openTutorials') }}
-      </button>
     </section>
   </aside>
 </template>

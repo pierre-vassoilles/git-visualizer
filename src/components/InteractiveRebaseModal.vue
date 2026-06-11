@@ -2,8 +2,11 @@
 import { computed, ref, watch } from 'vue';
 import { useRepoStore } from '@/stores/repo';
 import type { TodoItem } from '@/core/model';
+import { useI18n } from '@/i18n';
+import type { MessageKey } from '@/i18n/messages';
 
 const repo = useRepoStore();
+const { t } = useI18n();
 
 // La modale est visible uniquement quand awaitingTodoEdit === true
 const isVisible = computed(() => repo.snapshot.rebasingInteractive?.awaitingTodoEdit === true);
@@ -37,13 +40,13 @@ watch(
 
 const ACTIONS: TodoItem['action'][] = ['pick', 'reword', 'squash', 'fixup', 'drop', 'edit'];
 
-const ACTION_LABELS: Record<TodoItem['action'], string> = {
-  pick: 'pick   – rejouer le commit',
-  reword: 'reword – rejouer + éditer le message',
-  squash: 'squash – fusionner dans le précédent (combine les messages)',
-  fixup: 'fixup  – fusionner dans le précédent (jette ce message)',
-  drop: 'drop   – supprimer le commit',
-  edit: "edit   – s'arrêter pour amender (Phase 6)",
+const ACTION_KEY_MAP: Record<TodoItem['action'], MessageKey> = {
+  pick: 'rebase.action.pick',
+  reword: 'rebase.action.reword',
+  squash: 'rebase.action.squash',
+  fixup: 'rebase.action.fixup',
+  drop: 'rebase.action.drop',
+  edit: 'rebase.action.edit',
 };
 
 function moveUp(index: number): void {
@@ -100,26 +103,22 @@ function abortRebase(): void {
       class="modal-overlay"
       role="dialog"
       aria-modal="true"
-      aria-label="Rebase interactif"
+      :aria-label="t('rebase.ariaLabel')"
     >
       <div class="modal-panel">
         <header class="modal-header">
-          <h2 class="modal-title">Rebase interactif — édition de la todo list</h2>
+          <h2 class="modal-title">{{ t('rebase.title') }}</h2>
         </header>
 
         <!-- Aide rapide -->
         <details class="help-block">
-          <summary>Aide — signification des actions</summary>
+          <summary>{{ t('rebase.helpSummary') }}</summary>
           <ul class="help-list">
             <li v-for="action in ACTIONS" :key="action">
-              <code class="action-code">{{ action }}</code> —
-              {{ ACTION_LABELS[action].split(' – ')[1] }}
+              <code class="action-code">{{ action }}</code> — {{ t(ACTION_KEY_MAP[action]) }}
             </li>
           </ul>
-          <p class="help-note">
-            Réordonnez les lignes avec les boutons ↑ / ↓. Le commit le plus ancien est en haut.
-            <code>squash</code> et <code>fixup</code> ne peuvent pas être la première action.
-          </p>
+          <p class="help-note">{{ t('rebase.helpNote') }}</p>
         </details>
 
         <!-- Liste des commits -->
@@ -135,7 +134,7 @@ function abortRebase(): void {
             <select
               v-model="item.action"
               class="action-select"
-              :aria-label="`Action pour le commit ${shortHash(item.commitHash)}`"
+              :aria-label="t('rebase.actionForCommit', { hash: shortHash(item.commitHash) })"
             >
               <option v-for="a in ACTIONS" :key="a" :value="a">{{ a }}</option>
             </select>
@@ -149,7 +148,7 @@ function abortRebase(): void {
               v-model="item.message"
               type="text"
               class="message-input message-editable"
-              :aria-label="`Message du commit ${shortHash(item.commitHash)}`"
+              :aria-label="t('rebase.messageForCommit', { hash: shortHash(item.commitHash) })"
             />
             <span v-else class="message-input message-readonly">{{ item.message }}</span>
 
@@ -158,7 +157,7 @@ function abortRebase(): void {
               <button
                 class="btn-icon"
                 :disabled="idx === 0"
-                :aria-label="`Monter le commit ${shortHash(item.commitHash)}`"
+                :aria-label="t('rebase.moveUp', { hash: shortHash(item.commitHash) })"
                 @click="moveUp(idx)"
               >
                 ↑
@@ -166,7 +165,7 @@ function abortRebase(): void {
               <button
                 class="btn-icon"
                 :disabled="idx === localTodo.length - 1"
-                :aria-label="`Descendre le commit ${shortHash(item.commitHash)}`"
+                :aria-label="t('rebase.moveDown', { hash: shortHash(item.commitHash) })"
                 @click="moveDown(idx)"
               >
                 ↓
@@ -174,22 +173,22 @@ function abortRebase(): void {
             </div>
           </div>
 
-          <p v-if="localTodo.length === 0" class="empty-list">Aucun commit dans la todo list.</p>
+          <p v-if="localTodo.length === 0" class="empty-list">{{ t('rebase.empty') }}</p>
         </div>
 
         <!-- Affichage des erreurs moteur -->
         <div v-if="errorLines.length > 0" class="error-block" role="alert">
-          <p class="error-title">Erreur :</p>
+          <p class="error-title">{{ t('rebase.errorTitle') }}</p>
           <pre v-for="(line, i) in errorLines" :key="i" class="error-line">{{ line }}</pre>
         </div>
 
         <!-- Actions principales -->
         <footer class="modal-footer">
           <button class="btn btn-primary" :disabled="submitted" @click="submitTodo">
-            Démarrer le rebase
+            {{ t('rebase.start') }}
           </button>
           <button class="btn btn-secondary" @click="abortRebase">
-            Annuler (git rebase --abort)
+            {{ t('rebase.abort') }}
           </button>
         </footer>
       </div>

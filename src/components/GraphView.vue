@@ -480,7 +480,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
 </script>
 
 <template>
-  <div class="graph-view" role="img" aria-label="Graphe des commits Git">
+  <div class="graph-view" role="img" :aria-label="t('graph.ariaLabel')">
     <!-- Toolbar mode split-screen -->
     <div class="graph-toolbar">
       <div class="mode-buttons">

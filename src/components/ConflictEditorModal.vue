@@ -8,8 +8,10 @@
  */
 import { computed, ref, watch } from 'vue';
 import { useRepoStore } from '@/stores/repo';
+import { useI18n } from '@/i18n';
 
 const repo = useRepoStore();
+const { t } = useI18n();
 
 type Choice = 'ours' | 'theirs' | 'both' | 'manual';
 
@@ -127,10 +129,12 @@ function selectFile(i: number): void {
 
 <template>
   <div v-if="isVisible" class="conflict-overlay">
-    <div class="conflict-modal" role="dialog" aria-label="Résolution de conflits">
+    <div class="conflict-modal" role="dialog" :aria-label="t('conflict.title')">
       <header class="modal-header">
-        <h2>Résolution de conflits</h2>
-        <span class="count">{{ filesInConflict.length }} fichier(s) en conflit</span>
+        <h2>{{ t('conflict.title') }}</h2>
+        <span class="count">{{
+          t('conflict.fileCount', { count: String(filesInConflict.length) })
+        }}</span>
       </header>
 
       <!-- Liste des fichiers en conflit -->
@@ -148,26 +152,26 @@ function selectFile(i: number): void {
 
       <div v-if="currentFile" class="file-pane">
         <p class="file-name">
-          Fichier : <code>{{ currentFile }}</code>
+          {{ t('conflict.fileLabel') }} <code>{{ currentFile }}</code>
         </p>
 
         <p v-if="multipleSections" class="multi-note">
-          ⚠ {{ sections.length }} conflits dans ce fichier (la 1ʳᵉ section est affichée).
+          ⚠ {{ t('conflict.multiNote', { count: String(sections.length) }) }}
         </p>
 
         <template v-if="hasConflict">
           <!-- Panneau 3-way -->
           <div class="three-way">
             <div class="col col-ours">
-              <div class="col-head">OURS (local)</div>
+              <div class="col-head">{{ t('conflict.ours') }}</div>
               <pre>{{ ours }}</pre>
             </div>
             <div class="col col-theirs">
-              <div class="col-head">THEIRS (à fusionner)</div>
+              <div class="col-head">{{ t('conflict.theirs') }}</div>
               <pre>{{ theirs }}</pre>
             </div>
             <div class="col col-result">
-              <div class="col-head">RÉSULTAT</div>
+              <div class="col-head">{{ t('conflict.result') }}</div>
               <textarea v-if="editing" v-model="manualText" class="manual-edit" rows="6" />
               <pre v-else>{{ resultPreview }}</pre>
             </div>
@@ -176,36 +180,36 @@ function selectFile(i: number): void {
           <!-- Actions de résolution -->
           <div class="actions">
             <button class="btn" :class="{ sel: choice === 'ours' }" @click="pick('ours')">
-              Garder ours
+              {{ t('conflict.keepOurs') }}
             </button>
             <button class="btn" :class="{ sel: choice === 'theirs' }" @click="pick('theirs')">
-              Garder theirs
+              {{ t('conflict.keepTheirs') }}
             </button>
             <button class="btn" :class="{ sel: choice === 'both' }" @click="pick('both')">
-              Garder les deux
+              {{ t('conflict.keepBoth') }}
             </button>
             <button class="btn" :class="{ sel: editing }" @click="startManualEdit">
-              Éditer manuellement
+              {{ t('conflict.editManually') }}
             </button>
           </div>
         </template>
 
-        <p v-else class="no-conflict">Pas de conflit détecté dans ce fichier.</p>
+        <p v-else class="no-conflict">{{ t('conflict.noConflict') }}</p>
 
         <div class="resolve-row">
           <button class="btn btn-resolve" :disabled="choice === null" @click="markResolved">
-            Marquer résolu
+            {{ t('conflict.markResolved') }}
           </button>
         </div>
       </div>
 
-      <div v-else class="all-resolved">Tous les conflits sont résolus.</div>
+      <div v-else class="all-resolved">{{ t('conflict.allResolved') }}</div>
 
       <footer class="modal-footer">
         <button class="btn btn-continue" :disabled="!canContinue" @click="onContinue">
-          Continuer
+          {{ t('conflict.continue') }}
         </button>
-        <button class="btn btn-abort" @click="onAbort">Annuler l'opération</button>
+        <button class="btn btn-abort" @click="onAbort">{{ t('conflict.abort') }}</button>
       </footer>
     </div>
   </div>

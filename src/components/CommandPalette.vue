@@ -17,7 +17,7 @@ import { useI18n } from '@/i18n';
 
 const repo = useRepoStore();
 const { effectiveTheme, setTheme } = useTheme();
-const { locale } = useI18n();
+const { t, locale } = useI18n();
 
 const open = ref(false);
 const query = ref('');
@@ -25,21 +25,26 @@ const selectedIndex = ref(0);
 const inputEl = ref<HTMLInputElement | null>(null);
 
 const items = computed<PaletteItem[]>(() =>
-  searchPaletteItems(query.value, {
-    catalog: repo.getCatalog(),
-    snapshot: repo.snapshot,
-    history: repo.history,
-    scenarios: getAllScenarios().map((s) => ({
-      id: s.id,
-      title: s.title,
-      description: s.description,
-    })),
-    tutorials: getAllTutorials().map((tuto) => ({
-      id: tuto.id,
-      title: localize(tuto.title, locale.value),
-      description: localize(tuto.description, locale.value),
-    })),
-  }),
+  searchPaletteItems(
+    query.value,
+    {
+      catalog: repo.getCatalog(),
+      snapshot: repo.snapshot,
+      history: repo.history,
+      scenarios: getAllScenarios().map((s) => ({
+        id: s.id,
+        title: s.title,
+        description: s.description,
+      })),
+      tutorials: getAllTutorials().map((tuto) => ({
+        id: tuto.id,
+        title: localize(tuto.title, locale.value),
+        description: localize(tuto.description, locale.value),
+      })),
+    },
+    50,
+    t,
+  ),
 );
 
 // Réinitialise la sélection quand la liste change.
@@ -125,14 +130,14 @@ function sectionHeader(index: number): string | null {
 
 <template>
   <div v-if="open" class="palette-overlay" @click="closePalette">
-    <div class="palette" role="dialog" aria-label="Palette de commandes" @click.stop>
+    <div class="palette" role="dialog" :aria-label="t('palette.ariaLabel')" @click.stop>
       <input
         ref="inputEl"
         v-model="query"
         class="palette-input"
         type="text"
-        placeholder="Rechercher une commande, un scénario, une action…"
-        aria-label="Recherche"
+        :placeholder="t('palette.placeholder')"
+        :aria-label="t('palette.searchAriaLabel')"
         @keydown="onInputKeydown"
       />
       <ul class="palette-list">
@@ -148,9 +153,9 @@ function sectionHeader(index: number): string | null {
             <span v-if="item.description" class="palette-desc">{{ item.description }}</span>
           </li>
         </template>
-        <li v-if="items.length === 0" class="palette-empty">Aucun résultat</li>
+        <li v-if="items.length === 0" class="palette-empty">{{ t('palette.empty') }}</li>
       </ul>
-      <div class="palette-foot">↑↓ naviguer · Entrée exécuter · Échap fermer</div>
+      <div class="palette-foot">{{ t('palette.foot') }}</div>
     </div>
   </div>
 </template>

@@ -10,6 +10,7 @@
 
 import type { CommandCatalog } from '@/core/catalog';
 import type { RepoSnapshot } from '@/core/engine';
+import type { MessageKey } from '@/i18n/messages';
 
 export type PaletteItem =
   | { kind: 'command'; label: string; description: string; section: string; command: string }
@@ -24,6 +25,9 @@ export interface PaletteContext {
   scenarios: ReadonlyArray<{ id: string; title: string; description: string }>;
   tutorials: ReadonlyArray<{ id: string; title: string; description: string }>;
 }
+
+/** Fonction de traduction injectée par le composant (ou identité pour les tests). */
+export type TFn = (key: MessageKey, params?: Record<string, string | number>) => string;
 
 /**
  * Score de correspondance floue (sous-séquence). Retourne null si `query`
@@ -50,14 +54,10 @@ export function fuzzyScore(query: string, text: string): number | null {
   return firstIdx * 2 + gaps;
 }
 
-const UI_ACTIONS: Array<{ label: string; description: string; uiAction: string }> = [
-  { label: 'Basculer le thème (clair/sombre)', description: 'Action UI', uiAction: 'toggle-theme' },
-  { label: 'Réinitialiser le dépôt', description: 'Action UI', uiAction: 'reset' },
-];
-
 /** Items de suggestion contextuels selon l'état du dépôt. */
-function suggestedItems(snap: RepoSnapshot): PaletteItem[] {
+function suggestedItems(snap: RepoSnapshot, t: TFn): PaletteItem[] {
   const items: PaletteItem[] = [];
+  const section = t('palette.section.suggested');
   const op = snap.operationState;
   if (op) {
     const map: Record<string, string> = {
@@ -67,19 +67,19 @@ function suggestedItems(snap: RepoSnapshot): PaletteItem[] {
     };
     const verb = map[op.type];
     if (verb) {
-      items.push(mkCmd(`git ${verb} --continue`, 'Poursuivre l’opération en cours', 'Suggéré'));
-      items.push(mkCmd(`git ${verb} --abort`, 'Annuler l’opération en cours', 'Suggéré'));
+      items.push(mkCmd(`git ${verb} --continue`, t('palette.suggestedContinue'), section));
+      items.push(mkCmd(`git ${verb} --abort`, t('palette.suggestedAbort'), section));
     }
   }
   const hasStaged = snap.files.some((f) => f.status === 'staged' || f.status === 'modified');
   if (snap.files.some((f) => f.status === 'staged')) {
-    items.push(mkCmd('git commit -m "message"', 'Committer les changements stagés', 'Suggéré'));
+    items.push(mkCmd('git commit -m "message"', t('palette.suggestedCommit'), section));
   }
   if (hasStaged || snap.files.some((f) => f.status !== 'clean')) {
-    items.push(mkCmd('git status', 'Voir l’état du working tree', 'Suggéré'));
+    items.push(mkCmd('git status', t('palette.suggestedStatus'), section));
   }
   if (Object.keys(snap.branches).length > 1) {
-    items.push(mkCmd('git merge ', 'Fusionner une branche', 'Suggéré'));
+    items.push(mkCmd('git merge ', t('palette.suggestedMerge'), section));
   }
   return items;
 }
@@ -89,10 +89,11 @@ function mkCmd(command: string, description: string, section: string): PaletteIt
 }
 
 /** Tous les items disponibles (avant filtrage). */
-function allCommandItems(catalog: CommandCatalog): PaletteItem[] {
+function allCommandItems(catalog: CommandCatalog, t: TFn): PaletteItem[] {
+  const section = t('palette.section.commands');
   return Object.entries(catalog.lookup)
     .map(([name, meta]) =>
-      mkCmd(`git ${name}`, (meta as { description?: string }).description ?? '', 'Commandes'),
+      mkCmd(`git ${name}`, (meta as { description?: string }).description ?? '', section),
     )
     .sort((a, b) => a.label.localeCompare(b.label));
 }
@@ -102,44 +103,65 @@ function allCommandItems(catalog: CommandCatalog): PaletteItem[] {
  * - Requête vide : Récentes + Suggéré + Commandes + Scénarios + Tutoriels + Actions.
  * - Requête non vide : tous les items filtrés/triés par score flou.
  */
-export function searchPaletteItems(query: string, ctx: PaletteContext, limit = 50): PaletteItem[] {
+export function searchPaletteItems(
+  query: string,
+  ctx: PaletteContext,
+  limit = 50,
+  t: TFn = (key) => key,
+): PaletteItem[] {
   const q = query.trim();
+
+  const scenarioSection = t('palette.section.scenarios');
+  const tutorialSection = t('palette.section.tutorials');
+  const actionsSection = t('palette.section.actions');
+  const uiActionDesc = t('palette.uiActionDesc');
 
   const scenarioItems: PaletteItem[] = ctx.scenarios.map((s) => ({
     kind: 'scenario',
-    label: `Scénario : ${s.title}`,
+    label: t('palette.scenarioPrefix', { title: s.title }),
     description: s.description,
-    section: 'Scénarios',
+    section: scenarioSection,
     scenarioId: s.id,
   }));
-  const tutorialItems: PaletteItem[] = ctx.tutorials.map((t) => ({
+  const tutorialItems: PaletteItem[] = ctx.tutorials.map((tuto) => ({
     kind: 'tutorial',
-    label: `Tutoriel : ${t.title}`,
-    description: t.description,
-    section: 'Tutoriels',
-    tutorialId: t.id,
+    label: t('palette.tutorialPrefix', { title: tuto.title }),
+    description: tuto.description,
+    section: tutorialSection,
+    tutorialId: tuto.id,
   }));
-  const uiItems: PaletteItem[] = UI_ACTIONS.map((a) => ({
-    kind: 'ui',
-    label: a.label,
-    description: a.description,
-    section: 'Actions',
-    uiAction: a.uiAction,
-  }));
-  const commandItems = allCommandItems(ctx.catalog);
+  const uiItems: PaletteItem[] = [
+    {
+      kind: 'ui',
+      label: t('palette.toggleTheme'),
+      description: uiActionDesc,
+      section: actionsSection,
+      uiAction: 'toggle-theme',
+    },
+    {
+      kind: 'ui',
+      label: t('palette.resetRepo'),
+      description: uiActionDesc,
+      section: actionsSection,
+      uiAction: 'reset',
+    },
+  ];
+  const commandItems = allCommandItems(ctx.catalog, t);
 
   if (q === '') {
+    const recentSection = t('palette.section.recent');
+    const recentDesc = t('palette.recentDesc');
     const recent: PaletteItem[] = [];
     const seen = new Set<string>();
     for (let i = ctx.history.length - 1; i >= 0 && recent.length < 5; i--) {
       const cmd = ctx.history[i]!;
       if (seen.has(cmd)) continue;
       seen.add(cmd);
-      recent.push(mkCmd(cmd, 'Commande récente', 'Récentes'));
+      recent.push(mkCmd(cmd, recentDesc, recentSection));
     }
     return [
       ...recent,
-      ...suggestedItems(ctx.snapshot),
+      ...suggestedItems(ctx.snapshot, t),
       ...commandItems,
       ...scenarioItems,
       ...tutorialItems,

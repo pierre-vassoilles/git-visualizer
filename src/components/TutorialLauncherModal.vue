@@ -64,14 +64,14 @@ function onKeydown(e: KeyboardEvent): void {
     class="launcher-overlay"
     role="dialog"
     aria-modal="true"
-    aria-label="Choisir un tutoriel"
+    :aria-label="t('tutorial.launcherAriaLabel')"
     @click="onOverlayClick"
     @keydown="onKeydown"
   >
     <div class="launcher-modal">
       <header class="launcher-header">
         <h2 class="launcher-title">{{ t('sidebar.tutorials') }}</h2>
-        <button class="btn-close" aria-label="Fermer" @click="onClose">✕</button>
+        <button class="btn-close" :aria-label="t('tutorial.close')" @click="onClose">✕</button>
       </header>
 
       <div class="launcher-body">
@@ -102,7 +102,7 @@ function onKeydown(e: KeyboardEvent): void {
       </div>
 
       <footer class="launcher-footer">
-        <button class="btn btn-cancel" @click="onClose">Fermer</button>
+        <button class="btn btn-cancel" @click="onClose">{{ t('tutorial.close') }}</button>
       </footer>
     </div>
   </div>

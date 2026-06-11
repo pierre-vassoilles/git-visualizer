@@ -72,11 +72,11 @@ function onRestart(): void {
 
 <template>
   <div v-if="isVisible" class="tuto-overlay">
-    <div class="tuto-modal" role="dialog" aria-label="Tutoriel guidé">
+    <div class="tuto-modal" role="dialog" :aria-label="t('tutorial.modalAriaLabel')">
       <!-- Écran de récapitulatif (tutoriel terminé) -->
       <template v-if="completed">
         <header class="tuto-header">
-          <h2>Tutoriel complété !</h2>
+          <h2>{{ t('tutorial.completedTitle') }}</h2>
         </header>
         <p class="tuto-recap-title">{{ tutorial ? lz(tutorial.title) : '' }}</p>
         <ul class="recap-list">
@@ -88,12 +88,16 @@ function onRestart(): void {
           </li>
         </ul>
         <p class="recap-stats">
-          Indices utilisés : {{ repo.tutorialProgress?.hintsUsedCount ?? 0 }} · Étapes sautées :
-          {{ repo.tutorialProgress?.skippedSteps.length ?? 0 }}
+          {{
+            t('tutorial.recapStats', {
+              hints: String(repo.tutorialProgress?.hintsUsedCount ?? 0),
+              skipped: String(repo.tutorialProgress?.skippedSteps.length ?? 0),
+            })
+          }}
         </p>
         <footer class="tuto-footer">
-          <button class="btn btn-primary" @click="onRestart">Recommencer</button>
-          <button class="btn" @click="onQuit">Fermer</button>
+          <button class="btn btn-primary" @click="onRestart">{{ t('tutorial.restart') }}</button>
+          <button class="btn" @click="onQuit">{{ t('tutorial.close') }}</button>
         </footer>
       </template>
 
@@ -101,7 +105,9 @@ function onRestart(): void {
       <template v-else-if="step">
         <header class="tuto-header">
           <h2>{{ tutorial ? lz(tutorial.title) : '' }}</h2>
-          <span class="step-counter">Étape {{ stepNumber }} / {{ totalSteps }}</span>
+          <span class="step-counter">{{
+            t('tutorial.stepCounter', { current: String(stepNumber), total: String(totalSteps) })
+          }}</span>
         </header>
 
         <h3 class="step-title">{{ lz(step.title) }}</h3>
@@ -118,7 +124,7 @@ function onRestart(): void {
         <!-- Indice -->
         <div class="hint-row">
           <button v-if="step.hint && !showHint" class="btn btn-hint" @click="onHint">
-            💡 Indice
+            💡 {{ t('tutorial.hint') }}
           </button>
           <p v-if="showHint && step.hint" class="hint-text">{{ lz(step.hint) }}</p>
         </div>
@@ -154,11 +160,13 @@ function onRestart(): void {
         </details>
 
         <footer class="tuto-footer">
-          <button class="btn" @click="onQuit">Quitter</button>
-          <button class="btn" :disabled="stepNumber <= 1" @click="onPrev">Revenir</button>
-          <button class="btn" @click="onSkip">Passer</button>
+          <button class="btn" @click="onQuit">{{ t('tutorial.quit') }}</button>
+          <button class="btn" :disabled="stepNumber <= 1" @click="onPrev">
+            {{ t('tutorial.back') }}
+          </button>
+          <button class="btn" @click="onSkip">{{ t('tutorial.skip') }}</button>
           <button class="btn btn-primary" :disabled="!stepComplete" @click="onNext">
-            {{ isLastStep ? 'Terminer' : 'Suivant' }}
+            {{ isLastStep ? t('tutorial.finish') : t('tutorial.next') }}
           </button>
         </footer>
       </template>
