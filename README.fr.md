@@ -4,6 +4,8 @@
 > un moteur Git réimplémenté de zéro en TypeScript, et où vous voyez le DAG des
 > commits (branches, fusions, rebases, dépôts distants) se dessiner en direct.
 
+🚀 **Démo en ligne : [git-visualizer.piva.dev](https://git-visualizer.piva.dev)**
+
 Un bac à sable pour apprendre Git. Pas de vrai système de fichiers, pas de vrai
 réseau — tout tourne dans le navigateur contre un moteur en mémoire déterministe :
 la même séquence de commandes produit toujours le même graphe. Vous tapez `git`,

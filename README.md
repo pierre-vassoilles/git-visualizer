@@ -4,6 +4,8 @@
 > engine reimplemented from scratch in TypeScript, and watch the commit DAG
 > (branches, merges, rebases, remotes) render live as you go.
 
+🚀 **Live demo: [git-visualizer.piva.dev](https://git-visualizer.piva.dev)**
+
 A learning playground for Git. No real filesystem, no real network — everything
 runs in the browser against a deterministic in-memory engine, so the same
 sequence of commands always produces the same graph. Type `git`, see the tree.
