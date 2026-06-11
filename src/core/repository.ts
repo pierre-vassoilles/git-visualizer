@@ -438,12 +438,22 @@ export function resolveCommitish(repo: Repository, ref: string): string | null {
     return repo.refs.remotes?.[upstream.remote]?.[upstream.branch] ?? null;
   }
 
-  // 0b. Supporter la notation @{n} pour le reflog : HEAD@{n}, <branch>@{n}
-  const atMatch = /^(.+?)@\{(\d+)\}$/.exec(ref);
+  // 0b. Supporter la notation @{n} pour le reflog : HEAD@{n}, <branch>@{n}, et la
+  // forme NUE @{n} (= reflog de la branche courante, RMT-11).
+  const atMatch = /^(.*)@\{(\d+)\}$/.exec(ref);
   if (atMatch) {
-    const base = atMatch[1]!;
+    const base = atMatch[1]!; // peut être vide → branche courante
     const n = parseInt(atMatch[2]!, 10);
-    const refName = base === 'HEAD' ? 'HEAD' : `refs/heads/${base}`;
+    let refName: string;
+    if (base === 'HEAD') {
+      refName = 'HEAD';
+    } else if (base === '') {
+      const cur = currentBranch(repo);
+      if (!cur) return null;
+      refName = `refs/heads/${cur}`;
+    } else {
+      refName = `refs/heads/${base}`;
+    }
     const entries = repo.reflog?.[refName] ?? [];
     if (n < entries.length) {
       return entries[n]!.newHash;
@@ -469,8 +479,8 @@ export function resolveCommitish(repo: Repository, ref: string): string | null {
     return current;
   }
 
-  // 1. HEAD
-  if (ref === 'HEAD') {
+  // 1. HEAD (et son alias `@`, RMT-11)
+  if (ref === 'HEAD' || ref === '@') {
     return headCommitHash(repo);
   }
 

@@ -50,7 +50,7 @@ export function cmdPush(repo: Repository, args: string[]): CommandResult {
     // git push sans args → utiliser l'upstream de la branche courante
     const cur = currentBranch(repo);
     if (!cur) {
-      return fail(['error: You cannot push a detached HEAD'], 128);
+      return fail(['fatal: You cannot push a detached HEAD'], 128);
     }
     const upstream = repo.branchUpstream[cur];
     if (!upstream) {
@@ -64,18 +64,50 @@ export function cmdPush(repo: Repository, args: string[]): CommandResult {
         128,
       );
     }
+    // RMT-04 : push.default=simple refuse si le nom de l'upstream diffère du nom
+    // de la branche courante (au lieu de pousser silencieusement vers l'autre nom).
+    if (upstream.branch !== cur) {
+      return fail(
+        [
+          'fatal: The upstream branch of your current branch does not match',
+          'the name of your current branch. To push to the upstream branch',
+          'on the remote, use',
+          '',
+          `    git push ${upstream.remote} HEAD:${upstream.branch}`,
+          '',
+          'To push to the branch of the same name on the remote, use',
+          '',
+          `    git push ${upstream.remote} HEAD`,
+        ],
+        128,
+      );
+    }
     remoteName = upstream.remote;
     localBranch = cur;
     remoteBranch = upstream.branch;
   } else if (posArgs.length === 1) {
-    // git push <remote> → pousse la branche courante vers ce remote
+    // git push <remote> → nécessite un upstream configuré pour la branche
+    // courante sur CE remote (push.default=simple). Sinon, git refuse et suggère
+    // --set-upstream, au lieu de pousser une branche homonyme.
     remoteName = posArgs[0]!;
     const cur = currentBranch(repo);
     if (!cur) {
-      return fail(['error: You cannot push a detached HEAD'], 128);
+      return fail(['fatal: You cannot push a detached HEAD'], 128);
+    }
+    const upstream = repo.branchUpstream[cur];
+    if (!upstream || upstream.remote !== remoteName) {
+      return fail(
+        [
+          `fatal: The current branch ${cur} has no upstream branch.`,
+          'To push the current branch and set the remote as upstream, use',
+          '',
+          `    git push --set-upstream ${remoteName} ${cur}`,
+        ],
+        128,
+      );
     }
     localBranch = cur;
-    remoteBranch = cur;
+    remoteBranch = upstream.branch;
   } else {
     // git push <remote> <branch>
     remoteName = posArgs[0]!;
@@ -99,17 +131,19 @@ export function cmdPush(repo: Repository, args: string[]): CommandResult {
     return fail([`fatal: '${localBranch}' - not something we can push`], 128);
   }
 
-  // Récupérer la ref de suivi existante (peut ne pas exister = nouvelle branche)
-  const trackingHash = repo.refs.remotes![remoteName]?.[remoteBranch] ?? null;
+  // RMT-06 : la vérification fast-forward se fait contre la ref RÉELLE du distant
+  // (`remote.refs.heads`), pas contre la ref de suivi locale (cache potentiellement
+  // périmé). Évite un écrasement silencieux si le distant a bougé sans fetch.
+  const remoteHash = remote.refs.heads[remoteBranch] ?? null;
 
   // Cas : tout déjà à jour
-  if (trackingHash && localHash === trackingHash) {
+  if (remoteHash && localHash === remoteHash) {
     return ok(['Everything up-to-date.']);
   }
 
   // Vérification fast-forward
-  if (!force && trackingHash) {
-    if (!isAncestor(repo, trackingHash, localHash)) {
+  if (!force && remoteHash) {
+    if (!isAncestor(repo, remoteHash, localHash)) {
       return fail(
         [
           `To ${remote.url}`,
@@ -147,18 +181,18 @@ export function cmdPush(repo: Repository, args: string[]): CommandResult {
   const output: string[] = [];
   output.push(`To ${remote.url}`);
 
-  if (!trackingHash) {
+  if (!remoteHash) {
     // Nouvelle branche distante
     output.push(` * [new branch]      ${localBranch} -> ${remoteBranch}`);
-  } else if (force && !isAncestor(repo, trackingHash, localHash)) {
+  } else if (force && !isAncestor(repo, remoteHash, localHash)) {
     // Force push (non-fast-forward)
     output.push(
-      ` + ${shortHash(trackingHash)}...${shortHash(localHash)}  ${localBranch} -> ${remoteBranch} (forced update)`,
+      ` + ${shortHash(remoteHash)}...${shortHash(localHash)}  ${localBranch} -> ${remoteBranch} (forced update)`,
     );
   } else {
     // Fast-forward normal
     output.push(
-      `   ${shortHash(trackingHash)}..${shortHash(localHash)}  ${localBranch} -> ${remoteBranch}`,
+      `   ${shortHash(remoteHash)}..${shortHash(localHash)}  ${localBranch} -> ${remoteBranch}`,
     );
   }
 

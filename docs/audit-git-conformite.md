@@ -499,7 +499,16 @@ ignored… hint: Use -f »).
   dédié pour la modale, à ajouter si besoin). `hasChanges` réutilise
   `hasUncommittedChanges`. Tests : `tests/audit-lot4.test.ts` (6 cas) + 2 tests
   stash existants corrigés (untracked préservé). 1313 verts.
-- Lots 5 à 7 : à venir.
+- **Lot 5 — FAIT** (commit dédié). Sémantique distante moderne. RMT-03
+  (`git pull <remote>` sans upstream sur ce remote → refus ; sinon branche
+  configurée honorée), RMT-04/05 (`push.default=simple` : `git push` refuse si le
+  nom de l'upstream diffère ; `git push <remote>` exige un upstream et suggère
+  `--set-upstream`), RMT-02 (merge de pull → « Merge branch '<branch>' of <url> »),
+  RMT-06 (vérif FF du push contre la ref RÉELLE du distant `remote.refs.heads`),
+  RMT-07 (`git fetch` no-op silencieux), RMT-08 (`git fetch --all` + rejet des
+  flags inconnus), RMT-11 (`@` = HEAD, `@{n}` nu = reflog de la branche courante).
+  Tests : `tests/audit-lot5.test.ts` (9 cas). 1322 verts.
+- Lots 6 à 7 : à venir.
 
 ## Plan de correction (lots priorisés)
 

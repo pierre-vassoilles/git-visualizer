@@ -20,23 +20,49 @@ export function cmdFetch(repo: Repository, args: string[]): CommandResult {
   if (!repo.remotes) repo.remotes = {};
   if (!repo.refs.remotes) repo.refs.remotes = {};
 
-  // Déterminer le nom du remote (défaut : origin)
-  const remoteName = args[0] ?? 'origin';
-  const branchFilter = args[1] ?? null;
+  // RMT-08 : flags (whitelist). --all boucle sur tous les remotes ; tout autre
+  // flag inconnu est rejeté (plus de « No remote named '--all' »).
+  const all = args.includes('--all');
+  const KNOWN_FETCH_FLAGS = new Set(['--all']);
+  const unknownFlag = args.find((a) => a.startsWith('-') && !KNOWN_FETCH_FLAGS.has(a));
+  if (unknownFlag) {
+    return fail([`error: unknown option '${unknownFlag.replace(/^-+/, '')}'`], 129);
+  }
+  const positional = args.filter((a) => !a.startsWith('-'));
 
-  const remote = repo.remotes[remoteName];
+  if (all) {
+    const output: string[] = [];
+    for (const name of Object.keys(repo.remotes)) {
+      const res = fetchOne(repo, name, null);
+      if (res.exitCode !== 0) return res;
+      output.push(...res.output);
+    }
+    return ok(output);
+  }
+
+  const remoteName = positional[0] ?? 'origin';
+  const branchFilter = positional[1] ?? null;
+  return fetchOne(repo, remoteName, branchFilter);
+}
+
+/**
+ * Récupère un seul remote (toutes ses branches, ou `branchFilter` si fourni).
+ * RMT-07 : un fetch sans nouveauté n'affiche RIEN (pas « Already up to date. »).
+ */
+function fetchOne(
+  repo: Repository,
+  remoteName: string,
+  branchFilter: string | null,
+): CommandResult {
+  const remote = repo.remotes![remoteName];
   if (!remote) {
     return fail([`fatal: No remote named '${remoteName}'`], 128);
   }
 
-  // Si branche spécifique demandée, vérifier qu'elle existe
-  if (branchFilter !== null) {
-    if (!remote.refs.heads[branchFilter]) {
-      return fail([`fatal: Couldn't find remote ref ${branchFilter}`], 128);
-    }
+  if (branchFilter !== null && !remote.refs.heads[branchFilter]) {
+    return fail([`fatal: Couldn't find remote ref ${branchFilter}`], 128);
   }
 
-  // Initialiser la map de suivi pour ce remote si absente
   if (!repo.refs.remotes![remoteName]) {
     repo.refs.remotes![remoteName] = {};
   }
@@ -44,9 +70,7 @@ export function cmdFetch(repo: Repository, args: string[]): CommandResult {
   const trackingRefs = repo.refs.remotes![remoteName]!;
   const output: string[] = [];
   let anyUpdated = false;
-  let alreadyUpToDate = true;
 
-  // Déterminer les branches à traiter
   const branchesToFetch = branchFilter ? [branchFilter] : Object.keys(remote.refs.heads).sort();
 
   for (const branch of branchesToFetch) {
@@ -54,35 +78,26 @@ export function cmdFetch(repo: Repository, args: string[]): CommandResult {
     if (!newHash) continue;
 
     const oldHash = trackingRefs[branch] ?? null;
-
-    // Copier les objets manquants
     copyMissingObjects(remote.objects, repo.objects, newHash);
 
-    // Mettre à jour la ref de suivi
     const isNew = !oldHash;
     const changed = oldHash !== newHash;
-
     trackingRefs[branch] = newHash;
 
     if (isNew) {
       output.push(` * [new branch]      ${branch.padEnd(16)} -> ${remoteName}/${branch}`);
       anyUpdated = true;
-      alreadyUpToDate = false;
     } else if (changed) {
       output.push(
         ` ${shortHash(oldHash)}..${shortHash(newHash)}  ${branch.padEnd(16)} -> ${remoteName}/${branch}`,
       );
       anyUpdated = true;
-      alreadyUpToDate = false;
     }
   }
 
   if (anyUpdated) {
-    // Insérer la ligne "From <url>" en tête
     output.unshift(`From ${remote.url}`);
-  } else if (alreadyUpToDate) {
-    output.push('Already up to date.');
   }
-
+  // RMT-07 : rien à dire si aucune mise à jour.
   return ok(output);
 }

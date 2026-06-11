@@ -42,13 +42,26 @@ export function cmdPull(repo: Repository, args: string[]): CommandResult {
     remoteName = posArgs[0]!;
     remoteBranch = posArgs[1]!;
   } else if (posArgs.length === 1) {
-    // git pull <remote> → utilise la branche courante comme cible
+    // git pull <remote> → on doit connaître la branche à intégrer. RMT-03 : si la
+    // branche courante a un upstream sur CE remote, on utilise sa branche
+    // configurée ; sinon git refuse (pas de supposition « même nom »).
     remoteName = posArgs[0]!;
     const cur = currentBranch(repo);
     if (!cur) {
       return fail(['fatal: Cannot pull with a detached HEAD without specifying a branch.'], 1);
     }
-    remoteBranch = cur;
+    const upstream = repo.branchUpstream[cur];
+    if (!upstream || upstream.remote !== remoteName) {
+      return fail(
+        [
+          `fatal: You asked to pull from the remote '${remoteName}', but did not specify`,
+          'a branch. Because this is not the default configured remote for your',
+          'current branch, you must specify a branch on the command line.',
+        ],
+        1,
+      );
+    }
+    remoteBranch = upstream.branch;
   } else {
     // git pull sans args → utiliser l'upstream de la branche courante
     const cur = currentBranch(repo);
@@ -91,7 +104,12 @@ export function cmdPull(repo: Repository, args: string[]): CommandResult {
   if (rebaseFlag) {
     integrationResult = cmdRebase(repo, [integrationRef]);
   } else {
-    integrationResult = cmdMerge(repo, [integrationRef]);
+    // RMT-02 : un merge de pull porte le message « Merge branch '<branch>' of <url> »
+    // (et non « Merge branch 'origin/main' »). Le message n'a d'effet que pour un
+    // vrai merge (un fast-forward ne crée pas de commit).
+    const url = repo.remotes[remoteName]?.url ?? remoteName;
+    const mergeMessage = `Merge branch '${remoteBranch}' of ${url}`;
+    integrationResult = cmdMerge(repo, ['-m', mergeMessage, integrationRef]);
   }
 
   // Combiner les sorties fetch + intégration
