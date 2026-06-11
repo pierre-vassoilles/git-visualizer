@@ -222,7 +222,7 @@ function onRestart(): void {
 }
 .step-counter {
   font-size: 0.72rem;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 .step-title {
   font-size: 0.92rem;
@@ -231,7 +231,7 @@ function onRestart(): void {
 .step-desc {
   font-size: 0.82rem;
   line-height: 1.5;
-  color: #374151;
+  color: var(--text-primary);
 }
 .execute-row {
   display: flex;
@@ -242,9 +242,9 @@ function onRestart(): void {
 }
 .execute-cmd {
   font-size: 0.72rem;
-  color: #1e40af;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  color: var(--link-color);
+  background: var(--info-bg);
+  border: 1px solid var(--info-border);
   border-radius: 3px;
   padding: 2px 6px;
   flex: 1;
@@ -258,11 +258,11 @@ function onRestart(): void {
 }
 .hint-text {
   font-size: 0.78rem;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
   border-radius: 4px;
   padding: 6px 8px;
-  color: #92400e;
+  color: var(--warning-fg);
 }
 .objectives {
   list-style: none;
@@ -272,10 +272,10 @@ function onRestart(): void {
 .objectives li {
   font-size: 0.8rem;
   padding: 3px 0;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 .objectives li.ok {
-  color: #16a34a;
+  color: var(--success-fg);
   font-weight: 600;
 }
 .objectives .check {
@@ -284,9 +284,9 @@ function onRestart(): void {
 }
 .success-msg {
   font-size: 0.82rem;
-  color: #16a34a;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  color: var(--success-fg);
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
   border-radius: 4px;
   padding: 6px 8px;
 }
@@ -302,7 +302,7 @@ function onRestart(): void {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #6b7280;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 5px 8px;
   background: var(--surface-muted-bg, #f9fafb);
@@ -322,7 +322,7 @@ details[open] .section-summary::before {
 .section-body {
   font-size: 0.78rem;
   line-height: 1.5;
-  color: #374151;
+  color: var(--text-primary);
   padding: 6px 8px;
   margin: 0;
 }
@@ -336,14 +336,14 @@ details[open] .section-summary::before {
   font-size: 0.82rem;
 }
 .recap-list .done {
-  color: #16a34a;
+  color: var(--success-fg);
 }
 .recap-list .skipped {
-  color: #b45309;
+  color: var(--warning-fg);
 }
 .recap-stats {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 .tuto-footer {
   display: flex;
@@ -356,37 +356,38 @@ details[open] .section-summary::before {
 .btn {
   padding: 4px 10px;
   font-size: 0.74rem;
-  border: 1px solid #ccc;
-  background: #fff;
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  color: var(--text-primary);
   border-radius: 3px;
   cursor: pointer;
   font-family: ui-monospace, monospace;
 }
 .btn:hover:not(:disabled) {
-  background: #eef;
+  background: var(--btn-hover-bg);
 }
 .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 .btn-primary {
-  background: #2563eb;
-  color: #fff;
-  border-color: #2563eb;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  border-color: var(--primary-bg);
 }
 .btn-hint {
-  background: #fffbeb;
-  border-color: #fde68a;
-  color: #92400e;
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+  color: var(--warning-fg);
 }
 .btn-execute {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #166534;
+  background: var(--success-bg);
+  border-color: var(--success-border);
+  color: var(--success-fg);
   font-weight: 600;
   white-space: nowrap;
 }
 .btn-execute:hover {
-  background: #dcfce7;
+  border-color: var(--success-fg);
 }
 </style>

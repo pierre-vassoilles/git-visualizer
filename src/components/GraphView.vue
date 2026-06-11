@@ -6,10 +6,50 @@ import GraphCanvas from './GraphCanvas.vue';
 import type { Badge } from '@/graph/types';
 import type { RepoSnapshot } from '@/core/engine';
 import { useGraphAnimations } from '@/composables/useGraphAnimations';
+import { useTheme } from '@/composables/useTheme';
 import { useI18n } from '@/i18n';
 
 const repo = useRepoStore();
 const { t } = useI18n();
+const { effectiveTheme } = useTheme();
+
+// ---------------------------------------------------------------------------
+// Palette de badges selon le thème (spec 56). Construite en JS (les badges sont
+// des éléments SVG fill/stroke), donc on dérive deux jeux de couleurs et on
+// fait dépendre les badges de `effectiveTheme` → recalcul (rechargement du
+// graphe) au changement de thème. En sombre : fonds profonds + texte lumineux,
+// pour rester lisible sans éblouir.
+// ---------------------------------------------------------------------------
+
+interface BadgeColors {
+  bg: string;
+  text: string;
+  border: string;
+}
+interface BadgePalette {
+  head: BadgeColors; // HEAD actif (vert)
+  detached: BadgeColors; // HEAD détaché (rouge)
+  branch: BadgeColors; // branche (indigo)
+  remote: BadgeColors; // ref de suivi distante (gris)
+  tag: BadgeColors; // tag (ambre)
+}
+
+const BADGE_PALETTES: Record<'light' | 'dark', BadgePalette> = {
+  light: {
+    head: { bg: '#dcfce7', text: '#16a34a', border: '#16a34a' },
+    detached: { bg: '#fee2e2', text: '#dc2626', border: '#dc2626' },
+    branch: { bg: '#e0e7ff', text: '#4f46e5', border: '#4f46e5' },
+    remote: { bg: '#f0f0f0', text: '#555555', border: '#999999' },
+    tag: { bg: '#fef3c7', text: '#b45309', border: '#f59e0b' },
+  },
+  dark: {
+    head: { bg: '#16331f', text: '#6ade94', border: '#2f6b40' },
+    detached: { bg: '#3d1e1e', text: '#f58a8a', border: '#8f3a3a' },
+    branch: { bg: '#25264f', text: '#b7c0f7', border: '#5763c4' },
+    remote: { bg: '#2d2d30', text: '#c2c2c2', border: '#5a5a5e' },
+    tag: { bg: '#3a2f15', text: '#f2c061', border: '#8f6b22' },
+  },
+};
 const {
   userEnabled: animationsEnabled,
   reducedMotion,
@@ -88,7 +128,7 @@ const headBadgeLabel = computed((): string => {
 // Badges précalculés (dette Phase 3 : mémoïsation + champ kind)
 // ---------------------------------------------------------------------------
 
-function buildLocalBadges(snap: RepoSnapshot): Map<string, Badge[]> {
+function buildLocalBadges(snap: RepoSnapshot, palette: BadgePalette): Map<string, Badge[]> {
   const map = new Map<string, Badge[]>();
   const commits = snap.allCommits ?? snap.commits;
   if (!commits.length) return map;
@@ -120,18 +160,18 @@ function buildLocalBadges(snap: RepoSnapshot): Map<string, Badge[]> {
         badges.push({
           kind: 'head',
           label: `HEAD → ${hBranchName}`,
-          bgColor: '#dcfce7',
-          textColor: '#16a34a',
-          borderColor: '#16a34a',
+          bgColor: palette.head.bg,
+          textColor: palette.head.text,
+          borderColor: palette.head.border,
         });
         for (const b of commit.branches) {
           if (b !== hBranchName) {
             badges.push({
               kind: 'branch',
               label: b,
-              bgColor: '#e0e7ff',
-              textColor: '#4f46e5',
-              borderColor: '#4f46e5',
+              bgColor: palette.branch.bg,
+              textColor: palette.branch.text,
+              borderColor: palette.branch.border,
             });
           }
         }
@@ -142,17 +182,17 @@ function buildLocalBadges(snap: RepoSnapshot): Map<string, Badge[]> {
           label: hDetached
             ? (snap.head as { type: 'detached'; hash: string }).hash.slice(0, 7).concat(' (HEAD)')
             : headBadgeLabel.value,
-          bgColor: '#fee2e2',
-          textColor: '#dc2626',
-          borderColor: '#dc2626',
+          bgColor: palette.detached.bg,
+          textColor: palette.detached.text,
+          borderColor: palette.detached.border,
         });
         for (const b of commit.branches) {
           badges.push({
             kind: 'branch',
             label: b,
-            bgColor: '#e0e7ff',
-            textColor: '#4f46e5',
-            borderColor: '#4f46e5',
+            bgColor: palette.branch.bg,
+            textColor: palette.branch.text,
+            borderColor: palette.branch.border,
           });
         }
       }
@@ -161,9 +201,9 @@ function buildLocalBadges(snap: RepoSnapshot): Map<string, Badge[]> {
         badges.push({
           kind: 'branch',
           label: b,
-          bgColor: '#e0e7ff',
-          textColor: '#4f46e5',
-          borderColor: '#4f46e5',
+          bgColor: palette.branch.bg,
+          textColor: palette.branch.text,
+          borderColor: palette.branch.border,
         });
       }
     }
@@ -175,9 +215,9 @@ function buildLocalBadges(snap: RepoSnapshot): Map<string, Badge[]> {
         badges.push({
           kind: 'remote',
           label,
-          bgColor: '#f0f0f0',
-          textColor: '#555',
-          borderColor: '#999',
+          bgColor: palette.remote.bg,
+          textColor: palette.remote.text,
+          borderColor: palette.remote.border,
         });
       }
     }
@@ -187,9 +227,9 @@ function buildLocalBadges(snap: RepoSnapshot): Map<string, Badge[]> {
       badges.push({
         kind: 'tag',
         label: `tag: ${t}`,
-        bgColor: '#fef3c7',
-        textColor: '#b45309',
-        borderColor: '#f59e0b',
+        bgColor: palette.tag.bg,
+        textColor: palette.tag.text,
+        borderColor: palette.tag.border,
       });
     }
 
@@ -201,7 +241,7 @@ function buildLocalBadges(snap: RepoSnapshot): Map<string, Badge[]> {
   return map;
 }
 
-function buildRemoteBadges(snap: RepoSnapshot): Map<string, Badge[]> {
+function buildRemoteBadges(snap: RepoSnapshot, palette: BadgePalette): Map<string, Badge[]> {
   const map = new Map<string, Badge[]>();
   const remotes = snap.remotes;
   if (!remotes) return map;
@@ -225,18 +265,18 @@ function buildRemoteBadges(snap: RepoSnapshot): Map<string, Badge[]> {
       badges.push({
         kind: 'head',
         label: `HEAD → ${remoteHBranchName}`,
-        bgColor: '#dcfce7',
-        textColor: '#16a34a',
-        borderColor: '#16a34a',
+        bgColor: palette.head.bg,
+        textColor: palette.head.text,
+        borderColor: palette.head.border,
       });
       for (const b of commit.branches) {
         if (b !== remoteHBranchName) {
           badges.push({
             kind: 'branch',
             label: b,
-            bgColor: '#e0e7ff',
-            textColor: '#4f46e5',
-            borderColor: '#4f46e5',
+            bgColor: palette.branch.bg,
+            textColor: palette.branch.text,
+            borderColor: palette.branch.border,
           });
         }
       }
@@ -244,17 +284,17 @@ function buildRemoteBadges(snap: RepoSnapshot): Map<string, Badge[]> {
       badges.push({
         kind: 'head',
         label: `HEAD (${commit.hash.slice(0, 7)})`,
-        bgColor: '#fee2e2',
-        textColor: '#dc2626',
-        borderColor: '#dc2626',
+        bgColor: palette.detached.bg,
+        textColor: palette.detached.text,
+        borderColor: palette.detached.border,
       });
       for (const b of commit.branches) {
         badges.push({
           kind: 'branch',
           label: b,
-          bgColor: '#e0e7ff',
-          textColor: '#4f46e5',
-          borderColor: '#4f46e5',
+          bgColor: palette.branch.bg,
+          textColor: palette.branch.text,
+          borderColor: palette.branch.border,
         });
       }
     } else {
@@ -262,9 +302,9 @@ function buildRemoteBadges(snap: RepoSnapshot): Map<string, Badge[]> {
         badges.push({
           kind: 'branch',
           label: b,
-          bgColor: '#e0e7ff',
-          textColor: '#4f46e5',
-          borderColor: '#4f46e5',
+          bgColor: palette.branch.bg,
+          textColor: palette.branch.text,
+          borderColor: palette.branch.border,
         });
       }
     }
@@ -273,9 +313,9 @@ function buildRemoteBadges(snap: RepoSnapshot): Map<string, Badge[]> {
       badges.push({
         kind: 'tag',
         label: `tag: ${t}`,
-        bgColor: '#fef3c7',
-        textColor: '#b45309',
-        borderColor: '#f59e0b',
+        bgColor: palette.tag.bg,
+        textColor: palette.tag.text,
+        borderColor: palette.tag.border,
       });
     }
 
@@ -287,8 +327,12 @@ function buildRemoteBadges(snap: RepoSnapshot): Map<string, Badge[]> {
   return map;
 }
 
-const localBadgesByHash = computed(() => buildLocalBadges(repo.snapshot));
-const remoteBadgesByHash = computed(() => buildRemoteBadges(repo.snapshot));
+const localBadgesByHash = computed(() =>
+  buildLocalBadges(repo.snapshot, BADGE_PALETTES[effectiveTheme.value]),
+);
+const remoteBadgesByHash = computed(() =>
+  buildRemoteBadges(repo.snapshot, BADGE_PALETTES[effectiveTheme.value]),
+);
 
 // HEAD courant (pour l'anneau distinctif sur le nœud) — local et distant
 const localHeadHash = computed((): string | null => {
@@ -673,13 +717,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
 }
 
 .mode-btn:hover:not(:disabled) {
-  background: #e8f4fb;
+  background: var(--info-bg);
 }
 
 .mode-btn.active {
-  background: #24292e;
-  color: #fff;
-  border-color: #24292e;
+  background: var(--btn-active-bg);
+  color: var(--btn-active-fg);
+  border-color: var(--btn-active-bg);
 }
 
 .mode-btn:disabled {
@@ -692,7 +736,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
   align-items: center;
   gap: 4px;
   font-size: 0.7rem;
-  color: var(--text-secondary, #555);
+  color: var(--text-secondary);
   cursor: pointer;
   user-select: none;
 }
@@ -756,7 +800,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
 /* Séparateur */
 .pane-divider {
   width: 1px;
-  background: #ddd;
+  background: var(--border-color);
   flex-shrink: 0;
 }
 
@@ -767,19 +811,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
   left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .graph-placeholder .title {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #555;
+  color: var(--text-secondary);
   margin-bottom: 0.5rem;
 }
 
 .graph-placeholder .hint {
   font-size: 0.85rem;
-  color: #bbb;
+  color: var(--text-tertiary);
 }
 
 /* Menu contextuel */
@@ -792,8 +836,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
   position: fixed;
   z-index: 1000;
   min-width: 180px;
-  background: #2b2b2b;
-  color: #fff;
+  background: var(--menu-bg);
+  color: var(--menu-fg);
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   padding: 4px 0;

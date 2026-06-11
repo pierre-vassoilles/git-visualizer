@@ -146,7 +146,7 @@ function onKeydown(e: KeyboardEvent): void {
   border: none;
   cursor: pointer;
   font-size: 0.85rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   padding: 2px 6px;
   border-radius: 3px;
   line-height: 1;
@@ -166,7 +166,7 @@ function onKeydown(e: KeyboardEvent): void {
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin: 0 0 8px;
   padding-bottom: 3px;
   border-bottom: 1px solid var(--surface-muted-bg, #e5e7eb);
@@ -203,27 +203,27 @@ function onKeydown(e: KeyboardEvent): void {
   white-space: nowrap;
 }
 .diff-1 {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--success-bg);
+  color: var(--success-fg);
 }
 .diff-2 {
-  background: #fef9c3;
-  color: #854d0e;
+  background: var(--warning-bg);
+  color: var(--warning-fg);
 }
 .diff-3 {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--danger-bg);
+  color: var(--danger-fg);
 }
 .tuto-item-desc {
   font-size: 0.75rem;
-  color: #555;
+  color: var(--text-secondary);
   line-height: 1.4;
   margin: 0 0 4px;
   font-family: sans-serif;
 }
 .tuto-item-meta {
   font-size: 0.68rem;
-  color: #9ca3af;
+  color: var(--text-tertiary);
   margin: 0 0 8px;
 }
 .launcher-footer {
@@ -236,21 +236,22 @@ function onKeydown(e: KeyboardEvent): void {
   padding: 5px 12px;
   font-size: 0.75rem;
   cursor: pointer;
-  border: 1px solid #ccc;
-  background: #fff;
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  color: var(--text-primary);
   border-radius: 3px;
   font-family: ui-monospace, monospace;
 }
 .btn-start {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-  color: #3730a3;
+  background: var(--tutorial-bg);
+  border-color: var(--tutorial-border);
+  color: var(--tutorial-fg);
 }
 .btn-start:hover {
-  background: #e0e7ff;
-  border-color: #a5b4fc;
+  background: var(--tutorial-bg);
+  border-color: var(--tutorial-fg);
 }
 .btn-cancel:hover {
-  background: #f1f5f9;
+  background: var(--btn-hover-bg);
 }
 </style>

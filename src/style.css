@@ -31,25 +31,98 @@ body,
   --surface-bg: #ffffff;
   --surface-muted-bg: #f7f7f8;
   --surface-fg: #24292e;
+
+  /* Palette sémantique partagée (badges, boîtes, boutons) — consommée par
+     RefsSidebar / GraphView. Voir surcharge dark plus bas. */
+  --link-color: #0070f3;
+  --tag-color: #7c3aed;
+  --info-bg: #e8f4fb;
+  --info-border: #bfdbfe;
+  --primary-bg: #2563eb;
+  --primary-fg: #ffffff;
+  --success-fg: #166534;
+  --success-bg: #dcfce7;
+  --success-border: #86efac;
+  --warning-fg: #92400e;
+  --warning-bg: #fff7ed;
+  --warning-border: #f59e0b;
+  --danger-fg: #991b1b;
+  --danger-bg: #fee2e2;
+  --danger-border: #fca5a5;
+  --tutorial-fg: #3730a3;
+  --tutorial-bg: #eef2ff;
+  --tutorial-border: #6366f1;
+  --btn-bg: #ffffff;
+  --btn-border: #cccccc;
+  --btn-hover-bg: #f1f5f9;
+  --btn-active-bg: #24292e;
+  --btn-active-fg: #ffffff;
+  --menu-bg: #2b2b2b;
+  --menu-fg: #ffffff;
+
+  /* Graphe SVG (labels / anneaux de nœuds) */
+  --graph-node-stroke: #ffffff;
+  --graph-node-selected: #111111;
+  --graph-head-stroke: #16a34a;
+  --graph-detached-stroke: #dc2626;
+  --graph-highlight-stroke: #f59e0b;
 }
 
 [data-theme='dark'] {
-  --bg-primary: #1e1e1e;
-  --bg-secondary: #252526;
-  --bg-tertiary: #2d2d30;
-  --text-primary: #e4e4e4;
-  --text-secondary: #b0b0b0;
-  --text-tertiary: #808080;
-  --border-color: #3a3a3a;
-  --border-light: #333333;
+  /* Fonds plus contrastés entre eux pour distinguer les zones de travail
+     (canvas du graphe / sidebar / barres d'outils) et texte plus lumineux. */
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #242426;
+  --bg-tertiary: #323236;
+  --text-primary: #f2f2f2;
+  --text-secondary: #c2c2c2;
+  --text-tertiary: #8c8c8c;
+  --border-color: #4a4a4d;
+  --border-light: #38383b;
   --topbar-bg: #0d0d0d;
   --topbar-fg: #f0f0f0;
-  --graph-canvas-bg: #1b1b1b;
-  --accent-blue: #66b3ff;
-  --overlay-bg: rgba(0, 0, 0, 0.65);
-  --surface-bg: #252526;
+  --graph-canvas-bg: #161618;
+  --accent-blue: #6cb4ff;
+  --overlay-bg: rgba(0, 0, 0, 0.7);
+  --surface-bg: #242426;
   --surface-muted-bg: #2d2d30;
-  --surface-fg: #e4e4e4;
+  --surface-fg: #f2f2f2;
+
+  /* Palette sémantique adaptée au sombre : fonds profonds, textes lumineux. */
+  --link-color: #6cb4ff;
+  --tag-color: #c4a5f0;
+  --info-bg: #15324d;
+  --info-border: #2f5170;
+  /* Bleu d'action volontairement adouci pour ne pas éblouir en sombre. */
+  --primary-bg: #3b78e0;
+  --primary-fg: #ffffff;
+  --success-fg: #6ade94;
+  --success-bg: #16331f;
+  --success-border: #2f6b40;
+  --warning-fg: #f2c061;
+  --warning-bg: #3a2f15;
+  --warning-border: #8f6b22;
+  --danger-fg: #f58a8a;
+  --danger-bg: #3d1e1e;
+  --danger-border: #8f3a3a;
+  --tutorial-fg: #b7c0f7;
+  --tutorial-bg: #20224a;
+  --tutorial-border: #5763c4;
+  --btn-bg: #2d2d30;
+  --btn-border: #4a4a4d;
+  --btn-hover-bg: #3a3a3e;
+  --btn-active-bg: #2563eb;
+  --btn-active-fg: #ffffff;
+  --menu-bg: #2d2d30;
+  --menu-fg: #f2f2f2;
+
+  /* Graphe SVG : anneaux plus clairs/lumineux pour rester lisibles sur fond
+     sombre sans éblouir. */
+  --graph-node-stroke: #d6d6d6;
+  --graph-node-selected: #f0f0f0;
+  --graph-head-stroke: #4ade80;
+  --graph-detached-stroke: #f87171;
+  --graph-highlight-stroke: #fbbf24;
 }
 
 body {

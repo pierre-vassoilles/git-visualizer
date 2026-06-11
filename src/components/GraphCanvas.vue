@@ -628,7 +628,6 @@ function onNodeKeydown(hash: string, e: KeyboardEvent): void {
             y="4"
             font-size="10"
             font-family="ui-monospace, monospace"
-            fill="#333"
             class="label-hash"
           >
             {{ node.snapshot.shortHash }}
@@ -638,7 +637,6 @@ function onNodeKeydown(hash: string, e: KeyboardEvent): void {
             y="16"
             font-size="9"
             font-family="system-ui, sans-serif"
-            fill="#888"
             class="label-message"
           >
             {{ truncateMessage(node.snapshot.message, 36) }}
@@ -724,7 +722,7 @@ function onNodeKeydown(hash: string, e: KeyboardEvent): void {
 /* Halos pour commits surlignés */
 .node-halo {
   fill: none;
-  stroke: #f59e0b;
+  stroke: var(--graph-highlight-stroke);
   stroke-width: 2;
   opacity: 0.55;
 }
@@ -736,7 +734,7 @@ function onNodeKeydown(hash: string, e: KeyboardEvent): void {
   transition:
     opacity 0.12s ease,
     stroke-width 0.12s ease;
-  stroke: #fff;
+  stroke: var(--graph-node-stroke);
   stroke-width: 2;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.12));
 }
@@ -751,29 +749,29 @@ function onNodeKeydown(hash: string, e: KeyboardEvent): void {
 /* Focus clavier (a11y) : anneau bleu visible autour du commit focalisé. */
 .node:focus-visible {
   outline: none;
-  stroke: #2563eb;
+  stroke: var(--primary-bg);
   stroke-width: 3.5;
   filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.6));
 }
 
 .node-selected {
-  stroke: #111;
+  stroke: var(--graph-node-selected);
   stroke-width: 3;
 }
 
 .node-highlighted {
-  stroke: #f59e0b;
+  stroke: var(--graph-highlight-stroke);
   stroke-width: 2.5;
 }
 
 .node-head {
-  stroke: #16a34a;
+  stroke: var(--graph-head-stroke);
   stroke-width: 3;
   filter: drop-shadow(0 0 5px rgba(22, 163, 74, 0.45));
 }
 
 .node-head-detached {
-  stroke: #dc2626;
+  stroke: var(--graph-detached-stroke);
   stroke-width: 3;
   filter: drop-shadow(0 0 5px rgba(220, 38, 38, 0.45));
 }
@@ -795,10 +793,11 @@ function onNodeKeydown(hash: string, e: KeyboardEvent): void {
 
 .label-hash {
   font-weight: 600;
+  fill: var(--text-primary);
 }
 
 .label-message {
-  fill: #888;
+  fill: var(--text-secondary);
 }
 
 /* Placeholder */
@@ -808,19 +807,19 @@ function onNodeKeydown(hash: string, e: KeyboardEvent): void {
   left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .graph-placeholder .title {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #555;
+  color: var(--text-secondary);
   margin-bottom: 0.5rem;
 }
 
 .graph-placeholder .hint {
   font-size: 0.85rem;
-  color: #bbb;
+  color: var(--text-tertiary);
 }
 
 /* Tooltip */
