@@ -58,7 +58,8 @@ describe('git log', () => {
         'git commit -m "First commit"',
       ]);
       const result = engine.execute('git log');
-      expect(result.output[0]).toMatch(/^commit [0-9a-f]{40}$/);
+      // Le hash peut être suivi de décorations de refs (HEAD -> main…), comme git.
+      expect(result.output[0]).toMatch(/^commit [0-9a-f]{40}( \(.*\))?$/);
     });
 
     it('CA-log-02 : output contient "Author: Author <author@example.com>"', () => {

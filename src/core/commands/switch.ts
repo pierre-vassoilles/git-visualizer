@@ -1,7 +1,7 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
 import {
-  addReflogEntryForHead,
+  addReflogEntry,
   applyTreeToRepo,
   branchExists,
   canSwitchWithoutDataLoss,
@@ -93,7 +93,7 @@ function switchToBranch(repo: Repository, branchName: string): CommandResult {
   // Aligner index + working tree (two-tree depuis l'ancien HEAD).
   applyTreeToRepo(repo, resolvedTarget, oldHashSwitch || null);
 
-  addReflogEntryForHead(repo, {
+  addReflogEntry(repo, 'HEAD', {
     oldHash: oldHashSwitch,
     newHash: resolvedTarget ?? '',
     action: 'checkout',
@@ -146,7 +146,7 @@ function switchCreateBranch(
 
   applyTreeToRepo(repo, startHash || null, oldHash || null);
 
-  addReflogEntryForHead(repo, {
+  addReflogEntry(repo, 'HEAD', {
     oldHash,
     newHash: startHash,
     action: 'checkout',
@@ -182,7 +182,7 @@ function switchDetach(repo: Repository, ref: string): CommandResult {
   repo.head = { symbolic: false, target: commitHash };
   applyTreeToRepo(repo, commitHash, oldHashDetach || null);
 
-  addReflogEntryForHead(repo, {
+  addReflogEntry(repo, 'HEAD', {
     oldHash: oldHashDetach,
     newHash: commitHash,
     action: 'checkout',

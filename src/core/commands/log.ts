@@ -1,6 +1,6 @@
 import { fail, ok, type CommandResult } from '../types';
-import type { Repository } from '../model';
-import { getCommitHistoryWithHashes, headCommitHash, isInitialized } from '../repository';
+import type { Commit, Repository } from '../model';
+import { headCommitHash, isInitialized } from '../repository';
 import { getCommit } from '../objectStore';
 import { shortHash } from '../sha1';
 import { renderGraphAscii, type AsciiCommit } from '../../graph/ascii';
@@ -12,9 +12,8 @@ import { notARepo } from './init';
 export function cmdLog(repo: Repository, flags: string[]): CommandResult {
   if (!isInitialized(repo)) return notARepo();
 
-  const history = getCommitHistoryWithHashes(repo);
-
-  if (history.length === 0) {
+  const headHash = headCommitHash(repo);
+  if (!headHash) {
     return fail(['fatal: No commits yet']);
   }
 
@@ -25,10 +24,21 @@ export function cmdLog(repo: Repository, flags: string[]): CommandResult {
     return logGraph(repo, !isOneline);
   }
 
+  // BAS-02 : `git log` liste TOUS les commits accessibles depuis HEAD (tous les
+  // parents), pas seulement la lignée du 1er parent — sinon les commits fusionnés
+  // disparaissent de l'historique.
+  const history = getReachableSorted(repo, headHash);
+  // BAS-11/13 : décorations (HEAD → tags → branches).
+  const decorations = collectDecorations(repo, headHash);
+  const decorate = (hash: string): string => {
+    const labels = decorations.get(hash);
+    return labels && labels.length > 0 ? ` (${labels.join(', ')})` : '';
+  };
+
   if (isOneline) {
     const lines = history.map(({ hash, commit }) => {
       const firstLine = commit.message.split('\n')[0] ?? commit.message;
-      return `${shortHash(hash)} ${firstLine}`;
+      return `${shortHash(hash)}${decorate(hash)} ${firstLine}`;
     });
     return ok(lines);
   }
@@ -38,7 +48,11 @@ export function cmdLog(repo: Repository, flags: string[]): CommandResult {
   for (let i = 0; i < history.length; i++) {
     const { hash, commit } = history[i]!;
     if (i > 0) lines.push('');
-    lines.push(`commit ${hash}`);
+    lines.push(`commit ${hash}${decorate(hash)}`);
+    // BAS-12 : ligne Merge pour les commits de fusion.
+    if (commit.parents.length > 1) {
+      lines.push(`Merge: ${commit.parents.map((p) => shortHash(p)).join(' ')}`);
+    }
     lines.push(`Author: ${commit.author}`);
     lines.push(`Date:   ${formatDate(commit.date)}`);
     lines.push('');
@@ -49,6 +63,63 @@ export function cmdLog(repo: Repository, flags: string[]): CommandResult {
   }
 
   return ok(lines);
+}
+
+/**
+ * Commits accessibles depuis `headHash` (tous parents confondus), triés
+ * enfants-avant-parents. Astuce de déterminisme : nos dates sont monotones (un
+ * enfant a un commitCount/date strictement supérieurs à ses parents), donc trier
+ * par date décroissante (tie-break par hash) produit un ordre topologique valide.
+ */
+function getReachableSorted(
+  repo: Repository,
+  headHash: string,
+): Array<{ hash: string; commit: Commit }> {
+  const reachable = new Set<string>();
+  const stack = [headHash];
+  while (stack.length > 0) {
+    const h = stack.pop()!;
+    if (reachable.has(h)) continue;
+    reachable.add(h);
+    const c = getCommit(repo, h);
+    if (c) for (const p of c.parents) stack.push(p);
+  }
+  return [...reachable]
+    .map((hash) => ({ hash, commit: getCommit(repo, hash) }))
+    .filter((x): x is { hash: string; commit: Commit } => x.commit != null)
+    .sort((a, b) => b.commit.date - a.commit.date || (a.hash < b.hash ? -1 : 1));
+}
+
+/**
+ * Décorations de refs par hash, dans l'ordre de git : HEAD (→ branche courante),
+ * puis les tags, puis les autres branches (BAS-13).
+ */
+function collectDecorations(repo: Repository, headHash: string): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  const push = (hash: string, label: string): void => {
+    if (!map.has(hash)) map.set(hash, []);
+    map.get(hash)!.push(label);
+  };
+  const headSymbolic = repo.head.symbolic;
+  const currentBranchName = headSymbolic ? repo.head.target.replace('refs/heads/', '') : null;
+
+  // 1. HEAD (combiné avec la branche courante si symbolique).
+  if (headSymbolic && currentBranchName) {
+    const tip = repo.refs.heads[currentBranchName];
+    if (tip) push(tip, `HEAD -> ${currentBranchName}`);
+  } else {
+    push(headHash, 'HEAD');
+  }
+  // 2. Tags (avant les autres branches).
+  for (const [name, hash] of Object.entries(repo.refs.tags)) {
+    push(hash, `tag: ${name}`);
+  }
+  // 3. Autres branches.
+  for (const [name, hash] of Object.entries(repo.refs.heads)) {
+    if (name === currentBranchName) continue; // déjà couvert par HEAD -> name
+    if (hash) push(hash, name);
+  }
+  return map;
 }
 
 /**
@@ -63,52 +134,16 @@ function logGraph(repo: Repository, verbose: boolean): CommandResult {
   const headHash = headCommitHash(repo);
   if (!headHash) return fail(['fatal: No commits yet']);
 
-  // Ensemble des commits accessibles depuis HEAD.
-  const reachable = new Set<string>();
-  const stack = [headHash];
-  while (stack.length > 0) {
-    const h = stack.pop()!;
-    if (reachable.has(h)) continue;
-    reachable.add(h);
-    const c = getCommit(repo, h);
-    if (c) for (const p of c.parents) stack.push(p);
-  }
+  const commits: AsciiCommit[] = getReachableSorted(repo, headHash).map(({ hash, commit }) => ({
+    hash,
+    shortHash: shortHash(hash),
+    message: commit.message,
+    parents: commit.parents,
+    author: commit.author,
+    date: commit.date,
+  }));
 
-  const commits: AsciiCommit[] = [...reachable]
-    .map((hash) => ({ hash, commit: getCommit(repo, hash)! }))
-    .filter((x) => x.commit)
-    .sort((a, b) => b.commit.date - a.commit.date || (a.hash < b.hash ? -1 : 1))
-    .map(({ hash, commit }) => ({
-      hash,
-      shortHash: shortHash(hash),
-      message: commit.message,
-      parents: commit.parents,
-      author: commit.author,
-      date: commit.date,
-    }));
-
-  // Décorations : HEAD, branches, tags par hash.
-  const refsByHash = new Map<string, string[]>();
-  const push = (hash: string, label: string): void => {
-    if (!refsByHash.has(hash)) refsByHash.set(hash, []);
-    refsByHash.get(hash)!.push(label);
-  };
-  const headSymbolic = repo.head.symbolic;
-  const currentBranchName = headSymbolic ? repo.head.target.replace('refs/heads/', '') : null;
-  // HEAD en premier (sur le commit pointé).
-  if (headSymbolic && currentBranchName) {
-    const tip = repo.refs.heads[currentBranchName];
-    if (tip) push(tip, `HEAD -> ${currentBranchName}`);
-  } else if (headHash) {
-    push(headHash, 'HEAD');
-  }
-  for (const [name, hash] of Object.entries(repo.refs.heads)) {
-    if (name === currentBranchName) continue; // déjà couvert par HEAD -> name
-    if (hash) push(hash, name);
-  }
-  for (const [name, hash] of Object.entries(repo.refs.tags)) {
-    push(hash, `tag: ${name}`);
-  }
+  const refsByHash = collectDecorations(repo, headHash);
 
   const lines = renderGraphAscii({ commits, refsByHash, verbose, formatDate });
   return ok(lines);

@@ -468,7 +468,27 @@ ignored… hint: Use -f »).
   on '<branch>' »). Tests : `tests/audit-lot2.test.ts` (10 cas). 1300 verts.
   NAV-07 (carry d'une suppression non stagée) non testé en boîte noire (pas de
   primitive de suppression WT-only) — couvert par le même classifieur.
-- Lots 3 à 7 : à venir.
+- **Lot 3 — FAIT** (commit dédié). **Implémenté** : BAS-02 (`git log` traverse
+  tous les parents — les commits fusionnés réapparaissent), BAS-11 (décorations
+  `(HEAD -> main, tag: v1, dev)` en plain & oneline), BAS-12 (ligne `Merge:`),
+  BAS-13 (ordre HEAD → tags → branches), RWR-08 (rebase sur un descendant →
+  fast-forward ; **débloque aussi `git rebase -i HEAD~n`** qui était capté par le
+  raccourci « already up to date »), TLS-09 (checkout/switch n'écrivent QUE le
+  reflog de HEAD, plus de pollution du reflog de la branche de destination).
+  Helpers log mutualisés `getReachableSorted`/`collectDecorations`. Tests :
+  `tests/audit-lot3.test.ts` (7 cas). 1307 verts.
+  **Reportés / documentés comme simplifications assumées** (refontes profondes des
+  internals du rebase, à risque élevé pour un gain pédagogique transitoire ;
+  l'audit offrait explicitement l'option « documenter ») :
+  - **RWR-09 / TLS-08** : pendant un rebase (conflit en pause), HEAD reste attaché
+    et la branche est déplacée au fil du replay (le vrai git détache HEAD et ne
+    déplace la branche qu'au `finish`). État transitoire ; corrigé par `--abort`.
+  - **TLS-10** : le rebase écrit une seule entrée reflog `finish` (pas une par
+    pick) → `reset --hard HEAD@{1}` annule tout le rebase (le vrai git passe par
+    `ORIG_HEAD`). À signaler dans le tutoriel `reset-reflog`.
+  - **TLS-11** : squash/fixup créent un commit intermédiaire orphelin visible dans
+    le graphe (`allCommits` affiche les orphelins par design).
+- Lots 4 à 7 : à venir.
 
 ## Plan de correction (lots priorisés)
 

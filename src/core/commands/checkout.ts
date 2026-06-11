@@ -1,7 +1,7 @@
 import { fail, ok, type CommandResult } from '../types';
 import type { Repository } from '../model';
 import {
-  addReflogEntryForHead,
+  addReflogEntry,
   applyTreeToRepo,
   branchExists,
   canSwitchWithoutDataLoss,
@@ -169,7 +169,7 @@ function checkoutBranch(repo: Repository, branchName: string): CommandResult {
   // Aligner index + working tree (two-tree depuis l'ancien HEAD vers la cible).
   applyTreeToRepo(repo, resolvedTarget, oldHash || null);
 
-  addReflogEntryForHead(repo, {
+  addReflogEntry(repo, 'HEAD', {
     oldHash,
     newHash: resolvedTarget ?? '',
     action: 'checkout',
@@ -224,7 +224,7 @@ function checkoutCreateBranch(
   // Aligner index/WT si le start-point déplace l'arbre (no-op si == HEAD).
   applyTreeToRepo(repo, startHash || null, oldHash || null);
 
-  addReflogEntryForHead(repo, {
+  addReflogEntry(repo, 'HEAD', {
     oldHash,
     newHash: startHash,
     action: 'checkout',
@@ -263,7 +263,7 @@ function checkoutDetach(repo: Repository, ref: string): CommandResult {
   // Aligner index + working tree (two-tree depuis l'ancien HEAD).
   applyTreeToRepo(repo, commitHash, oldHashDetach || null);
 
-  addReflogEntryForHead(repo, {
+  addReflogEntry(repo, 'HEAD', {
     oldHash: oldHashDetach,
     newHash: commitHash,
     action: 'checkout',

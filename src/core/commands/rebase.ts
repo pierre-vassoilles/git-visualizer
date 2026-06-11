@@ -15,7 +15,6 @@ import {
   headCommitHash,
   isAncestor,
   isInitialized,
-  mergeBase,
   replayCommit,
   replayCommitContinue,
   resolveCommitish,
@@ -83,45 +82,17 @@ export function cmdRebase(repo: Repository, args: string[]): CommandResult {
     return fail(['fatal: no commits yet; cannot rebase']);
   }
 
-  // Cas : déjà à jour (HEAD est ancêtre de base ou égal)
-  if (headHash === baseHash || isAncestor(repo, headHash, baseHash)) {
-    const branch = currentBranch(repo);
-    const branchLabel = branch ?? 'HEAD';
+  const branch = currentBranch(repo);
+  const branchLabel = branch ?? 'HEAD';
+
+  // Déjà à jour : HEAD == base.
+  if (headHash === baseHash) {
     return ok([`Current branch ${branchLabel} is already up to date.`]);
   }
 
-  // Cas fast-forward : base est ancêtre de HEAD
-  if (isAncestor(repo, baseHash, headHash)) {
-    const branch = currentBranch(repo);
-    const branchLabel = branch ?? 'HEAD';
-    return ok([`Current branch ${branchLabel} is already up to date.`]);
-  }
-
-  // Identifier les commits à rejouer
-  const commitsToReplay = getCommitsToReplay(repo, headHash, baseHash);
-
-  if (commitsToReplay.length === 0) {
-    const branch = currentBranch(repo);
-    const branchLabel = branch ?? 'HEAD';
-    return ok([`Current branch ${branchLabel} is already up to date.`]);
-  }
-
-  // Refus explicite : rebaser une branche contenant un commit de merge
-  if (commitsToReplay.some((c) => c.commit.parents.length > 1)) {
-    return fail([
-      'error: cannot rebase: the branch to rebase contains a merge commit (not supported)',
-    ]);
-  }
-
-  // Sauvegarder l'état avant rebase
-  const branchBeforeRebase = currentBranch(repo);
-  const indexBeforeRebase = cloneIndex(repo.index);
-  const workingTreeBeforeRebase = cloneWorkingTree(repo.workingTree);
-
-  // Vérifier si c'est un cas de fast-forward rebase
-  const commonAncestor = mergeBase(repo, headHash, baseHash);
-  if (commonAncestor === headHash) {
-    const branch = currentBranch(repo);
+  // RWR-08 : HEAD est ancêtre STRICT de base → fast-forward de la branche sur
+  // base (rebaser sur un descendant avance la branche, comme le vrai git).
+  if (isAncestor(repo, headHash, baseHash)) {
     if (branch !== null) {
       repo.refs.heads[branch] = baseHash;
     } else {
@@ -139,8 +110,34 @@ export function cmdRebase(repo: Repository, args: string[]): CommandResult {
       action: 'rebase',
       description: `finish ${baseRef}`,
     });
-    return ok(['Fast-forward']);
+    return ok([`Successfully rebased and updated ${branchLabel}.`]);
   }
+
+  // Commits à rejouer (base..HEAD).
+  const commitsToReplay = getCommitsToReplay(repo, headHash, baseHash);
+  if (commitsToReplay.length === 0) {
+    return ok([`Current branch ${branchLabel} is already up to date.`]);
+  }
+
+  // base ancêtre de HEAD en historique linéaire : en NON-interactif il n'y a rien
+  // à faire (les commits sont déjà au-dessus de base) → « already up to date ». En
+  // INTERACTIF on poursuit pour permettre d'éditer base..HEAD (cas canonique
+  // `git rebase -i HEAD~n`, jusque-là cassé car capté par ce raccourci).
+  if (!interactive && isAncestor(repo, baseHash, headHash)) {
+    return ok([`Current branch ${branchLabel} is already up to date.`]);
+  }
+
+  // Refus explicite : rebaser une branche contenant un commit de merge
+  if (commitsToReplay.some((c) => c.commit.parents.length > 1)) {
+    return fail([
+      'error: cannot rebase: the branch to rebase contains a merge commit (not supported)',
+    ]);
+  }
+
+  // Sauvegarder l'état avant rebase
+  const branchBeforeRebase = currentBranch(repo);
+  const indexBeforeRebase = cloneIndex(repo.index);
+  const workingTreeBeforeRebase = cloneWorkingTree(repo.workingTree);
 
   // Mode interactif : initialiser la todo list et attendre l'utilisateur
   if (interactive) {
@@ -246,8 +243,6 @@ export function cmdRebase(repo: Repository, args: string[]): CommandResult {
     description: `finish ${baseRef}`,
   });
 
-  const branch = currentBranch(repo);
-  const branchLabel = branch ?? 'HEAD';
   const warnings = skipped.map(
     (h) => `warning: skipped previously applied commit ${h.slice(0, 7)}`,
   );
